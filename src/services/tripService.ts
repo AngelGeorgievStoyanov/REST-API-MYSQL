@@ -40,6 +40,8 @@ const updateSqlLikes = `UPDATE hack_trip.trips SET likes =? WHERE _id =?`;
 const updateSqlReports = `UPDATE hack_trip.trips SET reportTrip =? WHERE _id =?`;
 
 
+const selectCreatedTrip = `SELECT * FROM hack_trip.trips WHERE title=? AND description=? AND price=? AND transport=? AND countPeoples=? AND typeOfPeople=? AND destination=? AND imageUrl=? AND _ownerId=? AND lat=? AND lng=?`;
+
 export class TripRepository implements ITripRepository<Trip> {
     constructor(protected pool: Pool) { }
 
@@ -61,7 +63,20 @@ export class TripRepository implements ITripRepository<Trip> {
                         return;
                     }
 
-                    resolve(trip);
+                    this.pool.query(selectCreatedTrip,
+                        [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.imageUrl,  trip._ownerId, trip.lat, trip.lng],
+                        (err, rows, fields) => {
+                            if (err) {
+
+                                console.log(err.message)
+                                reject(err);
+                                return;
+                            }
+
+
+                            resolve(rows[0]);
+                        });
+
                 });
         });
 
@@ -280,7 +295,6 @@ export class TripRepository implements ITripRepository<Trip> {
     }
 
     async getTop(): Promise<Trip[]> {
-console.log('----sssssssss')
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips', (err, rows, fields) => {
                 if (err) {
@@ -288,7 +302,7 @@ console.log('----sssssssss')
                     reject(err);
                     return;
                 }
-                console.log(rows)
+
                 resolve(rows.map(row => ({
                     ...row,
                     likes: row.likes ? row.likes.split(/[,\s]+/) : [],

@@ -150,7 +150,6 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                 if (rows.length > 0) {
                     deleteOne
                     commentDel = rows;
-                    console.log(commentDel)
                     this.pool.query(deleteOne, [id], (err, rows, fields) => {
                         if (err) {
                             console.log(err)
@@ -188,7 +187,6 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                 if (rows.length > 0) {
                     deleteOne
                     commentDel = rows;
-                    console.log(commentDel)
                     this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
                         if (err) {
                             console.log(err)

@@ -8,6 +8,7 @@ const pointController = express.Router()
 
 pointController.post('/', async (req, res) => {
 
+
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo')
     try {
 
@@ -74,7 +75,6 @@ pointController.put('/:id', async (req, res) => {
     try {
 
         const existing = await pointRepo.getPointById(req.params.id)
-        console.log(existing)
 
         try {
             const result = await pointRepo.updatePointById(req.params.id, req.body)

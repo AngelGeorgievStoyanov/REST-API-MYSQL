@@ -70,7 +70,21 @@ export class UserRepository implements IUserRepository<User> {
                         return;
                     }
 
-                    resolve(user);
+                    this.pool.query('SELECT * FROM hack_trip.users WHERE email =?', [user.email], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err)
+                            reject(err);
+                            return;
+                        }
+                        if (rows.length == 1) {
+        
+                            const user = rows[0];
+        
+                            resolve({ ...user });
+                        } 
+                    })
+
+                    
                 });
         });
 

@@ -129,7 +129,6 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                 if (rows.length > 0) {
                     deleteOne
                     pointsDel = rows;
-                    console.log(pointsDel)
                     this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
                         if (err) {
                             console.log(err)

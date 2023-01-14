@@ -19,18 +19,25 @@ authController.post('/login', async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo')
 
-    const user = await userRepo.findByEmail(req.body.email)
-    if (user.email !== req.body.email) {
+    try {
 
-        throw new Error('Incorrect email or password');
-    }
+        const user = await userRepo.findByEmail(req.body.email)
 
-    const match = await bcrypt.compare(req.body.password, user.hashedPassword)
-    if (!match) {
-        throw new Error('Incorrect email or password');
+        if (user.email !== req.body.email) {
+
+            throw new Error('Incorrect email or password');
+        }
+
+        const match = await bcrypt.compare(req.body.password, user.hashedPassword)
+        if (!match) {
+            throw new Error('Incorrect email or password');
+        }
+        const token = createToken(user)
+        res.status(200).json(token)
+    } catch (err) {
+        console.log(err.message)
+        res.status(401).json(err.message)
     }
-    const token = createToken(user)
-    res.status(200).json(token)
 })
 
 
@@ -63,26 +70,32 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
 
         const userRepo: IUserRepository<User> = req.app.get('usersRepo')
 
-
-        const existing = await userRepo.findByEmail(req.body.email)
-        if (existing.email === req.body.email) {
-        
-            throw new Error('Email is taken');
-        }
-
-        
         try {
-            
-            const user = await userRepo.create(req.body);
 
-            const token = createToken(user)
+            const existing = await userRepo.findByEmail(req.body.email)
+            if (existing.email === req.body.email) {
 
-            res.status(201).json(token)
+                throw new Error('Email is taken');
+            }
+
+
+            try {
+
+                const user = await userRepo.create(req.body);
+
+                const token = createToken(user)
+
+                res.status(201).json(token)
+            } catch (err) {
+                console.log(err)
+                res.status(400).json(err.message)
+            }
+
+
         } catch (err) {
             console.log(err)
+            res.status(400).json(err.message)
         }
-
-
 
     })
 
@@ -109,12 +122,12 @@ authController.post('/logout', async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo')
 
-if('token' in req){
+    if ('token' in req) {
 
-    const token = req.token  as IdType;
-    await userRepo.logout(token);
-}
-  
+        const token = req.token as IdType;
+        await userRepo.logout(token);
+    }
+
     res.json('Logout').status(204);
 })
 
