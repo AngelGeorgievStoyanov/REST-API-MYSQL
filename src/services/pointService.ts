@@ -26,7 +26,7 @@ const deleteByOTripId = `DELETE from hack_trip.points WHERE (_ownerTripId =? AND
 const selectByOwnerId = `SELECT * FROM hack_trip.points WHERE _ownerTripId =?`;
 
 
-const updateSql = `UPDATE hack_trip.points SET name =?, description=?, imageUrl=?, lat=?, lng=?, pointNumber=? WHERE _id =?`;
+const updateSql = `UPDATE hack_trip.points SET name =?, description=?, imageUrl=?, lat=?, lng=?, pointNumber=? WHERE (_id =? AND _id>0)`;
 
 const updatePositionSql = `UPDATE hack_trip.points SET pointNumber=? WHERE _id =?`;
 
@@ -190,7 +190,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [point.name, point.description, point.imageUrl, point.lat, point.lng, point.pointNumber, id], (err, rows, fields) => {
                 if (err) {
-
+console.log(err)
                     reject(err);
                     return;
                 }
