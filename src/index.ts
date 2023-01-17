@@ -12,6 +12,7 @@ import pointController from './controllers/pointController';
 import { PointTripRepository } from './services/pointService';
 import commentController from './controllers/commentController';
 import { CommentTripRepository } from './services/commentService';
+import { join } from 'path';
 
 export const HOSTNAME = 'localhost';
 export const PORT = 8001;
@@ -26,8 +27,11 @@ app.use(cors({
 
 app.use(logger('dev'));
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json())
+app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
+app.use(bodyParser.json({limit: '50mb'}));
+app.use('/uploads',express.static(join(__dirname, 'uploads')));
+
+
 app.use('/users', authController);
 app.use('/data/trips', tripController);
 app.use('/data/points', pointController);
@@ -63,6 +67,7 @@ let trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     timeCreated DATE NULL DEFAULT NULL,
     timeEdited DATE NULL DEFAULT NULL,
     reportTrip VARCHAR(45) NULL DEFAULT NULL,
+    imageFile VARCHAR(2000) NULL DEFAULT NULL,
     PRIMARY KEY (_id),
     UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
   `;
@@ -76,6 +81,7 @@ let points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     _ownerTripId VARCHAR(45) NULL DEFAULT NULL,
     lat VARCHAR(45) NULL DEFAULT NULL,
     lng VARCHAR(45) NULL DEFAULT NULL,
+    pointNumber VARCHAR(45) NOT NULL,
     PRIMARY KEY (_id))
   `;
 

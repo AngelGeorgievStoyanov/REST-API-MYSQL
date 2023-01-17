@@ -11,8 +11,8 @@ export interface ITripRepository<T extends Identifiable> {
     updateTripById(id: IdType, entity: T): Promise<T>;
     updateTripLikeByuserId(id: IdType, entity: T): Promise<T>;
     reportTripByuserId(id: IdType, entity: T): Promise<T>;
+    editImagesByTripId(id: IdType, entity: T): Promise<T>;
+
 }
-
-
 
 

@@ -10,7 +10,7 @@ export class Point {
         public _ownerTripId: string,
         public lat: string,
         public lng: string,
-       
+        public pointNumber: IdType
 
     ) { }
 }

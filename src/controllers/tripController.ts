@@ -1,11 +1,38 @@
 import * as express from 'express'
 import { ITripRepository } from '../interface/trip-repository'
 import { Trip } from '../model/trip'
-
-
-
+import * as multer from 'multer'
+// import { diskStorage } from 'multer'
+const path = require('path');
 const tripController = express.Router()
 
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+       
+        cb(null, path.join(__dirname, '../uploads/'));
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + file.originalname)
+    }
+
+})
+
+
+const upload=multer({storage})
+
+
+
+
+tripController.post('/upload', upload.array('file',12),function(req,res){
+    
+    let files=req.files
+    
+   
+   
+   
+    res.status(200).json(files)
+})
 
 
 tripController.get('/top', async (req, res) => {
@@ -28,6 +55,9 @@ tripController.get('/top', async (req, res) => {
 tripController.post('/', async (req, res) => {
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
+
+
+
     try {
 
         const trip = await tripRepo.create(req.body)
@@ -177,6 +207,28 @@ tripController.put('/report/:id', async (req, res) => {
 
 
 
+
+
+tripController.put('/edit-images/:id', async (req, res) => {
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
+
+
+
+    try {
+
+        const existing = await tripRepo.getTripById(req.params.id)
+
+        try {
+            const result = await tripRepo.editImagesByTripId(req.params.id, req.body)
+
+            res.json(result)
+        } catch (err) {
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+        res.status(400).json(err.message);
+    }
+})
 
 
 export default tripController

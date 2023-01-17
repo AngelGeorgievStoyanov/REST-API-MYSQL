@@ -11,4 +11,5 @@ export interface IPointTripRepository<T extends Identifiable> {
     deletePointByTripId(id: IdType): Promise<T[]>
     getPointById(id: IdType): Promise<T>;
     updatePointById(id:IdType,entity:T):Promise<T>
+    updatePointPositionById(id:IdType,position:IdType):Promise<T>
 }

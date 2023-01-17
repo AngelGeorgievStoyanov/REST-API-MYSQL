@@ -11,9 +11,10 @@ const createSql = `INSERT INTO hack_trip.points (
     imageUrl,
     _ownerTripId,
     lat,
-    lng
+    lng,
+    pointNumber
   )
-  VALUES (?, ?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?);`;
 
 
 const selectOne = `SELECT * FROM hack_trip.points WHERE _id =?`;
@@ -25,17 +26,20 @@ const deleteByOTripId = `DELETE from hack_trip.points WHERE (_ownerTripId =? AND
 const selectByOwnerId = `SELECT * FROM hack_trip.points WHERE _ownerTripId =?`;
 
 
-const updateSql = `UPDATE hack_trip.points SET name =?, description=?, imageUrl=?, lat=?, lng=? WHERE _id =?`;
+const updateSql = `UPDATE hack_trip.points SET name =?, description=?, imageUrl=?, lat=?, lng=?, pointNumber=? WHERE _id =?`;
+
+const updatePositionSql = `UPDATE hack_trip.points SET pointNumber=? WHERE _id =?`;
+
+
 
 export class PointTripRepository implements IPointTripRepository<Point> {
     constructor(protected pool: Pool) { }
 
     async create(point: Point): Promise<Point> {
 
-
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [point.name, point.description, point.imageUrl, point._ownerTripId, point.lat, point.lng],
+                [point.name, point.description, point.imageUrl, point._ownerTripId, point.lat, point.lng, point.pointNumber],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -89,7 +93,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                     reject(err);
                     return;
                 }
-                if (rows.length ===1) {
+                if (rows.length === 1) {
                     deleteOne
                     pointDel = rows[0];
                     this.pool.query(deleteOne, [id], (err, rows, fields) => {
@@ -182,11 +186,11 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
 
     async updatePointById(id: IdType, point: Point): Promise<Point> {
-     
+
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSql, [point.name, point.description, point.imageUrl, point.lat, point.lng, id], (err, rows, fields) => {
+            this.pool.query(updateSql, [point.name, point.description, point.imageUrl, point.lat, point.lng, point.pointNumber, id], (err, rows, fields) => {
                 if (err) {
-                 
+
                     reject(err);
                     return;
                 }
@@ -213,6 +217,49 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         })
     }
 
+
+
+    async updatePointPositionById(id: IdType, pointPosition: IdType): Promise<Point> {
+
+        return new Promise((resolve, reject) => {
+            
+            this.pool.query(updatePositionSql, [pointPosition, id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err)
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            const point = rows[0];
+                            resolve(point);
+
+                        }
+
+                    })
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
+            })
+
+
+
+         
+        })
+
+
+
+
+
+    }
 
 }
 

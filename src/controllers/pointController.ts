@@ -62,11 +62,48 @@ pointController.get('/edit/:id', async (req, res) => {
 
         const point = await pointRepo.getPointById(req.params.id)
 
-        res.json(point)
+        res.status(200).json(point)
     } catch (err) {
         res.status(400).json(err.message)
     }
 })
+
+
+pointController.put('/edit-position/:id', async (req, res) => {
+
+    const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo')
+
+    try {
+        
+        const existing1 = await pointRepo.getPointById(req.body.currentCardId)
+        const existing2 = await pointRepo.getPointById(req.body.upCurrentCardId)
+
+        try {
+            
+            const result = await pointRepo.updatePointPositionById(req.body.currentCardId, req.body.currentIdNewPosition)
+            const result1 = await pointRepo.updatePointPositionById(req.body.upCurrentCardId, req.body.upCurrentCardNewPosition)
+            
+          
+           const points = await pointRepo.findByTripId(req.params.id)
+          
+         
+            res.status(200).json(points)
+           
+        } catch (err) {
+            res.status(400).json(err.message)
+        }
+
+
+
+
+    } catch (err) {
+        res.status(400).json(err.message)
+    }
+
+    
+
+})
+
 
 
 pointController.put('/:id', async (req, res) => {
