@@ -155,6 +155,7 @@ export class TripRepository implements ITripRepository<Trip> {
                 if (rows.length === 1) {
 
                     tripDel = rows[0];
+               
                     this.pool.query(deleteOne, [id], (err, rows, fields) => {
                         if (err) {
                             console.log(err)

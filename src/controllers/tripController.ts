@@ -2,10 +2,15 @@ import * as express from 'express'
 import { ITripRepository } from '../interface/trip-repository'
 import { Trip } from '../model/trip'
 import * as multer from 'multer'
-// import { diskStorage } from 'multer'
-const path = require('path');
-const tripController = express.Router()
+// const path = require('path');
+import * as path from 'path'
 import * as fsPromises from 'fs/promises'
+
+
+
+
+
+const tripController = express.Router()
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -115,6 +120,23 @@ tripController.delete('/:id', async (req, res) => {
     try {
 
         const result = await tripRepo.deleteTrypById(req.params.id)
+
+
+
+        let images
+        images = result.imageFile
+        images.split(',').map((x) => {
+            const filePath = path.join(__dirname, `../uploads/${x}`)
+            try {
+
+                deleteFile(filePath)
+            } catch (err) {
+                console.log(err)
+            }
+
+        })
+
+
         res.json(result).status(204)
     } catch (err) {
         res.status(400).json(err.message)

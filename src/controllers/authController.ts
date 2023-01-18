@@ -62,7 +62,6 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
             }
 
         } catch (error) {
-            // const message = parseError(error)
             res.status(400).json(error.message)
         }
 
