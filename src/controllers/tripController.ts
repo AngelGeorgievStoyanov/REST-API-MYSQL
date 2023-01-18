@@ -5,11 +5,11 @@ import * as multer from 'multer'
 // import { diskStorage } from 'multer'
 const path = require('path');
 const tripController = express.Router()
-
+import * as fsPromises from 'fs/promises'
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-       
+
         cb(null, path.join(__dirname, '../uploads/'));
     },
     filename: function (req, file, cb) {
@@ -19,18 +19,18 @@ const storage = multer.diskStorage({
 })
 
 
-const upload=multer({storage})
+const upload = multer({ storage })
 
 
 
 
-tripController.post('/upload', upload.array('file',12),function(req,res){
-    
-    let files=req.files
-    
-   
-   
-   
+tripController.post('/upload', upload.array('file', 12), function (req, res) {
+
+    let files = req.files
+
+
+
+
     res.status(200).json(files)
 })
 
@@ -217,18 +217,47 @@ tripController.put('/edit-images/:id', async (req, res) => {
     try {
 
         const existing = await tripRepo.getTripById(req.params.id)
+        const fileName = req.body[0]
+        const filePath = path.join(__dirname, `../uploads/${fileName}`)
+
+        const index = existing.imageFile?.indexOf(fileName)
+
+        const editedListImage = existing?.imageFile
+
+        editedListImage.splice(index, 1)
+
+        existing.imageFile = editedListImage
 
         try {
-            const result = await tripRepo.editImagesByTripId(req.params.id, req.body)
+            deleteFile(filePath)
+            const result = await tripRepo.editImagesByTripId(req.params.id, existing)
 
             res.json(result)
+
         } catch (err) {
+
             res.status(400).json(err.message);
         }
     } catch (err) {
+
+
+
+
         res.status(400).json(err.message);
+
     }
 })
+
+
+
+const deleteFile = async (filePath) => {
+    try {
+        await fsPromises.unlink(filePath)
+        console.log('File deleted')
+    } catch (err) {
+        console.log(err)
+    }
+}
 
 
 export default tripController

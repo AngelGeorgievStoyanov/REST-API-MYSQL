@@ -300,9 +300,10 @@ export class TripRepository implements ITripRepository<Trip> {
     }
 
 
-    async editImagesByTripId(id: IdType, images): Promise<Trip> {
+    async editImagesByTripId(id: IdType, data:Trip): Promise<Trip> {
 
-        let editedImages = images.join()
+        let editedImages = data.imageFile.join()
+
         return new Promise((resolve, reject) => {
             this.pool.query(updateSqlImages, [editedImages, id], (err, rows, fields) => {
                 if (err) {

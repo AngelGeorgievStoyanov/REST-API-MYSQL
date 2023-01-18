@@ -73,6 +73,8 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
         try {
 
             const existing = await userRepo.findByEmail(req.body.email)
+       
+         
             if (existing.email === req.body.email) {
 
                 throw new Error('Email is taken');
