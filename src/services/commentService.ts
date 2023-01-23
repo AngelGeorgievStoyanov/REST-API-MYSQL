@@ -202,10 +202,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                     })
 
 
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
+                } 
             })
         })
     }

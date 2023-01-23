@@ -27,9 +27,9 @@ app.use(cors({
 
 app.use(logger('dev'));
 
-app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
-app.use(bodyParser.json({limit: '50mb'}));
-app.use('/uploads',express.static(join(__dirname, 'uploads')));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use('/uploads', express.static(join(__dirname, 'uploads')));
 
 
 app.use('/users', authController);
@@ -82,6 +82,7 @@ let points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     lat VARCHAR(45) NULL DEFAULT NULL,
     lng VARCHAR(45) NULL DEFAULT NULL,
     pointNumber VARCHAR(45) NOT NULL,
+    imageFile VARCHAR(2000) NULL DEFAULT NULL,
     PRIMARY KEY (_id))
   `;
 
@@ -119,7 +120,7 @@ let comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
             } else {
                 console.log(`Table USERS created!`)
             }
-            
+
         })
         connection.release()
 
@@ -129,7 +130,7 @@ let comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
             } else {
                 console.log(`Table TRIPS created!`)
             }
-            
+
         })
         connection.release()
 
@@ -141,7 +142,7 @@ let comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
             } else {
                 console.log(`Table POINTS created!`)
             }
-            
+
         })
         connection.release()
 
@@ -152,9 +153,9 @@ let comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
             } else {
                 console.log(`Table COMMENTS created!`)
             }
-            
+
         })
-        
+
         connection.destroy()
 
 

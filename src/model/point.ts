@@ -2,7 +2,7 @@ import { IdType } from "../interface/user-repository";
 
 
 export class Point {
-    id?: IdType
+    _id?: IdType
     constructor(
         public name: string,
         public description: string,
@@ -10,7 +10,8 @@ export class Point {
         public _ownerTripId: string,
         public lat: string,
         public lng: string,
-        public pointNumber: IdType
+        public pointNumber: IdType,
+        public imageFile:string[]
 
     ) { }
 }

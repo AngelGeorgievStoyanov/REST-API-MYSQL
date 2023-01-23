@@ -12,7 +12,7 @@ import * as fsPromises from 'fs/promises'
 
 const tripController = express.Router()
 
-const storage = multer.diskStorage({
+export const storage = multer.diskStorage({
     destination: function (req, file, cb) {
 
         cb(null, path.join(__dirname, '../uploads/'));
@@ -24,7 +24,7 @@ const storage = multer.diskStorage({
 })
 
 
-const upload = multer({ storage })
+export  const upload = multer({ storage })
 
 
 

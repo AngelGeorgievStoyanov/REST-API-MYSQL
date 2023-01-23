@@ -2,7 +2,7 @@ import { IdType } from "../interface/user-repository";
 
 
 export class Comment {
-    id?: IdType
+    _id?: IdType
     constructor(
         public nameAuthor: string,
         public comment: string,

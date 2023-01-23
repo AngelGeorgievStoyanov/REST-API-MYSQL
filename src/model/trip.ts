@@ -11,7 +11,7 @@ export enum TypeOfPeople {
 
 
 export class Trip {
-    id?: IdType
+    _id?: IdType
     constructor(
         public title: string,
         public description: string,

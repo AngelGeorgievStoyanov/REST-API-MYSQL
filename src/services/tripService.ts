@@ -50,7 +50,6 @@ export class TripRepository implements ITripRepository<Trip> {
 
 
     async create(trip: Trip): Promise<Trip> {
-
         trip.timeCreated = new Date()
         trip.timeEdited = new Date()
         let imagesNew = trip.imageFile.join()
