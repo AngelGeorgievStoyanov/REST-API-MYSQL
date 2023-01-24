@@ -12,5 +12,7 @@ export interface IUserRepository<T extends Identifiable> {
 
     findByEmail(id: IdType): Promise<T>;
 
-    logout(token:IdType)
+    logout(token: IdType)
+
+    login(id: IdType,count: IdType): Promise<T>
 }

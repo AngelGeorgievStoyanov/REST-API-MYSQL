@@ -44,6 +44,10 @@ let users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
     firstName VARCHAR(45) NOT NULL,
     lastName VARCHAR(45) NOT NULL,
     hashedPassword VARCHAR(85) NOT NULL,
+    timeCreated DATE NULL DEFAULT NULL,
+    timeEdited DATE NULL DEFAULT NULL,
+    lastTimeLogin DATE NULL DEFAULT NULL,
+    countOfLogs BIGINT NOT NULL,
     PRIMARY KEY (_id),
     UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE,
     UNIQUE INDEX email_UNIQUE (email ASC) VISIBLE)

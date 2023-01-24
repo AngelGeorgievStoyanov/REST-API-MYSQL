@@ -13,13 +13,19 @@ const createSql = `INSERT INTO hack_trip.users (
     email,
     firstName,
     lastName,
-    hashedPassword
+    hashedPassword,
+    timeCreated,
+    timeEdited,
+    lastTimeLogin,
+    countOfLogs
   )
-  VALUES (?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
 
 
 
+const loginSql = `UPDATE hack_trip.users SET lastTimeLogin =?, countOfLogs=? WHERE _id =?`;
 
+const selectOne = `SELECT * FROM hack_trip.users WHERE _id =?`;
 
 
 export class UserRepository implements IUserRepository<User> {
@@ -55,13 +61,17 @@ export class UserRepository implements IUserRepository<User> {
 
     async create(user): Promise<User> {
         let pass = user.password
+        user.timeCreated = new Date()
+        user.timeEdited = new Date()
+        user.lastTimeLogin = new Date()
 
 
         user.hashedPassword = await bcrypt.hash(pass, 10)
 
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [user.email, user.firstName, user.lastName, user.hashedPassword],
+                [user.email, user.firstName, user.lastName, user.hashedPassword,
+                user.timeCreated, user.timeEdited, user.lastTimeLogin, user.countOfLogs],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -77,14 +87,14 @@ export class UserRepository implements IUserRepository<User> {
                             return;
                         }
                         if (rows.length == 1) {
-        
+
                             const user = rows[0];
-        
+
                             resolve({ ...user });
-                        } 
+                        }
                     })
 
-                    
+
                 });
         });
 
@@ -94,6 +104,40 @@ export class UserRepository implements IUserRepository<User> {
 
     async logout(token: IdType) {
         tokenBlacklist.add(token);
+    }
+
+
+    async login(id: IdType, count: IdType): Promise<User> {
+        let newLastTimeLogs = new Date()
+        let newCount = Number(count) + 1
+        return new Promise((resolve, reject) => {
+            this.pool.query(loginSql, [newLastTimeLogs, newCount, id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err)
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            const point = rows[0];
+                            resolve(point);
+
+                        }
+
+                    })
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
+            })
+        })
     }
 
 }

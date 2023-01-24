@@ -33,6 +33,16 @@ authController.post('/login', async (req, res) => {
             throw new Error('Incorrect email or password');
         }
         const token = createToken(user)
+
+        try {
+            const result = await userRepo.login(user._id, user.countOfLogs)
+            console.log(result)
+
+        } catch (err) {
+            console.log(err)
+            throw new Error(err)
+        }
+
         res.status(200).json(token)
     } catch (err) {
         console.log(err.message)
@@ -72,8 +82,8 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
         try {
 
             const existing = await userRepo.findByEmail(req.body.email)
-       
-         
+
+
             if (existing.email === req.body.email) {
 
                 throw new Error('Email is taken');
