@@ -22,4 +22,6 @@ export interface IUserRepository<T extends Identifiable> {
 
     updateUserPass(id: IdType, entity: T): Promise<T>;
 
+    editProfileImage(id: IdType, entity: string): Promise<T>;
+
 }

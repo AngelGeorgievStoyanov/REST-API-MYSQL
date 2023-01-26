@@ -246,5 +246,40 @@ export class UserRepository implements IUserRepository<User> {
         })
     }
 
+
+    async editProfileImage(id: IdType, entity: string): Promise<User> {
+        return new Promise((resolve, reject) => {
+            this.pool.query('UPDATE hack_trip.users SET imageFile = null WHERE imageFile=? AND _id =?', [entity, id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err)
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            const user = rows[0];
+                            resolve(user);
+
+                        }
+
+                    })
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
+            })
+        })
+    }
+
+
+
+
 }
 

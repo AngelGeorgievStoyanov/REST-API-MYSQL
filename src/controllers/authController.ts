@@ -166,17 +166,21 @@ authController.put('/edit/:id', async (req, res) => {
 
         try {
             if (req.body.password.length > 0 && req.body.oldpassword.length > 0 && req.body.confirmpass.length > 0) {
-           
+
                 if (req.body.imageFile === undefined) {
                     req.body.imageFile = user.imageFile
                 } else {
 
                     const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
-                    try {
+                   
+                    if (filePath !== null) {
 
-                        deleteFile(filePath)
-                    } catch (err) {
-                        console.log(err)
+                        try {
+
+                            deleteFile(filePath)
+                        } catch (err) {
+                            console.log(err)
+                        }
                     }
                 }
 
@@ -190,11 +194,14 @@ authController.put('/edit/:id', async (req, res) => {
                 } else {
 
                     const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
-                    try {
+                  
+                    if (filePath !== null) {
+                        try {
 
-                        deleteFile(filePath)
-                    } catch (err) {
-                        console.log(err)
+                            deleteFile(filePath)
+                        } catch (err) {
+                            console.log(err)
+                        }
                     }
                 }
                 const editedUser = await userRepo.updateUser(id, req.body)
@@ -261,6 +268,39 @@ authController.post('/upload', upload.array('file', 1), function (req, res) {
 })
 
 
+
+
+authController.put('/delete-image/:id', async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+
+
+
+    try {
+
+        const existing = await userRepo.findById(req.params.id)
+        const fileName = req.body.image
+        const filePath = path.join(__dirname, `../uploads/${fileName}`)
+
+
+        try {
+            deleteFile(filePath)
+            const result = await userRepo.editProfileImage(req.params.id, fileName)
+
+            res.json(result)
+
+        } catch (err) {
+
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+
+
+
+
+        res.status(400).json(err.message);
+
+    }
+})
 
 const deleteFile = async (filePath) => {
     try {
