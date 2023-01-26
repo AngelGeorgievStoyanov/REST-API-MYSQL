@@ -2,7 +2,6 @@ import * as express from 'express'
 import { ITripRepository } from '../interface/trip-repository'
 import { Trip } from '../model/trip'
 import * as multer from 'multer'
-// const path = require('path');
 import * as path from 'path'
 import * as fsPromises from 'fs/promises'
 
@@ -32,8 +31,6 @@ export  const upload = multer({ storage })
 tripController.post('/upload', upload.array('file', 12), function (req, res) {
 
     let files = req.files
-
-
 
 
     res.status(200).json(files)

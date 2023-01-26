@@ -5,6 +5,9 @@ import { User } from '../model/user';
 import * as jwt from 'jsonwebtoken'
 import * as bcrypt from 'bcrypt'
 import { IdType, IUserRepository } from '../interface/user-repository';
+import { upload } from './tripController';
+import * as path from 'path'
+import * as fsPromises from 'fs/promises'
 
 const secret = 'very_secret!!!!';
 
@@ -36,7 +39,6 @@ authController.post('/login', async (req, res) => {
 
         try {
             const result = await userRepo.login(user._id, user.countOfLogs)
-            console.log(result)
 
         } catch (err) {
             console.log(err)
@@ -111,6 +113,112 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
     })
 
 
+
+authController.get('/profile/:id', async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+
+    try {
+
+        const user = await userRepo.findById(req.params.id)
+        res.status(200).json(user)
+
+    } catch (err) {
+        console.log(err.message)
+        res.status(401).json(err.message)
+    }
+
+})
+
+
+authController.post('/confirmpassword/:id', async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+
+    const id = req.params.id
+    const password = req.body.password
+
+    try {
+        const user = await userRepo.findById(req.params.id)
+        const match = await bcrypt.compare(req.body.password, user.hashedPassword)
+        if (!match) {
+            throw new Error('Incorrect  password');
+        }
+        res.status(200).json(user)
+
+
+    } catch (err) {
+        console.log(err)
+        res.status(401).json(err.message)
+    }
+})
+
+
+
+
+authController.put('/edit/:id', async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const id = req.params.id
+
+
+    try {
+
+        const user = await userRepo.findById(req.params.id)
+
+
+        try {
+            if (req.body.password.length > 0 && req.body.oldpassword.length > 0 && req.body.confirmpass.length > 0) {
+           
+                if (req.body.imageFile === undefined) {
+                    req.body.imageFile = user.imageFile
+                } else {
+
+                    const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
+                    try {
+
+                        deleteFile(filePath)
+                    } catch (err) {
+                        console.log(err)
+                    }
+                }
+
+
+                const editedUserPassword = await userRepo.updateUserPass(id, req.body)
+                res.status(200).json(editedUserPassword)
+
+            } else {
+                if (req.body.imageFile === undefined) {
+                    req.body.imageFile = user.imageFile
+                } else {
+
+                    const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
+                    try {
+
+                        deleteFile(filePath)
+                    } catch (err) {
+                        console.log(err)
+                    }
+                }
+                const editedUser = await userRepo.updateUser(id, req.body)
+
+
+                res.status(200).json(editedUser)
+
+            }
+
+
+
+        } catch (err) {
+            console.log(err)
+        }
+
+    } catch (err) {
+        console.log(err.message)
+        res.status(401).json(err.message)
+    }
+
+})
+
+
+
 function createToken(user) {
     const payload = {
         _id: user._id,
@@ -141,6 +249,28 @@ authController.post('/logout', async (req, res) => {
 
     res.json('Logout').status(204);
 })
+
+
+
+authController.post('/upload', upload.array('file', 1), function (req, res) {
+
+    let files = req.files
+
+
+    res.status(200).json(files)
+})
+
+
+
+const deleteFile = async (filePath) => {
+    try {
+        await fsPromises.unlink(filePath)
+        console.log('File deleted')
+    } catch (err) {
+        console.log(err)
+    }
+}
+
 
 
 export default authController

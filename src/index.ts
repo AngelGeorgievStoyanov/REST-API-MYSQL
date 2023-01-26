@@ -48,6 +48,7 @@ let users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
     timeEdited DATE NULL DEFAULT NULL,
     lastTimeLogin DATE NULL DEFAULT NULL,
     countOfLogs BIGINT NOT NULL,
+    imageFile VARCHAR(2000) NULL DEFAULT NULL,
     PRIMARY KEY (_id),
     UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE,
     UNIQUE INDEX email_UNIQUE (email ASC) VISIBLE)

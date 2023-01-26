@@ -27,6 +27,9 @@ const loginSql = `UPDATE hack_trip.users SET lastTimeLogin =?, countOfLogs=? WHE
 
 const selectOne = `SELECT * FROM hack_trip.users WHERE _id =?`;
 
+const updateUserSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=? WHERE _id =?`;
+const updateUserPassSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=?, hashedPassword=? WHERE _id =?`;
+
 
 export class UserRepository implements IUserRepository<User> {
     constructor(protected pool: Pool) { }
@@ -127,6 +130,109 @@ export class UserRepository implements IUserRepository<User> {
                         if (rows) {
                             const point = rows[0];
                             resolve(point);
+
+                        }
+
+                    })
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
+            })
+        })
+    }
+
+
+
+    async findById(id): Promise<User> {
+
+        return new Promise((resolve, reject) => {
+            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows, fields) => {
+                if (err) {
+                    console.log(err)
+                    reject(err);
+                    return;
+                }
+                if (rows.length == 1) {
+
+                    const user = rows[0];
+
+                    resolve({ ...user });
+                } else {
+
+                    resolve(id)
+                }
+            })
+        })
+
+
+
+    }
+
+
+    async updateUser(id: IdType, user: User): Promise<User> {
+
+        user.timeEdited = new Date()
+        return new Promise((resolve, reject) => {
+            this.pool.query(updateUserSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err)
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            const user = rows[0];
+
+
+                            resolve(user);
+
+                        }
+
+                    })
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
+            })
+        })
+
+    }
+
+
+    async updateUserPass(id: IdType, user): Promise<User> {
+
+
+        let pass = user.password
+        user.timeEdited = new Date()
+        user.hashedPassword = await bcrypt.hash(pass, 10)
+
+
+        return new Promise((resolve, reject) => {
+            this.pool.query(updateUserPassSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, user.hashedPassword, id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err)
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            const user = rows[0];
+                            resolve(user);
 
                         }
 

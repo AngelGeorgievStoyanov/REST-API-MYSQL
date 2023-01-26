@@ -13,7 +13,8 @@ export interface IUser {
     timeCreated: string;
     timeEdited: string;
     lastTimeLogin: string,
-    countOfLogs: string
+    countOfLogs: string;
+    imageFile:string;
 }
 
 
@@ -29,8 +30,8 @@ export class User {
         public timeCreated?: Date,
         public timeEdited?: Date,
         public lastTimeLogin?: Date,
-        public countOfLogs?: string
-
+        public countOfLogs?: string,
+        public imageFile?:string
     ) { }
 }
 
