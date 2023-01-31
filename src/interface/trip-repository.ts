@@ -12,7 +12,10 @@ export interface ITripRepository<T extends Identifiable> {
     updateTripLikeByuserId(id: IdType, entity: T): Promise<T>;
     reportTripByuserId(id: IdType, entity: T): Promise<T>;
     editImagesByTripId(id: IdType, entity: T): Promise<T>;
-
+    getAllReports(): Promise<T[]>;
+    deleteReportTripByuserId(id: IdType, entity: T): Promise<T>;
+    updateTripFavoritesByuserId(id: IdType, entity: T): Promise<T>;
+    getAllMyFavorites(id: IdType): Promise<T[]>;
 }
 
 

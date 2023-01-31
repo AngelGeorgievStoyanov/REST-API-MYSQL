@@ -19,9 +19,12 @@ export interface IUserRepository<T extends Identifiable> {
     findById(id: IdType): Promise<T>;
 
     updateUser(id: IdType, entity: T): Promise<T>;
+   
+    updateUserAdmin(id: IdType, entity: T): Promise<T>;
 
     updateUserPass(id: IdType, entity: T): Promise<T>;
 
     editProfileImage(id: IdType, entity: string): Promise<T>;
 
+    getAll(): Promise<T[]>;
 }

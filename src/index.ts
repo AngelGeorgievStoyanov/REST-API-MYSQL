@@ -2,6 +2,7 @@ import * as express from 'express'
 import * as cors from 'cors';
 import * as logger from 'morgan';
 import * as mysql from 'mysql';
+import { NextFunction, Request, Response } from "express";
 
 import * as bodyParser from 'body-parser'
 import tripController from './controllers/tripController'
@@ -25,6 +26,7 @@ app.use(cors({
     methods: 'GET,POST,PUT,DELETE'
 }));
 
+
 app.use(logger('dev'));
 
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
@@ -47,8 +49,10 @@ let users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
     timeCreated DATE NULL DEFAULT NULL,
     timeEdited DATE NULL DEFAULT NULL,
     lastTimeLogin DATE NULL DEFAULT NULL,
-    countOfLogs BIGINT NOT NULL,
+    countOfLogs BIGINT DEFAULT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
+    role VARCHAR(8) NOT NULL DEFAULT 'user',
+    status VARCHAR(12) NOT NULL DEFAULT 'ACTIVE',
     PRIMARY KEY (_id),
     UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE,
     UNIQUE INDEX email_UNIQUE (email ASC) VISIBLE)
@@ -56,13 +60,13 @@ let users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
 
 let trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     _id INT NOT NULL AUTO_INCREMENT,
-    title VARCHAR(45) NOT NULL,
+    title VARCHAR(60) NOT NULL,
     description VARCHAR(2000) NULL,
     price DOUBLE NULL,
     transport VARCHAR(45) NULL DEFAULT NULL,
     countPeoples INT NOT NULL,
     typeOfPeople VARCHAR(45) NULL DEFAULT NULL,
-    destination VARCHAR(45) NULL DEFAULT NULL,
+    destination VARCHAR(60) NULL DEFAULT NULL,
     imageUrl VARCHAR(500) NULL DEFAULT NULL,
     coments VARCHAR(45) NULL DEFAULT NULL,
     likes VARCHAR(45) NULL DEFAULT NULL,
@@ -73,6 +77,7 @@ let trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     timeEdited DATE NULL DEFAULT NULL,
     reportTrip VARCHAR(45) NULL DEFAULT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
+    favorites VARCHAR(45) NULL DEFAULT NULL,
     PRIMARY KEY (_id),
     UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
   `;

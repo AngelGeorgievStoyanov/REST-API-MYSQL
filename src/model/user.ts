@@ -14,7 +14,9 @@ export interface IUser {
     timeEdited: string;
     lastTimeLogin: string,
     countOfLogs: string;
-    imageFile:string;
+    imageFile: string;
+    role: string;
+    status: string;
 }
 
 
@@ -31,7 +33,11 @@ export class User {
         public timeEdited?: Date,
         public lastTimeLogin?: Date,
         public countOfLogs?: string,
-        public imageFile?:string
+        public imageFile?: string,
+        public role?: string,
+        public status?: string,
+
+
     ) { }
 }
 

@@ -29,7 +29,8 @@ export class Trip {
         public timeCreated: Date,
         public timeEdited: Date,
         public reportTrip: string[],
-        public imageFile:string[]
-
+        public imageFile:string[],
+        public favorites:string[]
+       
     ) { }
 }

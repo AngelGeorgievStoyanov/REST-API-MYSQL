@@ -86,8 +86,21 @@ tripController.get('/', async (req, res) => {
 
 
 })
+tripController.get('/reports', async (req, res) => {
 
 
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
+
+    try {
+
+        const trips = await tripRepo.getAllReports()
+        res.status(200).json(trips)
+    } catch (err) {
+        res.json(err.message)
+    }
+
+
+})
 
 tripController.get('/:id', async (req, res) => {
 
@@ -155,7 +168,18 @@ tripController.get('/my-trips/:id', async (req, res) => {
 
 })
 
+tripController.get('/favorites/:id', async (req, res) => {
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
 
+    try {
+        const trips = await tripRepo.getAllMyFavorites(req.params.id)
+
+        res.json(trips)
+    } catch (err) {
+        res.status(400).json(err.message)
+    }
+
+})
 tripController.put('/:id', async (req, res) => {
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
@@ -204,6 +228,24 @@ tripController.put('/like/:id', async (req, res) => {
 
 })
 
+tripController.put('/favorites/:id', async (req, res) => {
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
+
+    try {
+
+        const existing = await tripRepo.getTripById(req.params.id)
+
+        try {
+            const result = await tripRepo.updateTripFavoritesByuserId(req.params.id, req.body)
+
+            res.json(result)
+        } catch (err) {
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+        res.status(400).json(err.message);
+    }
+})
 
 tripController.put('/report/:id', async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
@@ -224,6 +266,25 @@ tripController.put('/report/:id', async (req, res) => {
     }
 })
 
+
+tripController.put('/admin/delete-report/:id', async (req, res) => {
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
+
+    try {
+
+        const existing = await tripRepo.getTripById(req.params.id)
+
+        try {
+            const result = await tripRepo.deleteReportTripByuserId(req.params.id, req.body)
+
+            res.json(result)
+        } catch (err) {
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+        res.status(400).json(err.message);
+    }
+})
 
 
 

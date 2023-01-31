@@ -16,7 +16,8 @@ const secret = 'very_secret!!!!';
 
 
 
-const authController = express.Router()
+const authController = express.Router();
+
 
 authController.post('/login', async (req, res) => {
 
@@ -35,6 +36,14 @@ authController.post('/login', async (req, res) => {
         if (!match) {
             throw new Error('Incorrect email or password');
         }
+
+        if (user.status === 'SUSPENDED' || user.status === 'DEACTIVATED') {
+            throw new Error(`Your profile status is ${user.status}`);
+
+        }
+
+
+
         const token = createToken(user)
 
         try {
@@ -133,8 +142,6 @@ authController.get('/profile/:id', async (req, res) => {
 authController.post('/confirmpassword/:id', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo')
 
-    const id = req.params.id
-    const password = req.body.password
 
     try {
         const user = await userRepo.findById(req.params.id)
@@ -153,6 +160,60 @@ authController.post('/confirmpassword/:id', async (req, res) => {
 
 
 
+authController.put('/admin/edit/:id', async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const id = req.params.id
+
+
+    try {
+
+        const user = await userRepo.findById(req.params.id)
+
+
+        try {
+
+
+
+            if (req.body.imageFile === undefined) {
+                req.body.imageFile = user.imageFile
+            } else {
+
+                if (user.imageFile !== null) {
+                    const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
+
+                    try {
+
+                        deleteFile(filePath)
+                    } catch (err) {
+                        console.log(err)
+                    }
+                }
+            }
+
+
+
+            const editedUser = await userRepo.updateUserAdmin(id, req.body)
+
+
+            res.status(200).json(editedUser)
+
+
+
+
+
+        } catch (err) {
+            console.log(err)
+        }
+
+    } catch (err) {
+        console.log(err.message)
+        res.status(401).json(err.message)
+    }
+
+})
+
+
+
 
 authController.put('/edit/:id', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo')
@@ -165,21 +226,23 @@ authController.put('/edit/:id', async (req, res) => {
 
 
         try {
-            if (req.body.password.length > 0 && req.body.oldpassword.length > 0 && req.body.confirmpass.length > 0) {
+            if (req.body.password !== undefined) {
 
-                if (req.body.imageFile === undefined) {
-                    req.body.imageFile = user.imageFile
-                } else {
+                if (req.body.password.length > 0 && req.body.oldpassword.length > 0 && req.body.confirmpass.length > 0) {
+                    if (req.body.imageFile === undefined) {
+                        req.body.imageFile = user.imageFile
+                    } else {
 
-                    const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
-                   
-                    if (filePath !== null) {
+                        const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
 
-                        try {
+                        if (filePath !== null) {
 
-                            deleteFile(filePath)
-                        } catch (err) {
-                            console.log(err)
+                            try {
+
+                                deleteFile(filePath)
+                            } catch (err) {
+                                console.log(err)
+                            }
                         }
                     }
                 }
@@ -193,9 +256,9 @@ authController.put('/edit/:id', async (req, res) => {
                     req.body.imageFile = user.imageFile
                 } else {
 
-                    const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
-                  
-                    if (filePath !== null) {
+                    if (user.imageFile !== null) {
+                        const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
+
                         try {
 
                             deleteFile(filePath)
@@ -231,7 +294,8 @@ function createToken(user) {
         _id: user._id,
         email: user.email,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        role: user.role
     };
 
     return {
@@ -301,6 +365,30 @@ authController.put('/delete-image/:id', async (req, res) => {
 
     }
 })
+
+
+authController.get('/admin', async (req, res) => {
+
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+
+
+    try {
+
+        const users = await userRepo.getAll()
+
+
+        res.status(200).json(users)
+    } catch (err) {
+        res.json(err.message)
+    }
+
+
+})
+
+
+
+
 
 const deleteFile = async (filePath) => {
     try {
