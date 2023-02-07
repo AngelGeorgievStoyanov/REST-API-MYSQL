@@ -335,6 +335,29 @@ export class UserRepository implements IUserRepository<User> {
     }
 
 
+    async confirmRole(id: IdType, role: string): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =? AND role=?', [id, role], (err, rows, fields) => {
+                if (err) {
+                    console.log(err)
+                    reject(err);
+                    return;
+                }
+                if (rows.length == 1) {
+
+                    // const user = rows[0];
+
+                    resolve(true);
+                } else {
+
+                    resolve(false)
+                }
+            })
+        })
+
+    }
+
+
 
 }
 

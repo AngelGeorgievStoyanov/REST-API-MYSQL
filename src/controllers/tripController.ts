@@ -17,13 +17,13 @@ export const storage = multer.diskStorage({
         cb(null, path.join(__dirname, '../uploads/'));
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + file.originalname)
+        cb(null, Date.now() + Math.random().toString().slice(-3) + file.originalname)
     }
 
 })
 
 
-export  const upload = multer({ storage })
+export const upload = multer({ storage })
 
 
 
@@ -73,19 +73,50 @@ tripController.post('/', async (req, res) => {
 
 tripController.get('/', async (req, res) => {
 
+    const search = req.query.search.toString()
+    const typegroup = req.query.typegroup.toString()
+    const typetransport = req.query.typetransport.toString()
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
 
     try {
 
-        const trips = await tripRepo.getAll()
-        res.status(200).json(trips)
+        const trips = await tripRepo.getAll(search, typegroup, typetransport)
+
+        const pages = Math.ceil(trips.length / 3)
+        res.status(200).json(pages)
     } catch (err) {
         res.json(err.message)
     }
 
 
 })
+
+
+
+tripController.get('/paginate', async (req, res) => {
+
+
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo')
+    const page = Number(req.query.page)
+    const search = req.query.search.toString()
+    const typegroup = req.query.typegroup.toString()
+    const typetransport = req.query.typetransport.toString()
+
+    try {
+        const paginatane = await tripRepo.getPagination(page, search, typegroup, typetransport)
+
+        res.status(200).json(paginatane)
+    } catch (err) {
+        res.json(err.message)
+    }
+
+
+})
+
+
+
+
 tripController.get('/reports', async (req, res) => {
 
 
@@ -173,7 +204,6 @@ tripController.get('/favorites/:id', async (req, res) => {
 
     try {
         const trips = await tripRepo.getAllMyFavorites(req.params.id)
-
         res.json(trips)
     } catch (err) {
         res.status(400).json(err.message)

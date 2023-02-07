@@ -20,7 +20,7 @@ export const PORT = 8001;
 
 
 const app = express();
-app.options('*', cors());
+// app.options('*', cors());
 app.use(cors({
     origin: 'http://localhost:3000',
     methods: 'GET,POST,PUT,DELETE'

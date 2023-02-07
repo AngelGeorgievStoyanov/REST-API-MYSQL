@@ -86,10 +86,13 @@ export class TripRepository implements ITripRepository<Trip> {
 
 
 
-    async getAll(): Promise<Trip[]> {
+    async getAll(search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
+        const searchInp = '%' + search + '%'
+        const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup
+        const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips', (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.title LIKE ? AND trips.typeOfPeople LIKE ? AND trips.transport LIKE ?;', [searchInp, typeGroupSelect, typeTransportSelect], (err, rows, fields) => {
                 if (err) {
                     console.log(err)
                     reject(err);
@@ -107,6 +110,39 @@ export class TripRepository implements ITripRepository<Trip> {
             });
         });
     }
+
+
+
+    async getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
+
+        page = page || 1;
+        const perPage = 3;
+        const currentPage = (page - 1) * perPage
+        const searchInp = '%' + search + '%'
+        const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup
+        const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport
+
+
+        return new Promise((resolve, reject) => {
+            this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.title LIKE ? AND trips.typeOfPeople LIKE ? AND trips.transport LIKE ? LIMIT ? OFFSET ?', [searchInp, typeGroupSelect, typeTransportSelect, perPage, currentPage], (err, rows, fields) => {
+                if (err) {
+                    console.log(err)
+                    reject(err);
+                    return;
+                }
+
+                resolve(rows.map(row => ({
+                    ...row,
+                    likes: row.likes ? row.likes.split(/[,\s]+/) : [],
+                    reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
+                    imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
+                    favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
+
+                })));
+            });
+        });
+    }
+
 
     async getAllReports(): Promise<Trip[]> {
 
@@ -223,9 +259,9 @@ export class TripRepository implements ITripRepository<Trip> {
 
 
     async getAllMyFavorites(id: IdType): Promise<Trip[]> {
-
+        id = '%' + id + '%';
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE favorites IN(?)', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.favorites LIKE ?', [id], (err, rows, fields) => {
                 if (err) {
                     console.log(err)
                     reject(err);

@@ -386,6 +386,29 @@ authController.get('/admin', async (req, res) => {
 
 })
 
+authController.post('/guard', async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+
+
+    try {
+
+        const _id = req.body.id
+        const role = req.body.role
+
+    
+        const guard = await userRepo.confirmRole(_id, role)
+
+       
+
+        res.status(200).json(guard)
+
+    } catch (err) {
+        console.log(err)
+        res.status(401).json(err.message)
+    }
+
+})
+
 
 
 

@@ -40,7 +40,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
     constructor(protected pool: Pool) { }
 
     async create(point: Point): Promise<Point> {
-        console.log(point)
+   
         return new Promise((resolve, reject) => {
             let imagesNew = point.imageFile.join()
 

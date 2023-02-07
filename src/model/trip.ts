@@ -30,7 +30,7 @@ export class Trip {
         public timeEdited: Date,
         public reportTrip: string[],
         public imageFile:string[],
-        public favorites:string[]
+        public favorites:string[],
        
     ) { }
 }
