@@ -20,7 +20,7 @@ const selectOne = `SELECT * FROM hack_trip.comments WHERE _id =?`;
 
 const deleteOne = `DELETE from hack_trip.comments WHERE _id =?`
 
-const deleteByOTripId =`DELETE from hack_trip.comments WHERE (_tripId =? AND _id>0)`
+const deleteByOTripId =`DELETE from hack_trip.comments WHERE (_tripId =? AND _id>0)`;
 
 const selectByOwnerId = `SELECT * FROM hack_trip.comments WHERE _tripId =?`;
 
@@ -38,7 +38,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                 (err, rows, fields) => {
                     if (err) {
 
-                        console.log(err.message)
+                        console.log(err.message);
                         reject(err);
                         return;
                     }
@@ -57,7 +57,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.comments WHERE _id =?', [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -84,7 +84,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.comments WHERE _tripId =?', [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -108,7 +108,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [comment.comment, id, id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -125,7 +125,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
                         }
 
-                    })
+                    });
 
                 } else {
 
@@ -143,12 +143,12 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
         return new Promise((resolve, reject) => {
             this.pool.query(selectOne, [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
                 if (rows.length > 0) {
-                    deleteOne
+                    deleteOne;
                     commentDel = rows;
                     this.pool.query(deleteOne, [id], (err, rows, fields) => {
                         if (err) {
@@ -161,7 +161,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
                         }
 
-                    })
+                    });
 
 
                 } else {
@@ -180,7 +180,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
         return new Promise((resolve, reject) => {
             this.pool.query(selectByOwnerId, [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -190,7 +190,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
                     this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -199,12 +199,12 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
                         }
 
-                    })
+                    });
 
 
                 } 
-            })
-        })
+            });
+        });
     }
 
 }

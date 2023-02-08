@@ -2,8 +2,6 @@ import * as express from 'express'
 import * as cors from 'cors';
 import * as logger from 'morgan';
 import * as mysql from 'mysql';
-import { NextFunction, Request, Response } from "express";
-
 import * as bodyParser from 'body-parser'
 import tripController from './controllers/tripController'
 import authController from './controllers/authController';
@@ -20,7 +18,6 @@ export const PORT = 8001;
 
 
 const app = express();
-// app.options('*', cors());
 app.use(cors({
     origin: 'http://localhost:3000',
     methods: 'GET,POST,PUT,DELETE'
@@ -31,9 +28,6 @@ app.use(logger('dev'));
 
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(bodyParser.json({ limit: '50mb' }));
-app.use('/uploads', express.static(join(__dirname, 'uploads')));
-
-
 app.use('/users', authController);
 app.use('/data/trips', tripController);
 app.use('/data/points', pointController);
@@ -113,7 +107,6 @@ let comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
         port: 3306,
         user: 'trayan',
         password: 'trayan',
-        // database: 'hack_trip'
     });
 
     pool.getConnection(function (err, connection) {

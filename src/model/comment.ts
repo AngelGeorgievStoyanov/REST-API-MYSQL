@@ -9,7 +9,5 @@ export class Comment {
         public _tripId: string,
         public _ownerId: string,
 
-
-
     ) { }
 }

@@ -1,13 +1,11 @@
-import * as express from 'express'
-
+import * as express from 'express';
 import { body, validationResult } from 'express-validator';
 import { User } from '../model/user';
-import * as jwt from 'jsonwebtoken'
-import * as bcrypt from 'bcrypt'
+import * as jwt from 'jsonwebtoken';
+import * as bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from '../interface/user-repository';
-import { upload } from './tripController';
-import * as path from 'path'
-import * as fsPromises from 'fs/promises'
+import { storage } from './tripController';
+import * as multer from 'multer';
 
 const secret = 'very_secret!!!!';
 
@@ -21,18 +19,18 @@ const authController = express.Router();
 
 authController.post('/login', async (req, res) => {
 
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
 
-        const user = await userRepo.findByEmail(req.body.email)
+        const user = await userRepo.findByEmail(req.body.email);
 
         if (user.email !== req.body.email) {
 
             throw new Error('Incorrect email or password');
         }
 
-        const match = await bcrypt.compare(req.body.password, user.hashedPassword)
+        const match = await bcrypt.compare(req.body.password, user.hashedPassword);
         if (!match) {
             throw new Error('Incorrect email or password');
         }
@@ -44,22 +42,22 @@ authController.post('/login', async (req, res) => {
 
 
 
-        const token = createToken(user)
+        const token = createToken(user);
 
         try {
-            const result = await userRepo.login(user._id, user.countOfLogs)
+            const result = await userRepo.login(user._id, user.countOfLogs);
 
         } catch (err) {
-            console.log(err)
-            throw new Error(err)
+            console.log(err);
+            throw new Error(err);
         }
 
-        res.status(200).json(token)
+        res.status(200).json(token);
     } catch (err) {
-        console.log(err.message)
-        res.status(401).json(err.message)
+        console.log(err.message);
+        res.status(401).json(err.message);
     }
-})
+});
 
 
 
@@ -74,25 +72,25 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
 
 
         try {
-            const errors = validationResult(req)
+            const errors = validationResult(req);
 
             if (!errors.isEmpty()) {
 
 
-                throw errors
+                throw errors;
             }
 
         } catch (error) {
-            res.status(400).json(error.message)
+            res.status(400).json(error.message);
         }
 
 
 
-        const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+        const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
         try {
 
-            const existing = await userRepo.findByEmail(req.body.email)
+            const existing = await userRepo.findByEmail(req.body.email);
 
 
             if (existing.email === req.body.email) {
@@ -105,18 +103,18 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
 
                 const user = await userRepo.create(req.body);
 
-                const token = createToken(user)
+                const token = createToken(user);
 
-                res.status(201).json(token)
+                res.status(201).json(token);
             } catch (err) {
-                console.log(err)
-                res.status(400).json(err.message)
+                console.log(err);
+                res.status(400).json(err.message);
             }
 
 
         } catch (err) {
-            console.log(err)
-            res.status(400).json(err.message)
+            console.log(err);
+            res.status(400).json(err.message);
         }
 
     })
@@ -124,50 +122,50 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
 
 
 authController.get('/profile/:id', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
 
-        const user = await userRepo.findById(req.params.id)
-        res.status(200).json(user)
+        const user = await userRepo.findById(req.params.id);
+        res.status(200).json(user);
 
     } catch (err) {
-        console.log(err.message)
-        res.status(401).json(err.message)
+        console.log(err.message);
+        res.status(401).json(err.message);
     }
 
 })
 
 
 authController.post('/confirmpassword/:id', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
 
     try {
-        const user = await userRepo.findById(req.params.id)
-        const match = await bcrypt.compare(req.body.password, user.hashedPassword)
+        const user = await userRepo.findById(req.params.id);
+        const match = await bcrypt.compare(req.body.password, user.hashedPassword);
         if (!match) {
             throw new Error('Incorrect  password');
         }
-        res.status(200).json(user)
+        res.status(200).json(user);
 
 
     } catch (err) {
-        console.log(err)
-        res.status(401).json(err.message)
+        console.log(err);
+        res.status(401).json(err.message);
     }
 })
 
 
 
 authController.put('/admin/edit/:id', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
-    const id = req.params.id
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const id = req.params.id;
 
 
     try {
 
-        const user = await userRepo.findById(req.params.id)
+        const user = await userRepo.findById(req.params.id);
 
 
         try {
@@ -175,39 +173,39 @@ authController.put('/admin/edit/:id', async (req, res) => {
 
 
             if (req.body.imageFile === undefined) {
-                req.body.imageFile = user.imageFile
+                req.body.imageFile = user.imageFile;
             } else {
 
                 if (user.imageFile !== null) {
-                    const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
+                    const filePath = user.imageFile;
 
                     try {
 
-                        deleteFile(filePath)
+                        deleteFile(filePath);
                     } catch (err) {
-                        console.log(err)
+                        console.log(err);
                     }
                 }
             }
 
 
 
-            const editedUser = await userRepo.updateUserAdmin(id, req.body)
+            const editedUser = await userRepo.updateUserAdmin(id, req.body);
 
 
-            res.status(200).json(editedUser)
+            res.status(200).json(editedUser);
 
 
 
 
 
         } catch (err) {
-            console.log(err)
+            console.log(err);
         }
 
     } catch (err) {
-        console.log(err.message)
-        res.status(401).json(err.message)
+        console.log(err.message);
+        res.status(401).json(err.message);
     }
 
 })
@@ -216,13 +214,13 @@ authController.put('/admin/edit/:id', async (req, res) => {
 
 
 authController.put('/edit/:id', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
-    const id = req.params.id
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const id = req.params.id;
 
 
     try {
 
-        const user = await userRepo.findById(req.params.id)
+        const user = await userRepo.findById(req.params.id);
 
 
         try {
@@ -230,59 +228,59 @@ authController.put('/edit/:id', async (req, res) => {
 
                 if (req.body.password.length > 0 && req.body.oldpassword.length > 0 && req.body.confirmpass.length > 0) {
                     if (req.body.imageFile === undefined) {
-                        req.body.imageFile = user.imageFile
+                        req.body.imageFile = user.imageFile;
                     } else {
 
-                        const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
+                        const filePath = user.imageFile;
 
                         if (filePath !== null) {
 
                             try {
 
-                                deleteFile(filePath)
+                                deleteFile(filePath);
                             } catch (err) {
-                                console.log(err)
+                                console.log(err);
                             }
                         }
                     }
                 }
 
 
-                const editedUserPassword = await userRepo.updateUserPass(id, req.body)
-                res.status(200).json(editedUserPassword)
+                const editedUserPassword = await userRepo.updateUserPass(id, req.body);
+                res.status(200).json(editedUserPassword);
 
             } else {
                 if (req.body.imageFile === undefined) {
-                    req.body.imageFile = user.imageFile
+                    req.body.imageFile = user.imageFile;
                 } else {
 
                     if (user.imageFile !== null) {
-                        const filePath = path.join(__dirname, `../uploads/${user.imageFile}`)
+                        const filePath = user.imageFile;
 
                         try {
 
-                            deleteFile(filePath)
+                            deleteFile(filePath);
                         } catch (err) {
-                            console.log(err)
+                            console.log(err);
                         }
                     }
                 }
-                const editedUser = await userRepo.updateUser(id, req.body)
+                const editedUser = await userRepo.updateUser(id, req.body);
 
 
-                res.status(200).json(editedUser)
+                res.status(200).json(editedUser);
 
             }
 
 
 
         } catch (err) {
-            console.log(err)
+            console.log(err);
         }
 
     } catch (err) {
-        console.log(err.message)
-        res.status(401).json(err.message)
+        console.log(err.message);
+        res.status(401).json(err.message);
     }
 
 })
@@ -310,7 +308,7 @@ function createToken(user) {
 
 authController.post('/logout', async (req, res) => {
 
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     if ('token' in req) {
 
@@ -323,34 +321,34 @@ authController.post('/logout', async (req, res) => {
 
 
 
-authController.post('/upload', upload.array('file', 1), function (req, res) {
 
-    let files = req.files
+authController.post('/upload', multer({ storage }).array('file', 1), function (req, res) {
 
+    let files = req.files;
+    console.log(files);
 
-    res.status(200).json(files)
+    res.status(200).json(files);
 })
 
 
 
-
 authController.put('/delete-image/:id', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
 
 
     try {
 
-        const existing = await userRepo.findById(req.params.id)
-        const fileName = req.body.image
-        const filePath = path.join(__dirname, `../uploads/${fileName}`)
+        const existing = await userRepo.findById(req.params.id);
+        const fileName = req.body.image;
+        const filePath = fileName;
 
 
         try {
-            deleteFile(filePath)
-            const result = await userRepo.editProfileImage(req.params.id, fileName)
+            deleteFile(filePath);
+            const result = await userRepo.editProfileImage(req.params.id, fileName);
 
-            res.json(result)
+            res.json(result);
 
         } catch (err) {
 
@@ -370,57 +368,60 @@ authController.put('/delete-image/:id', async (req, res) => {
 authController.get('/admin', async (req, res) => {
 
 
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
 
     try {
 
-        const users = await userRepo.getAll()
+        const users = await userRepo.getAll();
 
 
-        res.status(200).json(users)
+        res.status(200).json(users);
     } catch (err) {
-        res.json(err.message)
+        res.json(err.message);
     }
 
 
 })
 
 authController.post('/guard', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo')
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
 
     try {
 
-        const _id = req.body.id
-        const role = req.body.role
+        const _id = req.body.id;
+        const role = req.body.role;
 
-    
-        const guard = await userRepo.confirmRole(_id, role)
 
-       
+        const guard = await userRepo.confirmRole(_id, role);
 
-        res.status(200).json(guard)
+
+
+        res.status(200).json(guard);
 
     } catch (err) {
-        console.log(err)
-        res.status(401).json(err.message)
+        console.log(err);
+        res.status(401).json(err.message);
     }
 
 })
 
-
-
-
-
 const deleteFile = async (filePath) => {
     try {
-        await fsPromises.unlink(filePath)
-        console.log('File deleted')
+        await storage.bucket('hack-trip')
+            .file(filePath)
+            .delete();
+        console.log('File deleted');
     } catch (err) {
-        console.log(err)
+        console.log(err.message);
     }
 }
+
+
+
+
+
 
 
 

@@ -17,6 +17,7 @@ export interface ITripRepository<T extends Identifiable> {
     updateTripFavoritesByuserId(id: IdType, entity: T): Promise<T>;
     getAllMyFavorites(id: IdType): Promise<T[]>;
     getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<T[]>;
+  
 }
 
 

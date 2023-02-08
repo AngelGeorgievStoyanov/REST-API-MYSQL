@@ -87,14 +87,14 @@ export class TripRepository implements ITripRepository<Trip> {
 
 
     async getAll(search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
-        const searchInp = '%' + search + '%'
-        const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup
-        const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport
+        const searchInp = '%' + search + '%';
+        const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup;
+        const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport;
 
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.title LIKE ? AND trips.typeOfPeople LIKE ? AND trips.transport LIKE ?;', [searchInp, typeGroupSelect, typeTransportSelect], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -117,16 +117,16 @@ export class TripRepository implements ITripRepository<Trip> {
 
         page = page || 1;
         const perPage = 3;
-        const currentPage = (page - 1) * perPage
-        const searchInp = '%' + search + '%'
-        const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup
-        const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport
+        const currentPage = (page - 1) * perPage;
+        const searchInp = '%' + search + '%';
+        const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup;
+        const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport;
 
 
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.title LIKE ? AND trips.typeOfPeople LIKE ? AND trips.transport LIKE ? LIMIT ? OFFSET ?', [searchInp, typeGroupSelect, typeTransportSelect, perPage, currentPage], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -149,7 +149,7 @@ export class TripRepository implements ITripRepository<Trip> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips WHERE reportTrip IS NOT NULL', (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -171,7 +171,7 @@ export class TripRepository implements ITripRepository<Trip> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips WHERE _id =?', [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -192,8 +192,8 @@ export class TripRepository implements ITripRepository<Trip> {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
@@ -205,7 +205,7 @@ export class TripRepository implements ITripRepository<Trip> {
         return new Promise((resolve, reject) => {
             this.pool.query(selectOne, [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -215,7 +215,7 @@ export class TripRepository implements ITripRepository<Trip> {
 
                     this.pool.query(deleteOne, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -224,15 +224,15 @@ export class TripRepository implements ITripRepository<Trip> {
 
                         }
 
-                    })
+                    });
 
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
@@ -241,7 +241,7 @@ export class TripRepository implements ITripRepository<Trip> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips WHERE _ownerId =?', [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -263,7 +263,7 @@ export class TripRepository implements ITripRepository<Trip> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.favorites LIKE ?', [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -281,8 +281,8 @@ export class TripRepository implements ITripRepository<Trip> {
 
 
     async updateTripById(id: IdType, trip: Trip): Promise<Trip> {
-        trip.timeEdited = new Date()
-        let editedImg = trip.imageFile.join()
+        trip.timeEdited = new Date();
+        let editedImg = trip.imageFile.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [trip.title, trip.description, trip.price, trip.transport,
             trip.countPeoples, trip.typeOfPeople, trip.destination, trip.imageUrl, trip.lat, trip.lng, trip.timeEdited, editedImg, id], (err, rows, fields) => {
@@ -303,19 +303,19 @@ export class TripRepository implements ITripRepository<Trip> {
 
                         }
 
-                    })
+                    });
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
     async updateTripFavoritesByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
-        let favoritessNew = trip.favorites.join()
+        let favoritessNew = trip.favorites.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSqlFavorites, [favoritessNew, id], (err, rows, fields) => {
                 if (err) {
@@ -326,7 +326,7 @@ export class TripRepository implements ITripRepository<Trip> {
                 if (!err) {
                     this.pool.query(selectOne, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -336,19 +336,19 @@ export class TripRepository implements ITripRepository<Trip> {
 
                         }
 
-                    })
+                    });
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
     async updateTripLikeByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
-        let likesNew = trip.likes.join()
+        let likesNew = trip.likes.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSqlLikes, [likesNew, id], (err, rows, fields) => {
                 if (err) {
@@ -359,7 +359,7 @@ export class TripRepository implements ITripRepository<Trip> {
                 if (!err) {
                     this.pool.query(selectOne, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -369,14 +369,14 @@ export class TripRepository implements ITripRepository<Trip> {
 
                         }
 
-                    })
+                    });
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
     async deleteReportTripByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
@@ -390,7 +390,7 @@ export class TripRepository implements ITripRepository<Trip> {
                 if (!err) {
                     this.pool.query(selectOne, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -400,19 +400,19 @@ export class TripRepository implements ITripRepository<Trip> {
 
                         }
 
-                    })
+                    });
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
     async reportTripByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
-        let reportsNew = trip.reportTrip.join()
+        let reportsNew = trip.reportTrip.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSqlReports, [reportsNew, id], (err, rows, fields) => {
                 if (err) {
@@ -423,7 +423,7 @@ export class TripRepository implements ITripRepository<Trip> {
                 if (!err) {
                     this.pool.query(selectOne, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -439,14 +439,14 @@ export class TripRepository implements ITripRepository<Trip> {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
     async editImagesByTripId(id: IdType, data: Trip): Promise<Trip> {
 
-        let editedImages = data.imageFile.join()
+        let editedImages = data.imageFile.join();
 
         return new Promise((resolve, reject) => {
             this.pool.query(updateSqlImages, [editedImages, id], (err, rows, fields) => {
@@ -458,7 +458,7 @@ export class TripRepository implements ITripRepository<Trip> {
                 if (!err) {
                     this.pool.query(selectOne, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -471,28 +471,28 @@ export class TripRepository implements ITripRepository<Trip> {
                                 imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
                                 favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
 
-                            }))
+                            }));
 
 
                             resolve(point[0]);
 
                         }
 
-                    })
+                    });
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
     async getTop(): Promise<Trip[]> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips', (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }

@@ -20,9 +20,9 @@ const createSql = `INSERT INTO hack_trip.points (
 
 const selectOne = `SELECT * FROM hack_trip.points WHERE _id =?`;
 
-const deleteOne = `DELETE from hack_trip.points WHERE _id =?`
+const deleteOne = `DELETE from hack_trip.points WHERE _id =?`;
 
-const deleteByOTripId = `DELETE from hack_trip.points WHERE (_ownerTripId =? AND _id>0)`
+const deleteByOTripId = `DELETE from hack_trip.points WHERE (_ownerTripId =? AND _id>0)`;
 
 const selectByOwnerId = `SELECT * FROM hack_trip.points WHERE _ownerTripId =?`;
 
@@ -40,16 +40,16 @@ export class PointTripRepository implements IPointTripRepository<Point> {
     constructor(protected pool: Pool) { }
 
     async create(point: Point): Promise<Point> {
-   
+
         return new Promise((resolve, reject) => {
-            let imagesNew = point.imageFile.join()
+            let imagesNew = point.imageFile.join();
 
             this.pool.query(createSql,
                 [point.name, point.description, point.imageUrl, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew],
                 (err, rows, fields) => {
                     if (err) {
 
-                        console.log(err.message)
+                        console.log(err.message);
                         reject(err);
                         return;
                     }
@@ -68,7 +68,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.points WHERE _ownerTripId =?', [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -86,8 +86,8 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
@@ -99,16 +99,16 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         return new Promise((resolve, reject) => {
             this.pool.query(selectOne, [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
                 if (rows.length === 1) {
-                    deleteOne
+                    deleteOne;
                     pointDel = rows[0];
                     this.pool.query(deleteOne, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -117,15 +117,15 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
                         }
 
-                    })
+                    });
 
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
@@ -141,11 +141,11 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                     return;
                 }
                 if (rows.length > 0) {
-                    deleteOne
+                    deleteOne;
                     pointsDel = rows;
                     this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -154,15 +154,15 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
                         }
 
-                    })
+                    });
 
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
@@ -175,7 +175,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.points WHERE _id =?', [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -193,19 +193,19 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
 
     async updatePointById(id: IdType, point: Point): Promise<Point> {
-        let editedImg = point.imageFile.join()
-        
+        let editedImg = point.imageFile.join();
+
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [point.name, point.description, point.imageUrl, point.lat, point.lng, point.pointNumber, editedImg, id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
@@ -222,14 +222,14 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
                         }
 
-                    })
+                    });
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
@@ -257,28 +257,21 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
                         }
 
-                    })
+                    });
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
+            });
 
-
-
-
-        })
-
-
-
-
+        });
 
     }
 
     async editImagesByPointId(id: IdType, data: Point): Promise<Point> {
 
-        let editedImages = data.imageFile.join()
+        let editedImages = data.imageFile.join();
 
         return new Promise((resolve, reject) => {
             this.pool.query(updateSqlImages, [editedImages, id], (err, rows, fields) => {
@@ -290,7 +283,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                 if (!err) {
                     this.pool.query(selectOne, [id], (err, rows, fields) => {
                         if (err) {
-                            console.log(err)
+                            console.log(err);
                             reject(err);
                             return;
                         }
@@ -306,14 +299,14 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
                         }
 
-                    })
+                    });
 
                 } else {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 
@@ -323,12 +316,12 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         return new Promise((resolve, reject) => {
             this.pool.query(findBytripIdOrderByPointPositionSql, [id], (err, rows, fields) => {
                 if (err) {
-                    console.log(err)
+                    console.log(err);
                     reject(err);
                     return;
                 }
                 if (rows) {
-                
+
                     resolve(rows.map(row => ({
                         ...row,
                         imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
@@ -340,8 +333,8 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
                     reject(new Error(`Error finding new document in database`));
                 }
-            })
-        })
+            });
+        });
     }
 
 }
