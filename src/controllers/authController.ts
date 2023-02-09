@@ -6,10 +6,11 @@ import * as bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from '../interface/user-repository';
 import { storage } from './tripController';
 import * as multer from 'multer';
+import * as dotenv from 'dotenv'
+dotenv.config()
 
-const secret = 'very_secret!!!!';
 
-
+const secret = process.env.secret
 
 
 
@@ -20,7 +21,6 @@ const authController = express.Router();
 authController.post('/login', async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-
     try {
 
         const user = await userRepo.findByEmail(req.body.email);
@@ -29,8 +29,9 @@ authController.post('/login', async (req, res) => {
 
             throw new Error('Incorrect email or password');
         }
-
         const match = await bcrypt.compare(req.body.password, user.hashedPassword);
+
+
         if (!match) {
             throw new Error('Incorrect email or password');
         }
@@ -425,5 +426,5 @@ const deleteFile = async (filePath) => {
 
 
 
-export default authController
+export default authController;
 

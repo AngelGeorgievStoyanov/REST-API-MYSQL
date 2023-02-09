@@ -6,7 +6,6 @@ export class Point {
     constructor(
         public name: string,
         public description: string,
-        public imageUrl: string,
         public _ownerTripId: string,
         public lat: string,
         public lng: string,

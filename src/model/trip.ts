@@ -20,7 +20,6 @@ export class Trip {
         public countPeoples: number,
         public typeOfPeople: TypeOfPeople = TypeOfPeople.Family,
         public destination: string,
-        public imageUrl: string,
         public coments: string,
         public likes: string[],
         public _ownerId: string[],

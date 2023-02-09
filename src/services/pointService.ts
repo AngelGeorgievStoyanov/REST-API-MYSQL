@@ -8,14 +8,13 @@ import { Point } from "../model/point";
 const createSql = `INSERT INTO hack_trip.points (
     name,
     description,
-    imageUrl,
     _ownerTripId,
     lat,
     lng,
     pointNumber,
     imageFile
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?);`;
 
 
 const selectOne = `SELECT * FROM hack_trip.points WHERE _id =?`;
@@ -27,7 +26,7 @@ const deleteByOTripId = `DELETE from hack_trip.points WHERE (_ownerTripId =? AND
 const selectByOwnerId = `SELECT * FROM hack_trip.points WHERE _ownerTripId =?`;
 
 
-const updateSql = `UPDATE hack_trip.points SET name =?, description=?, imageUrl=?, lat=?, lng=?, pointNumber=?, imageFile =? WHERE (_id =? AND _id>0)`;
+const updateSql = `UPDATE hack_trip.points SET name =?, description=?, lat=?, lng=?, pointNumber=?, imageFile =? WHERE (_id =? AND _id>0)`;
 
 const updatePositionSql = `UPDATE hack_trip.points SET pointNumber=? WHERE _id =?`;
 
@@ -45,7 +44,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
             let imagesNew = point.imageFile.join();
 
             this.pool.query(createSql,
-                [point.name, point.description, point.imageUrl, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew],
+                [point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -203,7 +202,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         let editedImg = point.imageFile.join();
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSql, [point.name, point.description, point.imageUrl, point.lat, point.lng, point.pointNumber, editedImg, id], (err, rows, fields) => {
+            this.pool.query(updateSql, [point.name, point.description, point.lat, point.lng, point.pointNumber, editedImg, id], (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);

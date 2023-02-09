@@ -15,7 +15,6 @@ const createSql = `INSERT INTO hack_trip.trips (
     countPeoples,
     typeOfPeople,
     destination,
-    imageUrl,
     coments,
     likes,
     _ownerId,
@@ -27,13 +26,13 @@ const createSql = `INSERT INTO hack_trip.trips (
     imageFile,
     favorites
   )
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 const selectOne = `SELECT * FROM hack_trip.trips WHERE _id =?`;
 
 const deleteOne = `DELETE from hack_trip.trips WHERE _id =?`;
 
-const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, imageUrl=?, lat=?,lng=?, timeEdited=?, imageFile =? WHERE _id =?`;
+const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, lat=?,lng=?, timeEdited=?, imageFile =? WHERE _id =?`;
 
 const updateSqlLikes = `UPDATE hack_trip.trips SET likes =? WHERE _id =?`;
 const updateSqlFavorites = `UPDATE hack_trip.trips SET favorites =? WHERE _id =?`;
@@ -42,7 +41,7 @@ const updateSqlReports = `UPDATE hack_trip.trips SET reportTrip =? WHERE _id =?`
 const updateSqlImages = `UPDATE hack_trip.trips SET imageFile =? WHERE _id =?`;
 
 
-const selectCreatedTrip = `SELECT * FROM hack_trip.trips WHERE title=? AND description=? AND price=? AND transport=? AND countPeoples=? AND typeOfPeople=? AND destination=? AND imageUrl=? AND _ownerId=?`;
+const selectCreatedTrip = `SELECT * FROM hack_trip.trips WHERE title=? AND description=? AND price=? AND transport=? AND countPeoples=? AND typeOfPeople=? AND destination=? AND _ownerId=?`;
 
 export class TripRepository implements ITripRepository<Trip> {
     constructor(protected pool: Pool) { }
@@ -55,7 +54,7 @@ export class TripRepository implements ITripRepository<Trip> {
         let imagesNew = trip.imageFile.join()
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.imageUrl, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites],
+                [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -63,9 +62,9 @@ export class TripRepository implements ITripRepository<Trip> {
                         reject(err);
                         return;
                     }
-
+                    console.log(rows[0])
                     this.pool.query(selectCreatedTrip,
-                        [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.imageUrl, trip._ownerId],
+                        [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip._ownerId],
                         (err, rows, fields) => {
                             if (err) {
 
@@ -74,7 +73,7 @@ export class TripRepository implements ITripRepository<Trip> {
                                 return;
                             }
 
-
+                            console.log(rows[0])
                             resolve(rows[0]);
                         });
 
@@ -285,7 +284,7 @@ export class TripRepository implements ITripRepository<Trip> {
         let editedImg = trip.imageFile.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [trip.title, trip.description, trip.price, trip.transport,
-            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.imageUrl, trip.lat, trip.lng, trip.timeEdited, editedImg, id], (err, rows, fields) => {
+            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.lat, trip.lng, trip.timeEdited, editedImg, id], (err, rows, fields) => {
                 if (err) {
                     reject(err);
                     return;

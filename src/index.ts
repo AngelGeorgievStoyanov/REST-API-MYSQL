@@ -1,3 +1,5 @@
+import * as dotenv from 'dotenv'
+dotenv.config()
 import * as express from 'express'
 import * as cors from 'cors';
 import * as logger from 'morgan';
@@ -11,15 +13,16 @@ import pointController from './controllers/pointController';
 import { PointTripRepository } from './services/pointService';
 import commentController from './controllers/commentController';
 import { CommentTripRepository } from './services/commentService';
-import { join } from 'path';
+import { comments, points, trips, users } from './db/createMySQL';
 
-export const HOSTNAME = 'localhost';
-export const PORT = 8001;
+
+const HOSTNAME = process.env.MYSQL_HOST;
+const PORT = Number(process.env.PORT);
 
 
 const app = express();
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: process.env.REMOTE_CLIENT_APP,
     methods: 'GET,POST,PUT,DELETE'
 }));
 
@@ -34,79 +37,15 @@ app.use('/data/points', pointController);
 app.use('/data/comments', commentController);
 
 
-let users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
-    _id INT NOT NULL AUTO_INCREMENT,
-    email VARCHAR(45) NOT NULL,
-    firstName VARCHAR(45) NOT NULL,
-    lastName VARCHAR(45) NOT NULL,
-    hashedPassword VARCHAR(85) NOT NULL,
-    timeCreated DATE NULL DEFAULT NULL,
-    timeEdited DATE NULL DEFAULT NULL,
-    lastTimeLogin DATE NULL DEFAULT NULL,
-    countOfLogs BIGINT DEFAULT NULL,
-    imageFile VARCHAR(2000) NULL DEFAULT NULL,
-    role VARCHAR(8) NOT NULL DEFAULT 'user',
-    status VARCHAR(12) NOT NULL DEFAULT 'ACTIVE',
-    PRIMARY KEY (_id),
-    UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE,
-    UNIQUE INDEX email_UNIQUE (email ASC) VISIBLE)
-  `;
 
-let trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
-    _id INT NOT NULL AUTO_INCREMENT,
-    title VARCHAR(60) NOT NULL,
-    description VARCHAR(2000) NULL,
-    price DOUBLE NULL,
-    transport VARCHAR(45) NULL DEFAULT NULL,
-    countPeoples INT NOT NULL,
-    typeOfPeople VARCHAR(45) NULL DEFAULT NULL,
-    destination VARCHAR(60) NULL DEFAULT NULL,
-    imageUrl VARCHAR(500) NULL DEFAULT NULL,
-    coments VARCHAR(45) NULL DEFAULT NULL,
-    likes VARCHAR(45) NULL DEFAULT NULL,
-    _ownerId VARCHAR(45) NULL DEFAULT NULL,
-    lat DOUBLE NULL DEFAULT NULL,
-    lng DOUBLE NULL DEFAULT NULL,
-    timeCreated DATE NULL DEFAULT NULL,
-    timeEdited DATE NULL DEFAULT NULL,
-    reportTrip VARCHAR(45) NULL DEFAULT NULL,
-    imageFile VARCHAR(2000) NULL DEFAULT NULL,
-    favorites VARCHAR(45) NULL DEFAULT NULL,
-    PRIMARY KEY (_id),
-    UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
-  `;
-
-
-let points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
-    _id INT NOT NULL AUTO_INCREMENT,
-    name VARCHAR(50) NOT NULL,
-    description VARCHAR(1050) NULL DEFAULT NULL,
-    imageUrl VARCHAR(500) NULL DEFAULT NULL,
-    _ownerTripId VARCHAR(45) NULL DEFAULT NULL,
-    lat VARCHAR(45) NULL DEFAULT NULL,
-    lng VARCHAR(45) NULL DEFAULT NULL,
-    pointNumber VARCHAR(45) NOT NULL,
-    imageFile VARCHAR(2000) NULL DEFAULT NULL,
-    PRIMARY KEY (_id))
-  `;
-
-let comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
-    _id INT NOT NULL AUTO_INCREMENT,
-    nameAuthor VARCHAR(45) NOT NULL,
-    comment VARCHAR(1000) NOT NULL,
-    _tripId VARCHAR(45) NOT NULL,
-    _ownerId VARCHAR(45) NOT NULL,
-    PRIMARY KEY (_id),
-    UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
-  `;
 
 (async () => {
     const pool = mysql.createPool({
         connectionLimit: 10,
-        host: 'localhost',
-        port: 3306,
-        user: 'trayan',
-        password: 'trayan',
+        host: process.env.MYSQOL_HOST,
+        port: Number(process.env.MYSQL_PORT),
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_PASSWORD,
     });
 
     pool.getConnection(function (err, connection) {
