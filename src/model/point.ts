@@ -10,7 +10,7 @@ export class Point {
         public lat: string,
         public lng: string,
         public pointNumber: IdType,
-        public imageFile:string[]
-
+        public imageFile:string[],
+        public _ownerId: string,
     ) { }
 }

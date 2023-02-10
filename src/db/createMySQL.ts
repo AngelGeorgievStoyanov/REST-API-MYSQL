@@ -49,6 +49,7 @@ export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     lng VARCHAR(45) NULL DEFAULT NULL,
     pointNumber VARCHAR(45) NOT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
+    _ownerId VARCHAR(45) NOT NULL,
     PRIMARY KEY (_id))
   `;
 
@@ -58,6 +59,7 @@ export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     comment VARCHAR(1000) NOT NULL,
     _tripId VARCHAR(45) NOT NULL,
     _ownerId VARCHAR(45) NOT NULL,
+    reportTrip VARCHAR(45) NULL DEFAULT NULL,
     PRIMARY KEY (_id),
     UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
   `;

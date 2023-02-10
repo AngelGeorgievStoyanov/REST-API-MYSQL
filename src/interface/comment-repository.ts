@@ -10,6 +10,8 @@ export interface ICommentTripRepository<T extends Identifiable> {
     getCommentsByTripId(id: IdType): Promise<T[]>;
     updateCommentById(id: IdType, entity: T): Promise<T>;
     deleteCommentById(id: IdType): Promise<T>;
-    deleteCommentByOwnerId(id: IdType):void;
-
+    deleteCommentByOwnerId(id: IdType): void;
+    reportCommentByuserId(id: IdType, entity: T): Promise<T>;
+    getAllReports(): Promise<T[]>;
+    deleteReportCommentByuserId(id: IdType, entity: T): Promise<T>;
 }

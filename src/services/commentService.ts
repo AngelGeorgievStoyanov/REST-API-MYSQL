@@ -9,9 +9,10 @@ const createSql = `INSERT INTO hack_trip.comments (
     nameAuthor,
     comment,
     _tripId,
-    _ownerId
+    _ownerId,
+    reportComment
   )
-  VALUES (?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?);`;
 
 
 const updateSql = `UPDATE hack_trip.comments SET comment =? WHERE _id =?`;
@@ -20,9 +21,12 @@ const selectOne = `SELECT * FROM hack_trip.comments WHERE _id =?`;
 
 const deleteOne = `DELETE from hack_trip.comments WHERE _id =?`
 
-const deleteByOTripId =`DELETE from hack_trip.comments WHERE (_tripId =? AND _id>0)`;
+const deleteByOTripId = `DELETE from hack_trip.comments WHERE (_tripId =? AND _id>0)`;
 
 const selectByOwnerId = `SELECT * FROM hack_trip.comments WHERE _tripId =?`;
+
+const updateSqlReports = `UPDATE hack_trip.comments SET reportComment =? WHERE _id =?`;
+
 
 export class CommentTripRepository implements ICommentTripRepository<Comment> {
     constructor(protected pool: Pool) { }
@@ -34,7 +38,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId],
+                [comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId, comment.reportComment],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -64,7 +68,10 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                 if (rows.length == 1) {
 
                     const comment = rows[0];
-                    resolve(comment);
+                    resolve({
+                        ...comment,
+                        reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : [],
+                    });
 
 
                 } else {
@@ -74,9 +81,6 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
             })
         })
     }
-
-
-
 
 
     async getCommentsByTripId(id: IdType): Promise<Comment[]> {
@@ -91,7 +95,10 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                 if (rows) {
 
                     const comments = rows;
-                    resolve(comments);
+                    resolve(comments.map(comment => ({
+                        ...comment,
+                        reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : []
+                    })));
 
 
                 } else {
@@ -121,7 +128,10 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                         }
                         if (rows) {
                             const comment = rows[0];
-                            resolve(comment);
+                            resolve({
+                                ...comment,
+                                reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : [],
+                            });
 
                         }
 
@@ -185,7 +195,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                     return;
                 }
                 if (rows.length > 0) {
-                 
+
                     commentDel = rows;
 
                     this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
@@ -200,9 +210,101 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                         }
 
                     });
+                } else {
+                    return;
+                }
+            });
+        });
+    }
 
 
-                } 
+    async reportCommentByuserId(id: IdType, comment: Comment): Promise<Comment> {
+
+        let reportsNew = comment.reportComment.join();
+        return new Promise((resolve, reject) => {
+            this.pool.query(updateSqlReports, [reportsNew, id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            resolve({
+                                ...rows[0],
+                                reportComment: rows[0].reportComment ? rows[0].reportComment.split(/[,\s]+/) : [],
+
+                            });
+
+                        }
+
+                    })
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
+            });
+        });
+    }
+
+
+    async getAllReports(): Promise<Comment[]> {
+        return new Promise((resolve, reject) => {
+            this.pool.query('SELECT * FROM hack_trip.comments WHERE (reportComment IS NOT NULL AND reportComment NOT LIKE "")', (err, rows, fields) => {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                    return;
+                }
+
+
+                const comments = rows;
+                resolve(comments.map(comment => ({
+                    ...comment,
+                    reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : []
+                })));
+            });
+        });
+    }
+
+    async deleteReportCommentByuserId(id: IdType, trip: Comment): Promise<Comment> {
+
+        return new Promise((resolve, reject) => {
+            this.pool.query(updateSqlReports, [trip.reportComment, id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            const comment = rows[0];
+                            resolve({
+                                ...comment,
+                                reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : [],
+                            });
+
+                        }
+
+                    });
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
             });
         });
     }

@@ -71,7 +71,7 @@ tripController.get('/', async (req, res) => {
 
         const trips = await tripRepo.getAll(search, typegroup, typetransport);
 
-        const pages = Math.ceil(trips.length / 3);
+        const pages = Math.ceil(trips.length / 9);
         res.status(200).json(pages);
     } catch (err) {
         res.json(err.message);
@@ -83,7 +83,6 @@ tripController.get('/', async (req, res) => {
 
 
 tripController.get('/paginate', async (req, res) => {
-
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     const page = Number(req.query.page);
@@ -101,8 +100,6 @@ tripController.get('/paginate', async (req, res) => {
 
 
 });
-
-
 
 
 tripController.get('/reports', async (req, res) => {
@@ -140,7 +137,6 @@ tripController.get('/:id', async (req, res) => {
 })
 
 
-
 tripController.delete('/:id', async (req, res) => {
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
@@ -171,7 +167,6 @@ tripController.delete('/:id', async (req, res) => {
         res.status(400).json(err.message);
     }
 })
-
 
 
 tripController.get('/my-trips/:id', async (req, res) => {
@@ -304,8 +299,6 @@ tripController.put('/admin/delete-report/:id', async (req, res) => {
         res.status(400).json(err.message);
     }
 })
-
-
 
 
 tripController.put('/edit-images/:id', async (req, res) => {

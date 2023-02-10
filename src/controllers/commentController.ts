@@ -7,6 +7,24 @@ import { Comment } from '../model/comment';
 const commentController = express.Router();
 
 
+commentController.get('/reports', async (req, res) => {
+
+
+    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
+
+    try {
+
+        const comments = await commentRepo.getAllReports();
+
+        res.status(200).json(comments);
+    } catch (err) {
+        res.json(err.message);
+    }
+
+
+})
+
+
 commentController.post('/', async (req, res) => {
 
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
@@ -96,6 +114,62 @@ commentController.delete('/trip/:id', async (req, res) => {
 
     res.status(204).end();
 })
+
+
+commentController.put('/report/:id', async (req, res) => {
+    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
+
+
+    try {
+
+        const existing = await commentRepo.getCommentById(req.params.id);
+
+        try {
+            const result = await commentRepo.reportCommentByuserId(req.params.id, req.body);
+
+
+
+            try {
+
+
+                const comments = await commentRepo.getCommentsByTripId(req.body._tripId)
+                res.json(comments);
+            } catch (err) {
+                res.status(400).json(err.message);
+            }
+        } catch (err) {
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+        res.status(400).json(err.message);
+    }
+});
+
+
+
+commentController.put('/admin/delete-report/:id', async (req, res) => {
+ 
+ 
+    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
+
+
+
+    try {
+
+        const existing = await commentRepo.getCommentById(req.params.id);
+
+        try {
+            const result = await commentRepo.deleteReportCommentByuserId(req.params.id, req.body);
+
+            res.json(result);
+        } catch (err) {
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+        res.status(400).json(err.message);
+    }
+})
+
 
 
 export default commentController

@@ -62,7 +62,6 @@ export class TripRepository implements ITripRepository<Trip> {
                         reject(err);
                         return;
                     }
-                    console.log(rows[0])
                     this.pool.query(selectCreatedTrip,
                         [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip._ownerId],
                         (err, rows, fields) => {
@@ -73,7 +72,6 @@ export class TripRepository implements ITripRepository<Trip> {
                                 return;
                             }
 
-                            console.log(rows[0])
                             resolve(rows[0]);
                         });
 
@@ -115,7 +113,7 @@ export class TripRepository implements ITripRepository<Trip> {
     async getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
 
         page = page || 1;
-        const perPage = 3;
+        const perPage = 9;
         const currentPage = (page - 1) * perPage;
         const searchInp = '%' + search + '%';
         const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup;
@@ -196,7 +194,6 @@ export class TripRepository implements ITripRepository<Trip> {
     }
 
 
-
     async deleteTrypById(id: IdType): Promise<Trip> {
 
         let tripDel;
@@ -224,10 +221,7 @@ export class TripRepository implements ITripRepository<Trip> {
                         }
 
                     });
-
-
                 } else {
-
                     reject(new Error(`Error finding new document in database`));
                 }
             });
@@ -297,8 +291,14 @@ export class TripRepository implements ITripRepository<Trip> {
                             return;
                         }
                         if (rows) {
-                            const point = rows[0];
-                            resolve(point);
+                            resolve({
+                                ...rows[0],
+                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
+                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
+                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
+                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
+
+                            });
 
                         }
 
@@ -330,8 +330,14 @@ export class TripRepository implements ITripRepository<Trip> {
                             return;
                         }
                         if (rows) {
-                            const point = rows[0];
-                            resolve(point);
+                            resolve({
+                                ...rows[0],
+                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
+                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
+                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
+                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
+
+                            });
 
                         }
 
@@ -363,8 +369,14 @@ export class TripRepository implements ITripRepository<Trip> {
                             return;
                         }
                         if (rows) {
-                            const point = rows[0];
-                            resolve(point);
+                            resolve({
+                                ...rows[0],
+                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
+                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
+                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
+                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
+
+                            });
 
                         }
 
@@ -394,8 +406,14 @@ export class TripRepository implements ITripRepository<Trip> {
                             return;
                         }
                         if (rows) {
-                            const point = rows[0];
-                            resolve(point);
+                            resolve({
+                                ...rows[0],
+                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
+                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
+                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
+                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
+
+                            });
 
                         }
 
@@ -427,8 +445,14 @@ export class TripRepository implements ITripRepository<Trip> {
                             return;
                         }
                         if (rows) {
-                            const point = rows[0];
-                            resolve(point);
+                            resolve({
+                                ...rows[0],
+                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
+                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
+                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
+                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
+
+                            });
 
                         }
 
@@ -507,5 +531,8 @@ export class TripRepository implements ITripRepository<Trip> {
             });
         });
     }
+
+
+
 
 }

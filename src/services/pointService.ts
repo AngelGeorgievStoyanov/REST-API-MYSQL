@@ -12,9 +12,10 @@ const createSql = `INSERT INTO hack_trip.points (
     lat,
     lng,
     pointNumber,
-    imageFile
+    imageFile,
+    _ownerId
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
 
 
 const selectOne = `SELECT * FROM hack_trip.points WHERE _id =?`;
@@ -44,7 +45,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
             let imagesNew = point.imageFile.join();
 
             this.pool.query(createSql,
-                [point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew],
+                [point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew, point._ownerId],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -150,15 +151,10 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                         }
                         if (!err) {
                             resolve(pointsDel);
-
                         }
-
                     });
-
-
                 } else {
-
-                    reject(new Error(`Error finding new document in database`));
+                    return
                 }
             });
         });

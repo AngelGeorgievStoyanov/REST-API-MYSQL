@@ -25,12 +25,13 @@ authController.post('/login', async (req, res) => {
 
         const user = await userRepo.findByEmail(req.body.email);
 
+
         if (user.email !== req.body.email) {
 
             throw new Error('Incorrect email or password');
         }
-        const match = await bcrypt.compare(req.body.password, user.hashedPassword);
 
+        const match =  bcrypt.compare(req.body.password, user.hashedPassword);
 
         if (!match) {
             throw new Error('Incorrect email or password');
@@ -38,7 +39,6 @@ authController.post('/login', async (req, res) => {
 
         if (user.status === 'SUSPENDED' || user.status === 'DEACTIVATED') {
             throw new Error(`Your profile status is ${user.status}`);
-
         }
 
 

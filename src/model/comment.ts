@@ -8,6 +8,6 @@ export class Comment {
         public comment: string,
         public _tripId: string,
         public _ownerId: string,
-
+        public reportComment: string[],
     ) { }
 }
