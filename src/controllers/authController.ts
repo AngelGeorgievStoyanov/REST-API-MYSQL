@@ -31,7 +31,7 @@ authController.post('/login', async (req, res) => {
             throw new Error('Incorrect email or password');
         }
 
-        const match =  bcrypt.compare(req.body.password, user.hashedPassword);
+        const match = bcrypt.compare(req.body.password, user.hashedPassword);
 
         if (!match) {
             throw new Error('Incorrect email or password');
@@ -59,8 +59,6 @@ authController.post('/login', async (req, res) => {
         res.status(401).json(err.message);
     }
 });
-
-
 
 
 
@@ -121,7 +119,6 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
     })
 
 
-
 authController.get('/profile/:id', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -163,25 +160,19 @@ authController.put('/admin/edit/:id', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     const id = req.params.id;
 
-
     try {
 
         const user = await userRepo.findById(req.params.id);
-
+        console.log(user)
 
         try {
-
-
 
             if (req.body.imageFile === undefined) {
                 req.body.imageFile = user.imageFile;
             } else {
-
                 if (user.imageFile !== null) {
                     const filePath = user.imageFile;
-
                     try {
-
                         deleteFile(filePath);
                     } catch (err) {
                         console.log(err);
@@ -189,16 +180,8 @@ authController.put('/admin/edit/:id', async (req, res) => {
                 }
             }
 
-
-
             const editedUser = await userRepo.updateUserAdmin(id, req.body);
-
-
             res.status(200).json(editedUser);
-
-
-
-
 
         } catch (err) {
             console.log(err);
@@ -217,27 +200,22 @@ authController.put('/admin/edit/:id', async (req, res) => {
 authController.put('/edit/:id', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     const id = req.params.id;
-
-
     try {
-
         const user = await userRepo.findById(req.params.id);
 
-
         try {
-            if (req.body.password !== undefined) {
+
+
+            if (req.body.password !== undefined && req.body.password.length > 0) {
 
                 if (req.body.password.length > 0 && req.body.oldpassword.length > 0 && req.body.confirmpass.length > 0) {
                     if (req.body.imageFile === undefined) {
                         req.body.imageFile = user.imageFile;
                     } else {
 
-                        const filePath = user.imageFile;
-
-                        if (filePath !== null) {
-
+                        if (user.imageFile !== null) {
+                            const filePath = user.imageFile;
                             try {
-
                                 deleteFile(filePath);
                             } catch (err) {
                                 console.log(err);
@@ -251,6 +229,7 @@ authController.put('/edit/:id', async (req, res) => {
                 res.status(200).json(editedUserPassword);
 
             } else {
+            
                 if (req.body.imageFile === undefined) {
                     req.body.imageFile = user.imageFile;
                 } else {
@@ -273,8 +252,6 @@ authController.put('/edit/:id', async (req, res) => {
 
             }
 
-
-
         } catch (err) {
             console.log(err);
         }
@@ -283,7 +260,6 @@ authController.put('/edit/:id', async (req, res) => {
         console.log(err.message);
         res.status(401).json(err.message);
     }
-
 })
 
 
@@ -326,7 +302,6 @@ authController.post('/logout', async (req, res) => {
 authController.post('/upload', multer({ storage }).array('file', 1), function (req, res) {
 
     let files = req.files;
-    console.log(files);
 
     res.status(200).json(files);
 })
@@ -413,7 +388,7 @@ const deleteFile = async (filePath) => {
         await storage.bucket('hack-trip')
             .file(filePath)
             .delete();
-        console.log('File deleted');
+        console.log('File deleted USER');
     } catch (err) {
         console.log(err.message);
     }

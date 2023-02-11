@@ -1,5 +1,8 @@
+export const database='CREATE DATABASE IF NOT EXISTS hack_trip'
+
+
 export const users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
-    _id BIGINT NOT NULL AUTO_INCREMENT,
+    _id VARCHAR(36) NOT NULL,
     email VARCHAR(45) NOT NULL,
     firstName VARCHAR(45) NOT NULL,
     lastName VARCHAR(45) NOT NULL,
@@ -17,7 +20,7 @@ export const users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
   `;
 
 export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
-    _id BIGINT NOT NULL AUTO_INCREMENT,
+    _id VARCHAR(36) NOT NULL,
     title VARCHAR(60) NOT NULL,
     description VARCHAR(2000) NULL,
     price DOUBLE NULL,
@@ -41,7 +44,7 @@ export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
 
 
 export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
-    _id BIGINT NOT NULL AUTO_INCREMENT,
+    _id VARCHAR(36) NOT NULL,
     name VARCHAR(100) NOT NULL,
     description VARCHAR(1050) NULL DEFAULT NULL,
     _ownerTripId VARCHAR(45) NULL DEFAULT NULL,
@@ -50,16 +53,17 @@ export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     pointNumber VARCHAR(45) NOT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     _ownerId VARCHAR(45) NOT NULL,
-    PRIMARY KEY (_id))
+    PRIMARY KEY (_id),
+    UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
   `;
 
 export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
-    _id BIGINT NOT NULL AUTO_INCREMENT,
+    _id VARCHAR(36) NOT NULL,
     nameAuthor VARCHAR(45) NOT NULL,
     comment VARCHAR(1000) NOT NULL,
     _tripId VARCHAR(45) NOT NULL,
     _ownerId VARCHAR(45) NOT NULL,
-    reportTrip VARCHAR(45) NULL DEFAULT NULL,
+    reportComment VARCHAR(45) NULL DEFAULT NULL,
     PRIMARY KEY (_id),
     UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
   `;

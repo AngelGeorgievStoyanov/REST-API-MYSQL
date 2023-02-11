@@ -2,12 +2,14 @@ import { Pool } from "mysql";
 import { ITripRepository } from "../interface/trip-repository";
 import { IdType } from "../interface/user-repository";
 import { Trip } from "../model/trip";
+import { v4 as uuid } from 'uuid';
 
 
 
 
 
 const createSql = `INSERT INTO hack_trip.trips (
+    _id,
     title,
     description,
     price,
@@ -26,7 +28,7 @@ const createSql = `INSERT INTO hack_trip.trips (
     imageFile,
     favorites
   )
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 const selectOne = `SELECT * FROM hack_trip.trips WHERE _id =?`;
 
@@ -51,10 +53,11 @@ export class TripRepository implements ITripRepository<Trip> {
     async create(trip: Trip): Promise<Trip> {
         trip.timeCreated = new Date()
         trip.timeEdited = new Date()
+        trip._id = uuid()
         let imagesNew = trip.imageFile.join()
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites],
+                [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites],
                 (err, rows, fields) => {
                     if (err) {
 

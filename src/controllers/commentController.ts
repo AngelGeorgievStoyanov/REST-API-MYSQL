@@ -89,6 +89,15 @@ commentController.put('/:id', async (req, res) => {
 })
 
 
+commentController.delete('/trip/:id', async (req, res) => {
+
+    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
+
+    const result = await commentRepo.deleteCommentByOwnerId(req.params.id);
+
+    res.status(204).json(result);
+})
+
 
 commentController.delete('/:id', async (req, res) => {
 
@@ -106,14 +115,7 @@ commentController.delete('/:id', async (req, res) => {
 })
 
 
-commentController.delete('/trip/:id', async (req, res) => {
 
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-    await commentRepo.deleteCommentByOwnerId(req.params.id);
-
-    res.status(204).end();
-})
 
 
 commentController.put('/report/:id', async (req, res) => {
@@ -148,8 +150,8 @@ commentController.put('/report/:id', async (req, res) => {
 
 
 commentController.put('/admin/delete-report/:id', async (req, res) => {
- 
- 
+
+
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
 
 

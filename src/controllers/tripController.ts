@@ -145,9 +145,6 @@ tripController.delete('/:id', async (req, res) => {
     try {
 
         const result = await tripRepo.deleteTrypById(req.params.id);
-
-
-
         let images;
         images = result.imageFile;
         images.split(',').map((x) => {
@@ -302,7 +299,7 @@ tripController.put('/admin/delete-report/:id', async (req, res) => {
 
 
 tripController.put('/edit-images/:id', async (req, res) => {
-  
+
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
 
 
@@ -310,7 +307,7 @@ tripController.put('/edit-images/:id', async (req, res) => {
 
         const existing = await tripRepo.getTripById(req.params.id);
         const fileName = req.body[0];
-        const filePath =  fileName;
+        const filePath = fileName;
 
         const index = existing.imageFile?.indexOf(fileName);
 
@@ -343,7 +340,7 @@ const deleteFile = async (filePath) => {
         await storage.bucket('hack-trip')
             .file(filePath)
             .delete();
-        console.log('File deleted');
+        console.log('File deleted from TRIP');
     } catch (err) {
         console.log(err.message);
     }

@@ -13,7 +13,7 @@ import pointController from './controllers/pointController';
 import { PointTripRepository } from './services/pointService';
 import commentController from './controllers/commentController';
 import { CommentTripRepository } from './services/commentService';
-import { comments, points, trips, users } from './db/createMySQL';
+import { comments, database, points, trips, users } from './db/createMySQL';
 
 
 const HOSTNAME = process.env.MYSQL_HOST;
@@ -51,7 +51,7 @@ app.use('/data/comments', commentController);
     pool.getConnection(function (err, connection) {
         if (err) throw err;
         console.log("Connected!");
-        pool.query("CREATE DATABASE IF NOT EXISTS hack_trip", function (err, result) {
+        pool.query(database, function (err, result) {
             if (err) throw err;
             console.log("Database hack_trip created");
         });

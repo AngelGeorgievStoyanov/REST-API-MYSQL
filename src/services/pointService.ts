@@ -2,10 +2,12 @@ import { Pool } from "mysql";
 import { IPointTripRepository } from "../interface/point-repository";
 import { IdType } from "../interface/user-repository";
 import { Point } from "../model/point";
+import { v4 as uuid } from 'uuid';
 
 
 
 const createSql = `INSERT INTO hack_trip.points (
+    _id,
     name,
     description,
     _ownerTripId,
@@ -15,19 +17,19 @@ const createSql = `INSERT INTO hack_trip.points (
     imageFile,
     _ownerId
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 
 const selectOne = `SELECT * FROM hack_trip.points WHERE _id =?`;
 
 const deleteOne = `DELETE from hack_trip.points WHERE _id =?`;
 
-const deleteByOTripId = `DELETE from hack_trip.points WHERE (_ownerTripId =? AND _id>0)`;
+const deleteByOTripId = `DELETE from hack_trip.points WHERE _ownerTripId =?`;
 
 const selectByOwnerId = `SELECT * FROM hack_trip.points WHERE _ownerTripId =?`;
 
 
-const updateSql = `UPDATE hack_trip.points SET name =?, description=?, lat=?, lng=?, pointNumber=?, imageFile =? WHERE (_id =? AND _id>0)`;
+const updateSql = `UPDATE hack_trip.points SET name =?, description=?, lat=?, lng=?, pointNumber=?, imageFile =? WHERE _id =?`;
 
 const updatePositionSql = `UPDATE hack_trip.points SET pointNumber=? WHERE _id =?`;
 
@@ -40,12 +42,12 @@ export class PointTripRepository implements IPointTripRepository<Point> {
     constructor(protected pool: Pool) { }
 
     async create(point: Point): Promise<Point> {
-
+        point._id = uuid()
         return new Promise((resolve, reject) => {
             let imagesNew = point.imageFile.join();
 
             this.pool.query(createSql,
-                [point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew, point._ownerId],
+                [point._id, point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew, point._ownerId],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -162,9 +164,6 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
 
 
-
-
-
     async getPointById(id: IdType): Promise<Point> {
 
         return new Promise((resolve, reject) => {
@@ -235,10 +234,12 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
             this.pool.query(updatePositionSql, [pointPosition, id], (err, rows, fields) => {
                 if (err) {
+                    console.log(err)
 
                     reject(err);
                     return;
                 }
+
                 if (!err) {
                     this.pool.query(selectOne, [id], (err, rows, fields) => {
                         if (err) {

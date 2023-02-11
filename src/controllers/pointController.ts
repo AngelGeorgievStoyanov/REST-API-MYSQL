@@ -31,7 +31,37 @@ pointController.post('/', async (req, res) => {
     }
 })
 
+pointController.delete('/trip/:id', async (req, res) => {
+    const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
+    try {
+
+        const result = await pointRepo.deletePointByTripId(req.params.id);
+
+        result.map((x) => {
+
+            let images = x.imageFile as any;
+            images.split(',').map((f) => {
+                const filePath = f;
+
+                try {
+
+                    deleteFile(filePath);
+                } catch (err) {
+                    console.log(err);
+                }
+
+
+            });
+        });
+
+
+
+        res.json(result).status(204);
+    } catch (err) {
+        res.status(400).json(err.message);
+    }
+})
 
 
 pointController.get('/:id', async (req, res) => {
@@ -75,7 +105,7 @@ pointController.delete('/:id', async (req, res) => {
 
         })
 
-        const points = await pointRepo.findBytripIdOrderByPointPosition(+ownerTrip);
+        const points = await pointRepo.findBytripIdOrderByPointPosition(ownerTrip);
 
         points.forEach(async (x, i) => {
 
@@ -105,27 +135,6 @@ pointController.get('/edit/:id', async (req, res) => {
     } catch (err) {
         res.status(400).json(err.message);
     }
-})
-
-
-pointController.put('/:id', async (req, res) => {
-
-    const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
-    try {
-
-        const existing = await pointRepo.getPointById(req.params.id);
-
-        try {
-            const result = await pointRepo.updatePointById(req.params.id, req.body);
-
-            res.json(result);
-        } catch (err) {
-            res.status(400).json(err.message);
-        }
-    } catch (err) {
-        res.status(400).json(err.message);
-    }
-
 })
 
 
@@ -161,48 +170,28 @@ pointController.put('/edit-position/:id', async (req, res) => {
     }
 
 
-
 })
 
+pointController.put('/:id', async (req, res) => {
 
-
-
-
-
-pointController.delete('/trip/:id', async (req, res) => {
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
-
     try {
 
-        const result = await pointRepo.deletePointByTripId(req.params.id);
+        const existing = await pointRepo.getPointById(req.params.id);
 
+        try {
+            const result = await pointRepo.updatePointById(req.params.id, req.body);
 
-        result.map((x) => {
-
-
-
-            let images = x.imageFile as any;
-            images.split(',').map((f) => {
-                const filePath = f;
-
-                try {
-
-                    deleteFile(filePath);
-                } catch (err) {
-                    console.log(err);
-                }
-
-
-            });
-        });
-
-
-
-        res.json(result).status(204);
+            res.json(result);
+        } catch (err) {
+            res.status(400).json(err.message);
+        }
     } catch (err) {
         res.status(400).json(err.message);
     }
+
 })
+
 
 
 
@@ -256,7 +245,7 @@ const deleteFile = async (filePath) => {
         await storage.bucket('hack-trip')
             .file(filePath)
             .delete();
-        console.log('File deleted');
+        console.log('File deleted from POINT');
     } catch (err) {
         console.log(err.message);
     }

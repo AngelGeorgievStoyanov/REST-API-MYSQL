@@ -2,17 +2,19 @@ import { Pool } from "mysql";
 import { ICommentTripRepository } from "../interface/comment-repository";
 import { IdType } from "../interface/user-repository";
 import { Comment } from "../model/comment";
+import { v4 as uuid } from 'uuid';
 
 
 
 const createSql = `INSERT INTO hack_trip.comments (
+    _id,
     nameAuthor,
     comment,
     _tripId,
     _ownerId,
     reportComment
   )
-  VALUES (?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?);`;
 
 
 const updateSql = `UPDATE hack_trip.comments SET comment =? WHERE _id =?`;
@@ -21,7 +23,7 @@ const selectOne = `SELECT * FROM hack_trip.comments WHERE _id =?`;
 
 const deleteOne = `DELETE from hack_trip.comments WHERE _id =?`
 
-const deleteByOTripId = `DELETE from hack_trip.comments WHERE (_tripId =? AND _id>0)`;
+const deleteByOTripId = `DELETE from hack_trip.comments WHERE _tripId =?`;
 
 const selectByOwnerId = `SELECT * FROM hack_trip.comments WHERE _tripId =?`;
 
@@ -33,12 +35,10 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
 
     async create(comment: Comment): Promise<Comment> {
-
-
-
+        comment._id = uuid()
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId, comment.reportComment],
+                [comment._id, comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId, comment.reportComment],
                 (err, rows, fields) => {
                     if (err) {
 

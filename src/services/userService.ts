@@ -2,11 +2,12 @@ import { Pool } from 'mysql';
 import { User } from "../model/user";
 import * as bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from "../interface/user-repository";
-
+import { v4 as uuid } from 'uuid';
 const tokenBlacklist = new Set();
 
 
 const createSql = `INSERT INTO hack_trip.users (
+    _id,
     email,
     firstName,
     lastName,
@@ -16,7 +17,7 @@ const createSql = `INSERT INTO hack_trip.users (
     lastTimeLogin,
     countOfLogs
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 
 
@@ -65,10 +66,10 @@ export class UserRepository implements IUserRepository<User> {
 
 
         user.hashedPassword = await bcrypt.hash(pass, 10);
-
+        user._id = uuid()
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [user.email, user.firstName, user.lastName, user.hashedPassword,
+                [user._id, user.email, user.firstName, user.lastName, user.hashedPassword,
                 user.timeCreated, user.timeEdited, user.lastTimeLogin, user.countOfLogs],
                 (err, rows, fields) => {
                     if (err) {
