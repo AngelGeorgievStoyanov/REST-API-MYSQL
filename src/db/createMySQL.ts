@@ -14,10 +14,7 @@ export const users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     role VARCHAR(8) NOT NULL DEFAULT 'user',
     status VARCHAR(12) NOT NULL DEFAULT 'ACTIVE',
-    PRIMARY KEY (_id),
-    UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE,
-    UNIQUE INDEX email_UNIQUE (email ASC) VISIBLE)
-  `;
+    PRIMARY KEY (_id))`;
 
 export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     _id VARCHAR(36) NOT NULL,
@@ -38,9 +35,7 @@ export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     reportTrip VARCHAR(45) NULL DEFAULT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     favorites VARCHAR(45) NULL DEFAULT NULL,
-    PRIMARY KEY (_id),
-    UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
-  `;
+    PRIMARY KEY (_id));`
 
 
 export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
@@ -53,9 +48,7 @@ export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     pointNumber VARCHAR(45) NOT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     _ownerId VARCHAR(45) NOT NULL,
-    PRIMARY KEY (_id),
-    UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
-  `;
+    PRIMARY KEY (_id));`
 
 export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     _id VARCHAR(36) NOT NULL,
@@ -64,6 +57,4 @@ export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     _tripId VARCHAR(45) NOT NULL,
     _ownerId VARCHAR(45) NOT NULL,
     reportComment VARCHAR(45) NULL DEFAULT NULL,
-    PRIMARY KEY (_id),
-    UNIQUE INDEX _id_UNIQUE (_id ASC) VISIBLE)
-  `;
+    PRIMARY KEY (_id));`

@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "server": "node --inspect=5858 -r ts-node/register ./src/index.ts",
-    "start": "nodemon"
+    "start": "nodemon",
+    "bild": "tsc"
   },
   "author": "Angel Stoyanov",
   "license": "ISC",

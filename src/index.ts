@@ -17,7 +17,7 @@ import { comments, database, points, trips, users } from './db/createMySQL';
 
 
 const HOSTNAME = process.env.MYSQL_HOST;
-const PORT = Number(process.env.PORT);
+const PORT = Number(process.env.PORT) || 8080;
 
 
 const app = express();
