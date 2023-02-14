@@ -38,7 +38,7 @@ tripController.get('/top', async (req, res) => {
     if (sort.length > 5) {
         sort = sort.slice(0, 5);
     }
-    res.json(sort);
+    res.status(200).json(sort);
 
 })
 
