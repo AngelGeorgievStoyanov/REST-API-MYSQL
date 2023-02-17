@@ -2,7 +2,6 @@ import * as dotenv from 'dotenv'
 dotenv.config()
 import * as express from 'express'
 import * as cors from 'cors';
-import * as logger from 'morgan';
 import * as mysql from 'mysql';
 import * as bodyParser from 'body-parser'
 import tripController from './controllers/tripController'
@@ -13,7 +12,7 @@ import pointController from './controllers/pointController';
 import { PointTripRepository } from './services/pointService';
 import commentController from './controllers/commentController';
 import { CommentTripRepository } from './services/commentService';
-import { comments, database, points, trips, users } from './db/createMySQL';
+import { comments, createuser, database, flush, grantuser, points, trips, usedb, users } from './db/createMySQL';
 
 
 const HOSTNAME = process.env.MYSQL_HOST;
@@ -22,12 +21,11 @@ const PORT = Number(process.env.PORT) || 8080;
 
 const app = express();
 app.use(cors({
-    origin: process.env.REMOTE_CLIENT_APP,
+    origin: '*',
     methods: 'GET,POST,PUT,DELETE'
 }));
 
 
-app.use(logger('dev'));
 
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -51,10 +49,37 @@ app.use('/data/comments', commentController);
     pool.getConnection(function (err, connection) {
         if (err) throw err;
         console.log("Connected!");
+
+        pool.query(createuser, function (err, result) {
+            if (err) throw err;
+            console.log("USER hack_trip created");
+        });
+        connection.release()
+
+        pool.query(grantuser, function (err, result) {
+            if (err) throw err;
+            console.log("GRANT USER hack_trip");
+        });
+
+        connection.release()
+
+        pool.query(flush, function (err, result) {
+            if (err) throw err;
+            console.log("FLUSH PRIVILEGES hack_trip");
+        });
+
+        connection.release()
         pool.query(database, function (err, result) {
             if (err) throw err;
-            console.log("Database hack_trip created");
+            console.log("DATA BASE hack_trip created");
         });
+
+        connection.release()
+        pool.query(usedb, function (err, result) {
+            if (err) throw err;
+            console.log("USE DATA BASE hack_trip");
+        });
+
         connection.release()
         pool.query(users, function (err, result) {
             if (err) {

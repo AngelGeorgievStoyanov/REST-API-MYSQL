@@ -1,4 +1,9 @@
-export const database='CREATE DATABASE IF NOT EXISTS hack_trip'
+
+export const createuser = `CREATE USER IF NOT EXISTS 'hack_trip'@'localhost' IDENTIFIED WITH mysql_native_password BY 'angel.stoyanov';`
+export const grantuser = `GRANT ALL PRIVILEGES ON *.* TO 'hack_trip'@'localhost';`
+export const flush = 'FLUSH PRIVILEGES;'
+export const database = `CREATE DATABASE IF NOT EXISTS hack_trip;`
+export const usedb = 'USE hack_trip;'
 
 
 export const users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
@@ -14,7 +19,7 @@ export const users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     role VARCHAR(8) NOT NULL DEFAULT 'user',
     status VARCHAR(12) NOT NULL DEFAULT 'ACTIVE',
-    PRIMARY KEY (_id))`;
+    PRIMARY KEY (_id));`
 
 export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     _id VARCHAR(36) NOT NULL,
