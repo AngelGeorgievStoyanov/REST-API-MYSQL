@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv'
 dotenv.config()
-import * as express from 'express'
+import * as  express from 'express'
 import * as cors from 'cors';
 import * as mysql from 'mysql';
 import * as bodyParser from 'body-parser'
@@ -15,7 +15,7 @@ import { CommentTripRepository } from './services/commentService';
 import { comments, createuser, database, flush, grantuser, points, trips, usedb, users } from './db/createMySQL';
 
 
-const HOSTNAME = process.env.MYSQL_HOST;
+const HOSTNAME = process.env.MYSQL_HOST || 'localhost';
 const PORT = Number(process.env.PORT) || 8080;
 
 
