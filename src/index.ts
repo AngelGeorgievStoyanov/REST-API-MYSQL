@@ -4,13 +4,13 @@ import * as  express from 'express'
 import * as cors from 'cors';
 import * as mysql from 'mysql';
 import * as bodyParser from 'body-parser'
-import tripController from './controllers/tripController'
 import authController from './controllers/authController';
+import tripController from './controllers/tripController'
+import pointController from './controllers/pointController';
+import commentController from './controllers/commentController';
 import { UserRepository } from './services/userService';
 import { TripRepository } from './services/tripService';
-import pointController from './controllers/pointController';
 import { PointTripRepository } from './services/pointService';
-import commentController from './controllers/commentController';
 import { CommentTripRepository } from './services/commentService';
 import { comments, createuser, database, flush, grantuser, points, trips, usedb, users } from './db/createMySQL';
 
@@ -27,8 +27,9 @@ app.use(cors({
 
 
 
-app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 100000 }));
 app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
 app.use('/users', authController);
 app.use('/data/trips', tripController);
 app.use('/data/points', pointController);
@@ -43,7 +44,7 @@ app.use('/data/comments', commentController);
         host: process.env.MYSQOL_HOST,
         port: Number(process.env.MYSQL_PORT),
         user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASSWORD,
+        password: 'angel.stoyanov',
     });
 
     pool.getConnection(function (err, connection) {

@@ -181,7 +181,6 @@ tripController.get('/my-trips/:id', async (req, res) => {
 
 tripController.get('/favorites/:id', async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-
     try {
         const trips = await tripRepo.getAllMyFavorites(req.params.id);
         res.json(trips);
@@ -245,7 +244,6 @@ tripController.put('/favorites/:id', async (req, res) => {
     try {
 
         const existing = await tripRepo.getTripById(req.params.id);
-
         try {
             const result = await tripRepo.updateTripFavoritesByuserId(req.params.id, req.body);
 

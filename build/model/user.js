@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.User = void 0;
-class User {
-    constructor(_id, email, firstName, lastName, hashedPassword, timeCreated, timeEdited, lastTimeLogin, countOfLogs, imageFile, role, status) {
+var User = /** @class */ (function () {
+    function User(_id, email, firstName, lastName, hashedPassword, timeCreated, timeEdited, lastTimeLogin, countOfLogs, imageFile, role, status) {
         this._id = _id;
         this.email = email;
         this.firstName = firstName;
@@ -16,6 +16,7 @@ class User {
         this.role = role;
         this.status = status;
     }
-}
+    return User;
+}());
 exports.User = User;
 //# sourceMappingURL=user.js.map

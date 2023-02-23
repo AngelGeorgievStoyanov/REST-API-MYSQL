@@ -30,16 +30,16 @@ export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     countPeoples INT NOT NULL,
     typeOfPeople VARCHAR(45) NULL DEFAULT NULL,
     destination VARCHAR(60) NULL DEFAULT NULL,
-    coments VARCHAR(45) NULL DEFAULT NULL,
-    likes VARCHAR(45) NULL DEFAULT NULL,
+    coments VARCHAR(3600) NULL DEFAULT NULL,
+    likes VARCHAR(3600) NULL DEFAULT NULL,
     _ownerId VARCHAR(45) NULL DEFAULT NULL,
     lat DOUBLE NULL DEFAULT NULL,
     lng DOUBLE NULL DEFAULT NULL,
     timeCreated DATE NULL DEFAULT NULL,
     timeEdited DATE NULL DEFAULT NULL,
-    reportTrip VARCHAR(45) NULL DEFAULT NULL,
+    reportTrip VARCHAR(360) NULL DEFAULT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
-    favorites VARCHAR(45) NULL DEFAULT NULL,
+    favorites VARCHAR(3600) NULL DEFAULT NULL,
     PRIMARY KEY (_id));`
 
 
@@ -61,5 +61,5 @@ export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     comment VARCHAR(1000) NOT NULL,
     _tripId VARCHAR(45) NOT NULL,
     _ownerId VARCHAR(45) NOT NULL,
-    reportComment VARCHAR(45) NULL DEFAULT NULL,
+    reportComment VARCHAR(3600) NULL DEFAULT NULL,
     PRIMARY KEY (_id));`

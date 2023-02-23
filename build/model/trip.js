@@ -15,8 +15,10 @@ var TypeOfPeople;
     TypeOfPeople[TypeOfPeople["Friends"] = 2] = "Friends";
     TypeOfPeople[TypeOfPeople["Another type"] = 3] = "Another type";
 })(TypeOfPeople = exports.TypeOfPeople || (exports.TypeOfPeople = {}));
-class Trip {
-    constructor(title, description, price, transport = Transport.Car, countPeoples, typeOfPeople = TypeOfPeople.Family, destination, coments, likes, _ownerId, lat, lng, timeCreated, timeEdited, reportTrip, imageFile, favorites) {
+var Trip = /** @class */ (function () {
+    function Trip(title, description, price, transport, countPeoples, typeOfPeople, destination, coments, likes, _ownerId, lat, lng, timeCreated, timeEdited, reportTrip, imageFile, favorites) {
+        if (transport === void 0) { transport = Transport.Car; }
+        if (typeOfPeople === void 0) { typeOfPeople = TypeOfPeople.Family; }
         this.title = title;
         this.description = description;
         this.price = price;
@@ -35,6 +37,7 @@ class Trip {
         this.imageFile = imageFile;
         this.favorites = favorites;
     }
-}
+    return Trip;
+}());
 exports.Trip = Trip;
 //# sourceMappingURL=trip.js.map
