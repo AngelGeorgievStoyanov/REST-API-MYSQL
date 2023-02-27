@@ -16,14 +16,19 @@ import { comments, createuser, database, flush, grantuser, points, trips, usedb,
 
 
 const HOSTNAME = process.env.MYSQL_HOST || 'localhost';
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = Number(process.env.PORT) || 8000;
 
 
 const app = express();
-app.use(cors({
-    origin: '*',
+
+
+// const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
+const allowedOrigins = ['http://localhost:3000'];
+const options: cors.CorsOptions = {
+    origin: allowedOrigins,
     methods: 'GET,POST,PUT,DELETE'
-}));
+};
+app.use(cors(options));
 
 
 
@@ -44,7 +49,7 @@ app.use('/data/comments', commentController);
         host: process.env.MYSQOL_HOST,
         port: Number(process.env.MYSQL_PORT),
         user: process.env.MYSQL_USER,
-        password: 'angel.stoyanov',
+        password: process.env.MYSQL_PASSWORD,
     });
 
     pool.getConnection(function (err, connection) {

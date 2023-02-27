@@ -348,6 +348,27 @@ export class UserRepository implements IUserRepository<User> {
     }
 
 
+    async confirmUserId(id: IdType): Promise<boolean> {
+        return new Promise((resolve, reject) => {
+            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows, fields) => {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                    return;
+                }
+                if (rows.length == 1) {
+
+                    resolve(true);
+                } else {
+
+                    resolve(false)
+                }
+            });
+        });
+
+    }
+
+
 
 }
 

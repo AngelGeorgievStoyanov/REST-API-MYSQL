@@ -3,7 +3,7 @@ export type IdType = number | string;
 
 export interface Identifiable {
     _id?: IdType;
-    K?:number
+    K?: number
 
 }
 
@@ -20,7 +20,7 @@ export interface IUserRepository<T extends Identifiable> {
     findById(id: IdType): Promise<T>;
 
     updateUser(id: IdType, entity: T): Promise<T>;
-   
+
     updateUserAdmin(id: IdType, entity: T): Promise<T>;
 
     updateUserPass(id: IdType, entity: T): Promise<T>;
@@ -28,7 +28,9 @@ export interface IUserRepository<T extends Identifiable> {
     editProfileImage(id: IdType, entity: string): Promise<T>;
 
     getAll(): Promise<T[]>;
-    
+
     confirmRole(id: IdType, role: string): Promise<boolean>;
+
+    confirmUserId(id: IdType): Promise<boolean>
 
 }

@@ -31,7 +31,8 @@ authController.post('/login', async (req, res) => {
             throw new Error('Incorrect email or password');
         }
 
-        const match = bcrypt.compare(req.body.password, user.hashedPassword);
+        const match = await bcrypt.compare(req.body.password, user.hashedPassword);
+
 
         if (!match) {
             throw new Error('Incorrect email or password');
@@ -229,7 +230,7 @@ authController.put('/edit/:id', async (req, res) => {
                 res.status(200).json(editedUserPassword);
 
             } else {
-            
+
                 if (req.body.imageFile === undefined) {
                     req.body.imageFile = user.imageFile;
                 } else {
@@ -376,6 +377,22 @@ authController.post('/guard', async (req, res) => {
 
         res.status(200).json(guard);
 
+    } catch (err) {
+        console.log(err);
+        res.status(401).json(err.message);
+    }
+
+})
+
+
+authController.get('/userId/:id', async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+    try {
+
+        const guard = await userRepo.confirmUserId(req.params.id);
+      
+        res.status(200).json(guard);
     } catch (err) {
         console.log(err);
         res.status(401).json(err.message);
