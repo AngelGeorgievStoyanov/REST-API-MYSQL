@@ -66,12 +66,16 @@ pointController.delete('/trip/:id', async (req, res) => {
 
 pointController.get('/:id', async (req, res) => {
 
-
+ 
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
     try {
 
         const points = await pointRepo.findByTripId(req.params.id);
+        points.map((point) => ({
+            ...point,
+            _ownerId: point._ownerId = ''
+        }))
         res.status(200).json(points);
     } catch (err) {
         res.status(400).json(err.message);

@@ -1,6 +1,8 @@
 import * as express from 'express';
 import { ICommentTripRepository } from '../interface/comment-repository';
+import { IUserRepository } from '../interface/user-repository';
 import { Comment } from '../model/comment';
+import { User } from '../model/user';
 
 
 
@@ -57,14 +59,20 @@ commentController.get('/:id', async (req, res) => {
 })
 
 
-commentController.get('/trip/:id', async (req, res) => {
+commentController.get('/trip/:id/:userId', async (req, res) => {
 
-
+    const tripId = req.params.id;
+    const userId = req.params.userId;
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
 
     try {
 
-        const comments = await commentRepo.getCommentsByTripId(req.params.id);
+        const comments = await commentRepo.getCommentsByTripId(tripId);
+
+        comments.map((comment) => ({
+            ...comment,
+            _ownerId: comment._ownerId === userId ? comment._ownerId = userId : comment._ownerId = ''
+        }))
 
         res.status(200).json(comments);
     } catch (err) {
@@ -113,9 +121,6 @@ commentController.delete('/:id', async (req, res) => {
 
     }
 })
-
-
-
 
 
 commentController.put('/report/:id', async (req, res) => {
@@ -172,6 +177,37 @@ commentController.put('/admin/delete-report/:id', async (req, res) => {
     }
 })
 
+
+commentController.get('/image-user/:id', async (req, res) => {
+
+    const commentId = req.params.id
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
+
+
+    try {
+
+        const comment = await commentRepo.getCommentById(commentId)
+
+        if (comment._ownerId !== undefined && comment._ownerId !== null) {
+            try {
+                const userId = comment._ownerId
+                const user = await userRepo.findById(userId)
+
+                res.status(200).json(user.imageFile);
+
+            } catch (err) {
+                res.status(400).json(err.message);
+            }
+        }
+    } catch (err) {
+        res.status(400).json(err.message);
+    }
+
+
+})
 
 
 export default commentController

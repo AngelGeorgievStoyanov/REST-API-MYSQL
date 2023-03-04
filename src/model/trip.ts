@@ -22,7 +22,7 @@ export class Trip {
         public destination: string,
         public coments: string,
         public likes: string[],
-        public _ownerId: string[],
+        public _ownerId: string,
         public lat: number,
         public lng: number,
         public timeCreated: Date,

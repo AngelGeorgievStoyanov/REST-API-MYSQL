@@ -164,7 +164,6 @@ authController.put('/admin/edit/:id', async (req, res) => {
     try {
 
         const user = await userRepo.findById(req.params.id);
-        console.log(user)
 
         try {
 
