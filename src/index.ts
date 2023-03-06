@@ -23,6 +23,8 @@ const app = express();
 
 
 const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
+
+
 const options: cors.CorsOptions = {
     origin: allowedOrigins,
     methods: 'GET,POST,PUT,DELETE'

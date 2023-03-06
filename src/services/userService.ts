@@ -142,7 +142,6 @@ export class UserRepository implements IUserRepository<User> {
 
 
     async findById(id): Promise<User> {
-
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows, fields) => {
                 if (err) {
@@ -153,11 +152,9 @@ export class UserRepository implements IUserRepository<User> {
                 if (rows.length == 1) {
 
                     const user = rows[0];
-
                     resolve({ ...user });
                 } else {
-
-                    resolve(id)
+                    reject(new Error(`Error finding new document in database`));
                 }
             });
         });

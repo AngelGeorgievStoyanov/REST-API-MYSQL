@@ -87,7 +87,7 @@ tripController.get('/', async (req, res) => {
 
         const trips = await tripRepo.getAll(search, typegroup, typetransport);
 
-        const pages = Math.ceil(trips.length / 9);
+        const pages = Math.ceil(trips.length / 8);
         res.status(200).json(pages);
     } catch (err) {
         res.json(err.message);

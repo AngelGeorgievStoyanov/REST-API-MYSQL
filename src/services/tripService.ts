@@ -116,7 +116,7 @@ export class TripRepository implements ITripRepository<Trip> {
     async getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
 
         page = page || 1;
-        const perPage = 9;
+        const perPage = 8;
         const currentPage = (page - 1) * perPage;
         const searchInp = '%' + search + '%';
         const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup;

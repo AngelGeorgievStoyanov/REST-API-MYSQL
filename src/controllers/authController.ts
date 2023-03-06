@@ -126,6 +126,8 @@ authController.get('/profile/:id', async (req, res) => {
     try {
 
         const user = await userRepo.findById(req.params.id);
+
+
         res.status(200).json(user);
 
     } catch (err) {
@@ -390,7 +392,6 @@ authController.get('/userId/:id', async (req, res) => {
     try {
 
         const guard = await userRepo.confirmUserId(req.params.id);
-      
         res.status(200).json(guard);
     } catch (err) {
         console.log(err);
