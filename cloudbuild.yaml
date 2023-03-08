@@ -1,0 +1,3 @@
+steps:
+- name:'gcr.io/cloud-builders/gcloud'
+args:['beta','functions','deploy','${_NAME}','--runtime=nodejs14','--allow-unauthenticated']

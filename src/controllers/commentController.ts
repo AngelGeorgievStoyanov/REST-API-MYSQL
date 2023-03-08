@@ -71,7 +71,8 @@ commentController.get('/trip/:id/:userId', async (req, res) => {
 
         comments.map((comment) => ({
             ...comment,
-            _ownerId: comment._ownerId === userId ? comment._ownerId = userId : comment._ownerId = ''
+            _ownerId: comment._ownerId === userId ? comment._ownerId = userId : comment._ownerId = '',
+            reportComment: comment.reportComment.includes(userId)? comment.reportComment=[userId]:comment.reportComment= []
         }))
 
         res.status(200).json(comments);

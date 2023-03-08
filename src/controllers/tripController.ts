@@ -141,7 +141,6 @@ tripController.get('/reports', async (req, res) => {
         trips.map((trip) => ({
             ...trip,
             likes:  trip.likes = [trip.likes.length.toString()] ,
-            reportTrip: trip.reportTrip=[trip.reportTrip.length.toString()]
 
         }))
         res.status(200).json(trips);
