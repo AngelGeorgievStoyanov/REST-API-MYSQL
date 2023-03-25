@@ -28,6 +28,7 @@ const selectOne = `SELECT * FROM hack_trip.users WHERE _id =?`;
 const updateUserSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=? WHERE _id =?`;
 const updateUserPassSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=?, hashedPassword=? WHERE _id =?`;
 const updateUserAdminSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=?, role=?, status=? WHERE _id =?`;
+const updateUserVerifyEmailSql = `UPDATE hack_trip.users SET verifyEmail =? WHERE _id =?`;
 
 export class UserRepository implements IUserRepository<User> {
     constructor(protected pool: Pool) { }
@@ -235,7 +236,40 @@ export class UserRepository implements IUserRepository<User> {
 
     }
 
+    
+    async updateUserverifyEmail(id: IdType, confirmation: boolean): Promise<User> {
 
+        return new Promise((resolve, reject) => {
+            this.pool.query(updateUserVerifyEmailSql, [ confirmation,id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            const user = rows[0];
+
+                            resolve(user);
+
+                        }
+
+                    });
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
+            });
+        });
+
+    }
     async updateUserPass(id: IdType, user): Promise<User> {
 
 

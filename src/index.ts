@@ -12,7 +12,8 @@ import { UserRepository } from './services/userService';
 import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
 import { CommentTripRepository } from './services/commentService';
-import { comments, createuser, database, flush, grantuser, points, trips, usedb, users } from './db/createMySQL';
+import { comments, createuser, database, flush, grantuser, points, trips, usedb, users, verify } from './db/createMySQL';
+import { VerifyTokenRepository } from './services/verifyTokenService';
 
 
 const HOSTNAME = process.env.MYSQL_HOST || 'localhost';
@@ -22,8 +23,8 @@ const PORT = Number(process.env.PORT) || 8000;
 const app = express();
 
 
-const allowedOrigins = ['http://localhost:3000'];
-// const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
+
+ const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
 
 
 const options: cors.CorsOptions = {
@@ -131,6 +132,19 @@ app.use('/data/comments', commentController);
 
         })
 
+        connection.release()
+
+
+        pool.query(verify, function (err, result) {
+            if (err) {
+                console.log(err)
+            } else {
+                console.log(`Table VERIFY created!`)
+            }
+
+        })
+
+
         connection.destroy()
 
 
@@ -143,6 +157,7 @@ app.use('/data/comments', commentController);
     app.set("tripsRepo", new TripRepository(pool));
     app.set("pointsRepo", new PointTripRepository(pool));
     app.set("commentsRepo", new CommentTripRepository(pool));
+    app.set("verifyTokenRepo", new VerifyTokenRepository(pool));
 
     app.listen(PORT, HOSTNAME, () => {
         console.log(`HTTP Server listening on: http://${HOSTNAME}:${PORT}`);

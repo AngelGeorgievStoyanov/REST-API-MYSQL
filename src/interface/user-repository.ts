@@ -31,6 +31,7 @@ export interface IUserRepository<T extends Identifiable> {
 
     confirmRole(id: IdType, role: string): Promise<boolean>;
 
-    confirmUserId(id: IdType): Promise<boolean>
+    confirmUserId(id: IdType): Promise<boolean>;
 
+    updateUserverifyEmail(id: IdType, confirmation: boolean): Promise<T>;
 }

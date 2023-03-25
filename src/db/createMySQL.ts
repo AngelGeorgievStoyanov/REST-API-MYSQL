@@ -19,7 +19,9 @@ export const users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     role VARCHAR(8) NOT NULL DEFAULT 'user',
     status VARCHAR(12) NOT NULL DEFAULT 'ACTIVE',
-    PRIMARY KEY (_id));`
+    verifyEmail TINYINT NULL DEFAULT 0,
+    PRIMARY KEY (_id)
+    );`
 
 export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     _id VARCHAR(36) NOT NULL,
@@ -40,7 +42,8 @@ export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     reportTrip VARCHAR(360) NULL DEFAULT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     favorites VARCHAR(3600) NULL DEFAULT NULL,
-    PRIMARY KEY (_id));`
+    PRIMARY KEY (_id)
+    );`
 
 
 export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
@@ -53,7 +56,8 @@ export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     pointNumber VARCHAR(45) NOT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     _ownerId VARCHAR(45) NOT NULL,
-    PRIMARY KEY (_id));`
+    PRIMARY KEY (_id)
+    );`
 
 export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     _id VARCHAR(36) NOT NULL,
@@ -63,3 +67,10 @@ export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     _ownerId VARCHAR(45) NOT NULL,
     reportComment VARCHAR(3600) NULL DEFAULT NULL,
     PRIMARY KEY (_id));`
+
+
+export const verify = `CREATE TABLE IF NOT EXISTS hack_trip.verify (
+    _id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    verifyToken VARCHAR(36) NOT NULL,
+    userId VARCHAR(36) NOT NULL
+    );`

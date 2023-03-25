@@ -17,6 +17,7 @@ export interface IUser {
     imageFile: string;
     role: string;
     status: string;
+    verifyEmail: boolean;
 }
 
 
@@ -24,19 +25,19 @@ export interface IUser {
 export class User {
 
     constructor(
+        public email: string,
+        public firstName: string,
+        public lastName: string,
+        public hashedPassword: string,
+        public timeCreated: Date,
+        public timeEdited: Date,
+        public lastTimeLogin: Date,
+        public countOfLogs: string,
+        public verifyEmail: boolean | number,
+        public role: string,
         public _id?: IdType,
-        public email?: string,
-        public firstName?: string,
-        public lastName?: string,
-        public hashedPassword?: string,
-        public timeCreated?: Date,
-        public timeEdited?: Date,
-        public lastTimeLogin?: Date,
-        public countOfLogs?: string,
         public imageFile?: string,
-        public role?: string,
         public status?: string,
-
 
     ) { }
 }

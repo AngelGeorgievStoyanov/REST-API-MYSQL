@@ -49,7 +49,6 @@ export class TripRepository implements ITripRepository<Trip> {
     constructor(protected pool: Pool) { }
 
 
-
     async create(trip: Trip): Promise<Trip> {
         trip.timeCreated = new Date()
         trip.timeEdited = new Date()
@@ -85,7 +84,6 @@ export class TripRepository implements ITripRepository<Trip> {
     }
 
 
-
     async getAll(search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
         const searchInp = '%' + search + '%';
         const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup;
@@ -110,7 +108,6 @@ export class TripRepository implements ITripRepository<Trip> {
             });
         });
     }
-
 
 
     async getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
@@ -165,6 +162,7 @@ export class TripRepository implements ITripRepository<Trip> {
             });
         });
     }
+
 
     async getTripById(id: IdType): Promise<Trip> {
 
@@ -315,6 +313,7 @@ export class TripRepository implements ITripRepository<Trip> {
         });
     }
 
+
     async updateTripFavoritesByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
         let favoritessNew = trip.favorites.join();
@@ -354,6 +353,7 @@ export class TripRepository implements ITripRepository<Trip> {
         });
     }
 
+
     async updateTripLikeByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
         let likesNew = trip.likes.join();
@@ -392,6 +392,8 @@ export class TripRepository implements ITripRepository<Trip> {
             });
         });
     }
+  
+    
     async deleteReportTripByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
         return new Promise((resolve, reject) => {
@@ -514,6 +516,7 @@ export class TripRepository implements ITripRepository<Trip> {
         });
     }
 
+
     async getTop(): Promise<Trip[]> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.trips', (err, rows, fields) => {
@@ -534,8 +537,6 @@ export class TripRepository implements ITripRepository<Trip> {
             });
         });
     }
-
-
 
 
 }

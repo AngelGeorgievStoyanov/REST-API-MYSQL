@@ -6,7 +6,10 @@ import * as bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from '../interface/user-repository';
 import { storage } from './tripController';
 import * as multer from 'multer';
-import * as dotenv from 'dotenv'
+import * as dotenv from 'dotenv';
+import sendMail from '../utils/sendEmail';
+import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
+import { VerifyToken } from '../model/verifyToken';
 dotenv.config()
 
 
@@ -42,7 +45,9 @@ authController.post('/login', async (req, res) => {
             throw new Error(`Your profile status is ${user.status}`);
         }
 
-
+        if (user.verifyEmail === 0) {
+            throw new Error('Your Email has not been verified. Look for the verification email in your inbox and click the link. ')
+        }
 
         const token = createToken(user);
 
@@ -99,13 +104,32 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
             }
 
 
+
+
             try {
 
                 const user = await userRepo.create(req.body);
 
-                const token = createToken(user);
+                if (user) {
+                    const hexStr = verifyToken()
+                    const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
+                    const tokenVerifyUser = await verifyTokenRepo.create(hexStr, user._id.toString())
 
-                res.status(201).json(token);
+
+                    const confirmUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for email verification, kindly use this <a href="http://localhost:8000/users/verify-email/${user._id}/${tokenVerifyUser.verifyToken}">link</a> to verify your email address</p></body></html>`
+                    try {
+
+                        const sendEmail = await sendMail(req.body.email, confirmUrl)
+
+                        res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
+                    } catch (err) {
+                        console.log(err);
+                        res.status(400).json(err.message);
+                    }
+
+                }
+
+
             } catch (err) {
                 console.log(err);
                 res.status(400).json(err.message);
@@ -133,6 +157,47 @@ authController.get('/profile/:id', async (req, res) => {
     } catch (err) {
         console.log(err.message);
         res.status(401).json(err.message);
+    }
+
+})
+
+
+authController.get('/verify-email/:id/:token', async (req, res) => {
+
+    const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+
+    const id = req.params.id;
+    const token = req.params.token;
+
+    try {
+        const userVerifyTokenTable = await verifyTokenRepo.findById(id, token)
+
+        const user = await userRepo.findById(id)
+
+        if (userVerifyTokenTable.userId === id && user.verifyEmail === 0) {
+            try {
+
+                const verifiedUser = await userRepo.updateUserverifyEmail(id, true)
+
+               
+                res.status(200).send('<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><h1>Email has been already verified. Please <a style="color: white" href="http://localhost:3000/login">Login</a>.</h1></body> </html>')
+            } catch (err) {
+                console.log(err)
+                res.status(400).json(err.message);
+            }
+
+        } else if (user.verifyEmail === 1) {
+
+            res.status(200).send('<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><h1>Email has been already verified. Please <a style="color: white" href="http://localhost:3000/login">Login</a>.</h1></body> </html>')
+
+        }
+
+    } catch (err) {
+        console.log(err)
+        res.status(400).json(err.message);
     }
 
 })
@@ -412,9 +477,15 @@ const deleteFile = async (filePath) => {
 }
 
 
+function verifyToken() {
+    let hex = (((Date.now() * Math.random() * 99999)).toString(16) + ((Date.now() * Math.random() * 99999)).toString(16) + ((Date.now() * Math.random() * 99999)).toString(16))
+    if (hex.includes('.')) {
+        hex = hex.split('.').join('')
 
+    }
 
-
+    return hex.length > 36 ? hex.slice(0, 36) : hex
+}
 
 
 
