@@ -24,8 +24,7 @@ const app = express();
 
 
 
-const allowedOrigins = ['http://localhost:3000'];
-// const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
+const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
 
 
 const options: cors.CorsOptions = {
