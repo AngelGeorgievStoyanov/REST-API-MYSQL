@@ -72,5 +72,6 @@ export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
 export const verify = `CREATE TABLE IF NOT EXISTS hack_trip.verify (
     _id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     verifyToken VARCHAR(36) NOT NULL,
-    userId VARCHAR(36) NOT NULL
+    userId VARCHAR(36) NOT NULL,
+    verifyTokenForgotPassword VARCHAR(36) NULL
     );`

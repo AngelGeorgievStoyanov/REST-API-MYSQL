@@ -34,4 +34,6 @@ export interface IUserRepository<T extends Identifiable> {
     confirmUserId(id: IdType): Promise<boolean>;
 
     updateUserverifyEmail(id: IdType, confirmation: boolean): Promise<T>;
+
+    newUserPassword(id:IdType, password:string):Promise<T>;
 }

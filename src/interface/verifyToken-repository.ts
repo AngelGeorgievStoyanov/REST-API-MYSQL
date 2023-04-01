@@ -7,4 +7,8 @@ export interface IVerifyTokenRepository<T extends Identifiable> {
 
     findById(userId: string, token: string): Promise<T>;
 
+    forgotPassword(token: string, userId: string): Promise<T>;
+
+    findByIdAndVerifyTokenForgotPassword(token: string, userId: string): Promise<T>;
+
 }

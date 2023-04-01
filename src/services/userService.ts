@@ -27,6 +27,7 @@ const selectOne = `SELECT * FROM hack_trip.users WHERE _id =?`;
 
 const updateUserSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=? WHERE _id =?`;
 const updateUserPassSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=?, hashedPassword=? WHERE _id =?`;
+const updateUserNewPassSql = `UPDATE hack_trip.users SET  hashedPassword=? WHERE _id =?`;
 const updateUserAdminSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=?, role=?, status=? WHERE _id =?`;
 const updateUserVerifyEmailSql = `UPDATE hack_trip.users SET verifyEmail =? WHERE _id =?`;
 
@@ -38,6 +39,8 @@ export class UserRepository implements IUserRepository<User> {
 
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.users WHERE email =?', [email], (err, rows, fields) => {
+             
+             
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -125,8 +128,8 @@ export class UserRepository implements IUserRepository<User> {
                             return;
                         }
                         if (rows) {
-                            const point = rows[0];
-                            resolve(point);
+                            const user = rows[0];
+                            resolve(user);
 
                         }
 
@@ -143,8 +146,11 @@ export class UserRepository implements IUserRepository<User> {
 
 
     async findById(id): Promise<User> {
+     
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows, fields) => {
+           
+               
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -399,7 +405,40 @@ export class UserRepository implements IUserRepository<User> {
 
     }
 
+    async newUserPassword(id:IdType,password:string):Promise<User>{
 
+        const hashedPassword = await bcrypt.hash(password, 10);
+        return new Promise((resolve, reject) => {
+            this.pool.query(updateUserNewPassSql, [  hashedPassword, id], (err, rows, fields) => {
+                if (err) {
+
+                    reject(err);
+                    return;
+                }
+                if (!err) {
+                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                            return;
+                        }
+                        if (rows) {
+                            const user = rows[0];
+
+                            resolve(user);
+
+                        }
+
+                    });
+
+                } else {
+
+                    reject(new Error(`Error finding new document in database`));
+                }
+            });
+        });
+
+    }
 
 }
 

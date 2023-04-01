@@ -117,9 +117,11 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
 
 
                     const confirmUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for email verification, kindly use this <a href="http://localhost:8000/users/verify-email/${user._id}/${tokenVerifyUser.verifyToken}">link</a> to verify your email address</p></body></html>`
+
+                    const subject = 'Email verification - HACK-TRIP'
                     try {
 
-                        const sendEmail = await sendMail(req.body.email, confirmUrl)
+                        const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
 
                         res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
                     } catch (err) {
@@ -144,6 +146,40 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
     })
 
 
+authController.post('/new-password', async (req, res) => {
+
+
+    const userId = req.body.id;
+    const token = req.body.token;
+    const password = req.body.password;
+
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
+
+    try {
+        const verifiedUser = await verifyTokenRepo.findByIdAndVerifyTokenForgotPassword(userId, token);
+
+        if (verifiedUser) {
+            try {
+                const user = await userRepo.newUserPassword(userId, password);
+
+                res.status(200).json(user);
+
+            } catch (err) {
+                console.log(err.message);
+                res.status(400).json(err.message);
+            }
+        }
+
+    } catch (err) {
+        console.log(err.message);
+        res.status(400).json(err.message);
+    }
+
+})
+
+
 authController.get('/profile/:id', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -160,6 +196,7 @@ authController.get('/profile/:id', async (req, res) => {
     }
 
 })
+
 
 
 authController.get('/verify-email/:id/:token', async (req, res) => {
@@ -182,7 +219,7 @@ authController.get('/verify-email/:id/:token', async (req, res) => {
 
                 const verifiedUser = await userRepo.updateUserverifyEmail(id, true)
 
-               
+
                 res.status(200).send('<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><h1>Email has been already verified. Please <a style="color: white" href="http://localhost:3000/login">Login</a>.</h1></body> </html>')
             } catch (err) {
                 console.log(err)
@@ -201,6 +238,7 @@ authController.get('/verify-email/:id/:token', async (req, res) => {
     }
 
 })
+
 
 
 authController.post('/confirmpassword/:id', async (req, res) => {
@@ -330,6 +368,44 @@ authController.put('/edit/:id', async (req, res) => {
 })
 
 
+authController.post('/forgot-password', async (req, res) => {
+
+    const email = req.body.email;
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    try {
+        const user = await userRepo.findByEmail(email)
+
+
+        if (user.email) {
+
+            const hexStr = verifyToken()
+            const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
+            const tokenVerifyUser = await verifyTokenRepo.forgotPassword(hexStr, user._id.toString())
+
+            const resetUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for reset password, kindly use this <a href="http://localhost:3000/register/${user._id}/${tokenVerifyUser.verifyTokenForgotPassword}">link</a> to proceed. If you did not request a password reset, please ignore this email or reply to let us know.</p></body></html>`
+
+            try {
+                const subject = 'Forgot password - HACK-TRIP'
+                const sendEmail = await sendMail(req.body.email, resetUrl, subject)
+
+                res.status(201).json('An email has been sent to you with a reset password link.');
+            } catch (err) {
+                console.log(err);
+                res.status(400).json(err.message);
+            }
+        } else {
+            throw new Error(`Error finding user with ${email} in database`)
+        }
+
+    } catch (err) {
+        console.log(err.message)
+        res.status(401).json(err.message);
+    }
+
+
+})
+
+
 
 function createToken(user) {
     const payload = {
@@ -427,6 +503,8 @@ authController.get('/admin', async (req, res) => {
 
 })
 
+
+
 authController.post('/guard', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -464,6 +542,8 @@ authController.get('/userId/:id', async (req, res) => {
     }
 
 })
+
+
 
 const deleteFile = async (filePath) => {
     try {

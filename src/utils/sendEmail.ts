@@ -1,7 +1,7 @@
 import * as nodemailer from 'nodemailer';
 
 
-export default async function sendMail(email: string, html: string) {
+export default async function sendMail(email: string, html: string , subject:string) {
 
 
 
@@ -17,7 +17,7 @@ export default async function sendMail(email: string, html: string) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: email,
-        subject: 'Email verification - hack-trip.com',
+        subject: subject,
 
         html: html
     }
