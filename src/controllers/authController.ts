@@ -16,7 +16,7 @@ dotenv.config()
 
 const secret = process.env.secret
 
-const APP_URL=CONNECTIONURL
+const APP_URL = CONNECTIONURL
 
 
 
@@ -118,7 +118,7 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
                     const tokenVerifyUser = await verifyTokenRepo.create(hexStr, user._id.toString())
 
 
-                    const confirmUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for email verification, kindly use this <a href="${APP_URL}/users/verify-email/${user._id}/${tokenVerifyUser.verifyToken}">link</a> to verify your email address</p></body></html>`
+                    const confirmUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for email verification, kindly use this <a href="https://api.www.hack-trip.com/users/verify-email/${user._id}/${tokenVerifyUser.verifyToken}">link</a> to verify your email address</p></body></html>`
 
                     const subject = 'Email verification - HACK-TRIP'
                     try {
@@ -222,15 +222,15 @@ authController.get('/verify-email/:id/:token', async (req, res) => {
                 const verifiedUser = await userRepo.updateUserverifyEmail(id, true)
 
 
-                res.status(200).send(`<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><h1>Email has been already verified. Please <a style="color: white" href="${APP_URL}/login">Login</a>.</h1></body> </html>`)
+                res.status(200).json(true)
             } catch (err) {
                 console.log(err)
                 res.status(400).json(err.message);
             }
 
         } else if (user.verifyEmail === 1) {
-
-            res.status(200).send(`<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><h1>Email has been already verified. Please <a style="color: white" href="${APP_URL}/login">Login</a>.</h1></body> </html>`)
+          
+            res.status(200).json(true)
 
         }
 

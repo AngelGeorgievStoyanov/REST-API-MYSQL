@@ -144,7 +144,7 @@ export class TripRepository implements ITripRepository<Trip> {
     async getAllReports(): Promise<Trip[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE reportTrip IS NOT NULL', (err, rows, fields) => {
+            this.pool.query("SELECT * FROM hack_trip.trips WHERE reportTrip IS NOT NULL AND TRIM(reportTrip) <> '';", (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -392,8 +392,8 @@ export class TripRepository implements ITripRepository<Trip> {
             });
         });
     }
-  
-    
+
+
     async deleteReportTripByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
         return new Promise((resolve, reject) => {

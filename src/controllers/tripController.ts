@@ -43,8 +43,8 @@ tripController.get('/top/:id', async (req, res) => {
         sort.map((trip) => ({
             ...trip,
             _ownerId: trip._ownerId === userId ? trip._ownerId = userId : trip._ownerId = '',
-            likes: trip.likes = [trip.likes.length.toString()] ,
-            reportTrip: trip.reportTrip = [trip.reportTrip.length.toString()] 
+            likes: trip.likes = [trip.likes.length.toString()],
+            reportTrip: trip.reportTrip = [trip.reportTrip.length.toString()]
         }))
 
         if (sort.length > 5) {
@@ -105,9 +105,9 @@ tripController.get('/paginate', async (req, res) => {
     const search = req.query.search.toString();
     const typegroup = req.query.typegroup.toString();
     const typetransport = req.query.typetransport.toString();
-    const userId = req.query.userId.toString()
+    const userId = req.query.userId !== undefined ? req.query.userId.toString() : '';
 
-
+    
 
     try {
         const paginatane = await tripRepo.getPagination(page, search, typegroup, typetransport);
@@ -115,8 +115,8 @@ tripController.get('/paginate', async (req, res) => {
         paginatane.map((page) => ({
             ...page,
             _ownerId: page._ownerId === userId ? page._ownerId = userId : page._ownerId = '',
-            likes:  page.likes = [page.likes.length.toString()] ,
-            reportTrip: page.reportTrip = [page.reportTrip.length.toString()] 
+            likes: page.likes = [page.likes.length.toString()],
+            reportTrip: page.reportTrip = [page.reportTrip.length.toString()]
 
         }))
 
@@ -140,7 +140,7 @@ tripController.get('/reports', async (req, res) => {
         const trips = await tripRepo.getAllReports();
         trips.map((trip) => ({
             ...trip,
-            likes:  trip.likes = [trip.likes.length.toString()] ,
+            likes: trip.likes = [trip.likes.length.toString()],
 
         }))
         res.status(200).json(trips);

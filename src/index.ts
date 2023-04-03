@@ -1,26 +1,22 @@
-import * as dotenv from 'dotenv'
-dotenv.config()
-import * as  express from 'express'
+import * as express from 'express';
 import * as cors from 'cors';
-import * as mysql from 'mysql';
-import * as bodyParser from 'body-parser'
+import * as bodyParser from 'body-parser';
 import authController from './controllers/authController';
-import tripController from './controllers/tripController'
+import tripController from './controllers/tripController';
 import pointController from './controllers/pointController';
 import commentController from './controllers/commentController';
+import * as mysql from 'mysql';
 import { UserRepository } from './services/userService';
 import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
 import { CommentTripRepository } from './services/commentService';
-import { comments, createuser, database, flush, grantuser, points, trips, usedb, users, verify } from './db/createMySQL';
 import { VerifyTokenRepository } from './services/verifyTokenService';
+import { comments, createuser, database, flush, grantuser, points, trips, usedb, users, verify } from './db/createMySQL';
+import * as dotenv from 'dotenv';
+dotenv.config()
 
-
-const HOSTNAME = process.env.MYSQL_HOST || 'localhost';
-const PORT = Number(process.env.PORT) || 8000;
-
-
-const app = express();
+const app = express()
+const port = 8080;
 
 
 
@@ -45,14 +41,19 @@ app.use('/data/comments', commentController);
 
 
 
+app.get('/', (req, res) => {
+    res.send('Hello  HACK TRIP ')
+});
+
+
 
 (async () => {
     const pool = mysql.createPool({
         connectionLimit: 10,
-        host: process.env.MYSQOL_HOST,
-        port: Number(process.env.MYSQL_PORT),
-        user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASSWORD,
+        host: 'localhost',
+        port: Number(3306),
+        user: 'hack_trip',
+        password: 'angel.stoyanov',
     });
 
     pool.getConnection(function (err, connection) {
@@ -78,6 +79,7 @@ app.use('/data/comments', commentController);
         });
 
         connection.release()
+
         pool.query(database, function (err, result) {
             if (err) throw err;
             console.log("DATA BASE hack_trip created");
@@ -153,16 +155,17 @@ app.use('/data/comments', commentController);
 
 
 
+
     app.set("usersRepo", new UserRepository(pool));
     app.set("tripsRepo", new TripRepository(pool));
     app.set("pointsRepo", new PointTripRepository(pool));
     app.set("commentsRepo", new CommentTripRepository(pool));
     app.set("verifyTokenRepo", new VerifyTokenRepository(pool));
 
-    app.listen(PORT, HOSTNAME, () => {
-        console.log(`HTTP Server listening on: http://${HOSTNAME}:${PORT}`);
-    })
-})()
+    app.listen(port, () => {
+        console.log(`Connected succesfully on port ${port}`)
+    });
+})();
 
 
 

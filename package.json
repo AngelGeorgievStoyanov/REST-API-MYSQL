@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "server": "node --inspect=5858 -r ts-node/register ./src/index.ts",
-    "start": "npx tsc && node ./build/index.js --env=production",
+    "start": "npx tsc && pm2 start ./build/index.js",
     "bild": "tsc",
     "dev": "nodemon"
   },
