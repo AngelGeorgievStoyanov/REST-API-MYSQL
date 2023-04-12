@@ -1,4 +1,3 @@
-import { IdType } from "../interface/user-repository";
 import { IVerifyTokenRepository } from "../interface/verifyToken-repository";
 import { VerifyToken } from "../model/verifyToken";
 import { Pool } from 'mysql';
@@ -111,7 +110,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
 
     }
 
-    async findByIdAndVerifyTokenForgotPassword(userId,token:string):Promise<VerifyToken>{
+    async findByIdAndVerifyTokenForgotPassword(userId, token: string): Promise<VerifyToken> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.verify WHERE (userId like ? AND verifyTokenForgotPassword like ?);', [userId, token],
                 (err, rows, fields) => {
@@ -129,5 +128,28 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
 
                 });
         });
+    }
+
+
+    async findByUserId(userId: string): Promise<VerifyToken> {
+        return new Promise((resolve, reject) => {
+            this.pool.query('SELECT * FROM hack_trip.verify WHERE (userId like ? );', [userId],
+                (err, rows, fields) => {
+                   
+                    if (err) {
+
+                        console.log(err);
+                        reject(err);
+                        return;
+                    } else if (rows.length === 1) {
+
+                        resolve({ ...rows[0] });
+                    } else {
+                        resolve(rows);
+                    }
+
+                });
+        });
+
     }
 }

@@ -118,7 +118,7 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
                     const tokenVerifyUser = await verifyTokenRepo.create(hexStr, user._id.toString())
 
 
-                    const confirmUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for email verification, kindly use this <a href="https://api.www.hack-trip.com/users/verify-email/${user._id}/${tokenVerifyUser.verifyToken}">link</a> to verify your email address</p></body></html>`
+                    const confirmUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for email verification, kindly use this <a href="${APP_URL}/users/verify-email/${user._id}/${tokenVerifyUser.verifyToken}">link</a> to verify your email address</p></body></html>`
 
                     const subject = 'Email verification - HACK-TRIP'
                     try {
@@ -229,7 +229,7 @@ authController.get('/verify-email/:id/:token', async (req, res) => {
             }
 
         } else if (user.verifyEmail === 1) {
-          
+
             res.status(200).json(true)
 
         }
@@ -377,8 +377,7 @@ authController.post('/forgot-password', async (req, res) => {
     try {
         const user = await userRepo.findByEmail(email)
 
-
-        if (user.email) {
+        if (user.email && user.verifyEmail === 1) {
 
             const hexStr = verifyToken()
             const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
@@ -395,6 +394,9 @@ authController.post('/forgot-password', async (req, res) => {
                 console.log(err);
                 res.status(400).json(err.message);
             }
+        } else if (user.email && user.verifyEmail === 0) {
+
+            throw new Error(`Please confirm your email: ${email} first, and then change your password. If you do not see an email with a confirmation link, go to the register page and click button RESEND VERIFICATIN EMAIL`)
         } else {
             throw new Error(`Error finding user with ${email} in database`)
         }
@@ -408,6 +410,64 @@ authController.post('/forgot-password', async (req, res) => {
 })
 
 
+authController.post('/resend-email', async (req, res) => {
+
+    const email = req.body.email;
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
+
+
+
+    try {
+        const user = await userRepo.findByEmail(email)
+
+
+
+        if (user.email) {
+            const verifyUser = await verifyTokenRepo.findByUserId(user._id.toString())
+
+            if (verifyUser.userId && verifyUser.verifyToken) {
+
+                const confirmUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for email verification, kindly use this <a href="${APP_URL}/users/verify-email/${user._id}/${verifyUser.verifyToken}">link</a> to verify your email address</p></body></html>`
+
+                const subject = 'Email verification - HACK-TRIP'
+                try {
+
+                    const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
+
+                    res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
+                } catch (err) {
+                    console.log(err);
+                    res.status(400).json(err.message);
+                }
+
+            } else {
+                const hexStr = verifyToken()
+                const tokenVerifyUser = await verifyTokenRepo.create(hexStr, user._id.toString())
+
+                const confirmUrl = `<html><head></head><body style="display:flex;justify-content: center; margin-top: 50px; background-color: rgb(33 150 243 / 77%);color:white; min-height: 100vh"><p>You requested for email verification, kindly use this <a href="${APP_URL}/users/verify-email/${user._id}/${tokenVerifyUser.verifyToken}">link</a> to verify your email address</p></body></html>`
+
+                const subject = 'Email verification - HACK-TRIP'
+                try {
+
+                    const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
+
+                    res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
+                } catch (err) {
+                    console.log(err);
+                    res.status(400).json(err.message);
+                }
+            }
+
+
+        } else {
+            throw new Error(`Error finding user with ${email} in database`)
+        }
+    } catch (err) {
+        console.log(err.message)
+        res.status(400).json(err.message);
+    }
+})
 
 function createToken(user) {
     const payload = {
