@@ -19,7 +19,6 @@ const app = express()
 const port = 8080;
 
 
-// const allowedOrigins = ['http://localhost:3000'];
 
 const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
 

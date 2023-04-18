@@ -6,9 +6,14 @@ import * as path from 'path';
 import { MulterGoogleCloudStorage } from '@duplexsi/multer-storage-google-cloud';
 import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
-
+import { Storage } from '@google-cloud/storage';
 
 const tripController = express.Router();
+
+
+const storageGoogle = new Storage();
+
+
 
 
 export const storage = new MulterGoogleCloudStorage({
@@ -74,7 +79,6 @@ tripController.post('/', async (req, res) => {
 })
 
 
-
 tripController.get('/', async (req, res) => {
 
     const search = req.query.search.toString();
@@ -90,11 +94,22 @@ tripController.get('/', async (req, res) => {
         const pages = Math.ceil(trips.length / 8);
         res.status(200).json(pages);
     } catch (err) {
-        res.json(err.message);
+        res.status(400).json(err.message);
     }
 
 
 });
+
+
+tripController.get('/background', async (req, res) => {
+    try {
+        const list = await listBackground();
+        res.status(200).json(list);
+    } catch (err) {
+        res.status(400).json(err.message);
+    }
+});
+
 
 
 
@@ -107,7 +122,7 @@ tripController.get('/paginate', async (req, res) => {
     const typetransport = req.query.typetransport.toString();
     const userId = req.query.userId !== undefined ? req.query.userId.toString() : '';
 
-    
+
 
     try {
         const paginatane = await tripRepo.getPagination(page, search, typegroup, typetransport);
@@ -419,6 +434,15 @@ const deleteFile = async (filePath) => {
             .file(filePath)
             .delete();
         console.log('File deleted from TRIP');
+    } catch (err) {
+        console.log(err.message);
+    }
+}
+
+const listBackground = async function listFiles() {
+    try {
+        let [files] = await storageGoogle.bucket('hack-trip-background-images').getFiles();
+        return files.map((x) => { return x.name });
     } catch (err) {
         console.log(err.message);
     }
