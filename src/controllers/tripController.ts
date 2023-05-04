@@ -19,12 +19,13 @@ const storageGoogle = new Storage();
 export const storage = new MulterGoogleCloudStorage({
     bucketName: 'hack-trip',
     keyFilename: path.join(__dirname, '../utils/hack-trip-414441f1b5d4.json'),
-    destination: (req, f, cb) => cb(null, Date.now() + Math.random().toString().slice(-3) + `${f.originalname}`)
+    destination: (req, f, cb) => cb(null, Date.now() + Math.random().toString().slice(-3) + `${f.originalname}`),
+
 });
 
 
 
-tripController.post('/upload', multer({ storage }).array('file', 12), function (req, res) {
+tripController.post('/upload', multer({ storage, limits: { fieldSize: 50000000 } }).array('file', 12), function (req, res) {
 
     let files = req.files;
 
