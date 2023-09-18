@@ -30,6 +30,9 @@ const updateUserPassSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, 
 const updateUserNewPassSql = `UPDATE hack_trip.users SET  hashedPassword=? WHERE _id =?`;
 const updateUserAdminSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=?, role=?, status=? WHERE _id =?`;
 const updateUserVerifyEmailSql = `UPDATE hack_trip.users SET verifyEmail =? WHERE _id =?`;
+const deleteOne = `DELETE from hack_trip.users WHERE _id =?`;
+
+
 
 export class UserRepository implements IUserRepository<User> {
     constructor(protected pool: Pool) { }
@@ -439,6 +442,42 @@ export class UserRepository implements IUserRepository<User> {
         });
 
     }
+
+
+    async deletUserById(id: IdType): Promise<User> {
+
+        let userDel;
+
+        return new Promise((resolve, reject) => {
+            this.pool.query(selectOne, [id], (err, rows, fields) => {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                    return;
+                }
+                if (rows.length === 1) {
+
+                    userDel = rows[0];
+
+                    this.pool.query(deleteOne, [id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                            return;
+                        }
+                        if (!err) {
+                            resolve(userDel);
+
+                        }
+
+                    });
+                } else {
+                    reject(new Error(`Error finding new document in database`));
+                }
+            });
+        });
+    }
+
 
 }
 

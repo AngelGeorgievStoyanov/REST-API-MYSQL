@@ -75,11 +75,11 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                     return;
                 }
                 if (rows) {
-
                     const points = rows;
                     resolve(points.map(point => ({
                         ...point,
                         imageFile: point.imageFile ? point.imageFile.split(/[,\s]+/) : [],
+                        _ownerId: ''
 
                     })));
 
@@ -331,6 +331,28 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                 }
             });
         });
+    }
+
+    async findById(id): Promise<Point> {
+
+        return new Promise((resolve, reject) => {
+            this.pool.query('SELECT * FROM hack_trip.points WHERE _id =?', [id], (err, rows, fields) => {
+
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                    return;
+                }
+                if (rows.length == 1) {
+
+                    const point = rows[0];
+                    resolve({ ...point });
+                } else {
+                    reject(new Error(`Error finding new document in database`));
+                }
+            });
+        });
+
     }
 
 }

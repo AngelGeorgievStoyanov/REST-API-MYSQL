@@ -32,7 +32,7 @@ authController.post('/login', async (req, res) => {
 
 
         if (user.email !== req.body.email) {
-
+            console.log(user.email)
             throw new Error('Incorrect email or password');
         }
 
@@ -536,17 +536,13 @@ authController.put('/delete-image/:id', async (req, res) => {
             res.status(400).json(err.message);
         }
     } catch (err) {
-
-
-
-
         res.status(400).json(err.message);
 
     }
 })
 
 
-authController.get('/admin', async (req, res) => {
+authController.get('/admin/:id', async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -554,14 +550,23 @@ authController.get('/admin', async (req, res) => {
 
     try {
 
-        const users = await userRepo.getAll();
+        const user = await userRepo.findById(req.params.id);
 
+        if (user.role !== 'admin' && user.role !== 'manager') {
+            throw new Error(`Error finding new document in database`)
+        }
 
-        res.status(200).json(users);
+        try {
+            const users = await userRepo.getAll();
+            res.status(200).json(users);
+        } catch (err) {
+            throw new Error(err.message);
+        }
+
     } catch (err) {
-        res.json(err.message);
+        console.log(err.message)
+        res.status(400).json(err.message);
     }
-
 
 })
 
@@ -570,7 +575,6 @@ authController.get('/admin', async (req, res) => {
 authController.post('/guard', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
-
     try {
 
         const _id = req.body.id;
@@ -578,8 +582,6 @@ authController.post('/guard', async (req, res) => {
 
 
         const guard = await userRepo.confirmRole(_id, role);
-
-
 
         res.status(200).json(guard);
 
@@ -603,6 +605,36 @@ authController.get('/userId/:id', async (req, res) => {
         res.status(401).json(err.message);
     }
 
+})
+
+
+authController.delete('/admin/:adminId/:id', async (req, res) => {
+
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+    try {
+
+        const user = await userRepo.findById(req.params.adminId);
+
+        if (user.role !== 'admin' && user.role !== 'manager') {
+            throw new Error(`Error finding new document in database`)
+        }
+
+        try {
+
+            const result = await userRepo.deletUserById(req.params.id);
+
+            res.json(result).status(204);
+        } catch (err) {
+            console.log(err.message)
+            res.status(400).json(err.message);
+        }
+
+    } catch (err) {
+        console.log(err.message)
+        res.status(400).json(err.message);
+    }
 })
 
 

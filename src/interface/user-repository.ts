@@ -36,4 +36,6 @@ export interface IUserRepository<T extends Identifiable> {
     updateUserverifyEmail(id: IdType, confirmation: boolean): Promise<T>;
 
     newUserPassword(id:IdType, password:string):Promise<T>;
+
+    deletUserById(id:IdType):Promise<T>
 }

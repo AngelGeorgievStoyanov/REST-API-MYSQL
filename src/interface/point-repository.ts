@@ -14,4 +14,5 @@ export interface IPointTripRepository<T extends Identifiable> {
     updatePointPositionById(id: IdType, position: IdType): Promise<T>;
     editImagesByPointId(id: IdType, entity: T): Promise<T>;
     findBytripIdOrderByPointPosition(id:IdType):Promise<T[]>;
+    findById(id: IdType): Promise<T>;
 }

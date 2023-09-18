@@ -9,21 +9,35 @@ import { User } from '../model/user';
 const commentController = express.Router();
 
 
-commentController.get('/reports', async (req, res) => {
+commentController.get('/reports/:id', async (req, res) => {
 
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
 
+
     try {
 
-        const comments = await commentRepo.getAllReports();
+        const user = await userRepo.findById(req.params.id);
 
-        res.status(200).json(comments);
+        if (user.role !== 'admin' && user.role !== 'manager') {
+            throw new Error(`Error finding new document in database`)
+        }
+
+        try {
+
+            const comments = await commentRepo.getAllReports();
+
+            res.status(200).json(comments);
+        } catch (err) {
+            throw new Error(err.message);
+        }
+
     } catch (err) {
-        res.json(err.message);
+
+        console.log(err.message)
+        res.status(400).json(err.message);
     }
-
-
 })
 
 
@@ -52,6 +66,7 @@ commentController.get('/:id', async (req, res) => {
         const comment = await commentRepo.getCommentById(req.params.id);
         res.status(200).json(comment);
     } catch (err) {
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 
@@ -72,11 +87,12 @@ commentController.get('/trip/:id/:userId', async (req, res) => {
         comments.map((comment) => ({
             ...comment,
             _ownerId: comment._ownerId === userId ? comment._ownerId = userId : comment._ownerId = '',
-            reportComment: comment.reportComment.includes(userId)? comment.reportComment=[userId]:comment.reportComment= []
+            reportComment: comment.reportComment.includes(userId) ? comment.reportComment = [userId] : comment.reportComment = []
         }))
 
         res.status(200).json(comments);
     } catch (err) {
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 
@@ -92,6 +108,7 @@ commentController.put('/:id', async (req, res) => {
         const result = await commentRepo.updateCommentById(req.params.id, req.body);
         res.json(result);
     } catch (err) {
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 
@@ -101,10 +118,15 @@ commentController.put('/:id', async (req, res) => {
 commentController.delete('/trip/:id', async (req, res) => {
 
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
+    try {
 
-    const result = await commentRepo.deleteCommentByOwnerId(req.params.id);
+        const result = await commentRepo.deleteCommentByOwnerId(req.params.id);
 
-    res.status(204).json(result);
+        res.status(204).json(result);
+    } catch (err) {
+        console.log(err.message);
+        res.status(400).json(err.message);
+    }
 })
 
 
@@ -118,6 +140,7 @@ commentController.delete('/:id', async (req, res) => {
 
         res.json(result).status(204);
     } catch (err) {
+        console.log(err.message);
         res.status(400).json(err.message);
 
     }
@@ -136,19 +159,20 @@ commentController.put('/report/:id', async (req, res) => {
             const result = await commentRepo.reportCommentByuserId(req.params.id, req.body);
 
 
-
             try {
-
 
                 const comments = await commentRepo.getCommentsByTripId(req.body._tripId)
                 res.json(comments);
             } catch (err) {
+                console.log(err.message);
                 res.status(400).json(err.message);
             }
         } catch (err) {
+            console.log(err.message);
             res.status(400).json(err.message);
         }
     } catch (err) {
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 });
@@ -171,9 +195,11 @@ commentController.put('/admin/delete-report/:id', async (req, res) => {
 
             res.json(result);
         } catch (err) {
+            console.log(err.message);
             res.status(400).json(err.message);
         }
     } catch (err) {
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 })
@@ -200,10 +226,12 @@ commentController.get('/image-user/:id', async (req, res) => {
                 res.status(200).json(user.imageFile);
 
             } catch (err) {
+                console.log(err.message);
                 res.status(400).json(err.message);
             }
         }
     } catch (err) {
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 
