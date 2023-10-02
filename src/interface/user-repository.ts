@@ -1,3 +1,4 @@
+import { IFailedLogs } from "../model/user";
 
 export type IdType = number | string;
 
@@ -35,7 +36,13 @@ export interface IUserRepository<T extends Identifiable> {
 
     updateUserverifyEmail(id: IdType, confirmation: boolean): Promise<T>;
 
-    newUserPassword(id:IdType, password:string):Promise<T>;
+    newUserPassword(id: IdType, password: string): Promise<T>;
 
-    deletUserById(id:IdType):Promise<T>
+    deletUserById(id: IdType): Promise<T>;
+
+    logFailedLoginAttempt(date: Date, email: string, ip: string, userAgent: string): Promise<IFailedLogs>;
+
+    getAllFailedLogs(): Promise<IFailedLogs[]>;
+
+
 }

@@ -11,7 +11,7 @@ import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
 import { CommentTripRepository } from './services/commentService';
 import { VerifyTokenRepository } from './services/verifyTokenService';
-import { comments, createuser, database, flush, grantuser, points, trips, usedb, users, verify } from './db/createMySQL';
+import { comments, createuser, database, flush, grantuser, logFailed, points, trips, usedb, users, verify } from './db/createMySQL';
 import * as dotenv from 'dotenv';
 dotenv.config()
 
@@ -51,10 +51,10 @@ app.get('/', (req, res) => {
 (async () => {
     const pool = mysql.createPool({
         connectionLimit: 10,
-        host: 'localhost',
-        port: Number(3306),
-        user: 'hack_trip',
-        password: 'angel.stoyanov',
+        host: process.env.MYSQL_HOST,
+        port: Number(process.env.MYSQOL_PORT),
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_PASSWORD,
     });
 
     pool.getConnection(function (err, connection) {
@@ -147,7 +147,14 @@ app.get('/', (req, res) => {
 
         })
 
+        pool.query(logFailed, function (err, result) {
+            if (err) {
+                console.log(err)
+            } else {
+                console.log(`Table FAILED LOGS created!`)
+            }
 
+        })
         connection.destroy()
 
 

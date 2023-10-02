@@ -68,7 +68,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
     async findByTripId(id: IdType): Promise<Point[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.points WHERE _ownerTripId =?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.points WHERE _ownerTripId =? ORDER BY pointNumber ASC', [id], (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);

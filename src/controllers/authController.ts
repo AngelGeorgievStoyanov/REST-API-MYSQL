@@ -1,6 +1,6 @@
 import * as express from 'express';
 import { body, validationResult } from 'express-validator';
-import { User } from '../model/user';
+import { IUser, User } from '../model/user';
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from '../interface/user-repository';
@@ -22,17 +22,44 @@ const APP_URL = CONNECTIONURL
 
 const authController = express.Router();
 
+const loginAttempts = {};
+
 
 authController.post('/login', async (req, res) => {
 
+
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
+        const email = req.body.email;
+        const maxLoginAttempts = 5;
+        const lockoutTime = 10 * 60 * 1000;
+
+        if (loginAttempts[email] && loginAttempts[email].attempts >= maxLoginAttempts) {
+            const timeRemaining = lockoutTime - (Date.now() - loginAttempts[email].firstAttempt);
+            const sec = Math.floor(timeRemaining / 1000);
+            const min = Math.floor(sec / 60);
+            if (timeRemaining > 0) {
+                let str = (min === 0 ? '' : min % 60 + 'min : ') + (sec % 60 < 10 ? '0' + sec % 60 + 'sec' : sec % 60 + 'sec');
+                return res.status(401).json(`Account locked. Try again in ${str} .`);
+            } else {
+
+                delete loginAttempts[email];
+            }
+        }
+
+
+        if (loginAttempts[email] && Date.now() - loginAttempts[email].lastAttempt > lockoutTime) {
+
+            delete loginAttempts[email];
+        }
+
+
 
         const user = await userRepo.findByEmail(req.body.email);
 
 
         if (user.email !== req.body.email) {
-            console.log(user.email)
+            console.log(req.body.email)
             throw new Error('Incorrect email or password');
         }
 
@@ -40,6 +67,15 @@ authController.post('/login', async (req, res) => {
 
 
         if (!match) {
+            if (!loginAttempts[email]) {
+                loginAttempts[email] = { attempts: 1, firstAttempt: Date.now() };
+            } else {
+                loginAttempts[email].attempts++;
+                if (loginAttempts[email].attempts >= maxLoginAttempts) {
+
+                    await userRepo.logFailedLoginAttempt(new Date(), req.body.email, req.ip, req.headers['user-agent'])
+                }
+            }
             throw new Error('Incorrect email or password');
         }
 
@@ -55,7 +91,9 @@ authController.post('/login', async (req, res) => {
 
         try {
             const result = await userRepo.login(user._id, user.countOfLogs);
-
+            if (loginAttempts[email]) {
+                delete loginAttempts[email];
+            }
         } catch (err) {
             console.log(err);
             throw new Error(err);
@@ -469,7 +507,7 @@ authController.post('/resend-email', async (req, res) => {
     }
 })
 
-function createToken(user) {
+function createToken(user: User) {
     const payload = {
         _id: user._id,
         email: user.email,
@@ -540,6 +578,35 @@ authController.put('/delete-image/:id', async (req, res) => {
 
     }
 })
+
+
+authController.get('/admin/failedlogs/:id', async (req, res) => {
+
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+
+    try {
+
+        const user = await userRepo.findById(req.params.id);
+        if (user.role !== 'admin' && user.role !== 'manager') {
+            throw new Error(`Error finding new document in database`)
+        }
+
+        try {
+            const allFailedLogs = await userRepo.getAllFailedLogs();
+            res.status(200).json(allFailedLogs);
+        } catch (err) {
+            throw new Error(err.message);
+        }
+
+    } catch (err) {
+        console.log(err.message)
+        res.status(400).json(err.message);
+    }
+
+})
+
 
 
 authController.get('/admin/:id', async (req, res) => {

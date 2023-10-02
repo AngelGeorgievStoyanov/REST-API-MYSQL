@@ -1,5 +1,5 @@
 import { Pool } from 'mysql';
-import { User } from "../model/user";
+import { IFailedLogs, User } from "../model/user";
 import * as bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from "../interface/user-repository";
 import { v4 as uuid } from 'uuid';
@@ -18,6 +18,11 @@ const createSql = `INSERT INTO hack_trip.users (
     countOfLogs
   )
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+
+const createFailedLog = `INSERT INTO hack_trip.failedlogs (
+    _id, date, email,  ip, userAgent
+  )
+  VALUES (?, ?, ?, ?, ?);`;
 
 
 
@@ -42,8 +47,8 @@ export class UserRepository implements IUserRepository<User> {
 
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.users WHERE email =?', [email], (err, rows, fields) => {
-             
-             
+
+
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -107,6 +112,39 @@ export class UserRepository implements IUserRepository<User> {
 
     }
 
+    async logFailedLoginAttempt(date: Date, email: string, ip: string, userAgent: string): Promise<IFailedLogs> {
+        let _id = uuid()
+        return new Promise((resolve, reject) => {
+            this.pool.query(createFailedLog,
+                [_id, date, email, ip, userAgent],
+                (err, rows, fields) => {
+                    if (err) {
+
+                        console.log(err);
+                        reject(err);
+                        return;
+                    }
+
+                    this.pool.query('SELECT * FROM hack_trip.failedlogs WHERE _id =?', [_id], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                            return;
+                        }
+                        if (rows.length == 1) {
+
+                            const log = rows[0];
+
+                            resolve({ ...log });
+                        }
+                    });
+
+
+                });
+        });
+
+    }
+
 
     async logout(token: IdType) {
         tokenBlacklist.add(token);
@@ -148,12 +186,12 @@ export class UserRepository implements IUserRepository<User> {
 
 
 
-    async findById(id): Promise<User> {
-     
+    async findById(id: IdType): Promise<User> {
+
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows, fields) => {
-           
-               
+
+
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -245,11 +283,11 @@ export class UserRepository implements IUserRepository<User> {
 
     }
 
-    
+
     async updateUserverifyEmail(id: IdType, confirmation: boolean): Promise<User> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateUserVerifyEmailSql, [ confirmation,id], (err, rows, fields) => {
+            this.pool.query(updateUserVerifyEmailSql, [confirmation, id], (err, rows, fields) => {
                 if (err) {
 
                     reject(err);
@@ -367,6 +405,22 @@ export class UserRepository implements IUserRepository<User> {
     }
 
 
+    async getAllFailedLogs(): Promise<IFailedLogs[]> {
+
+        return new Promise((resolve, reject) => {
+            this.pool.query('SELECT * FROM hack_trip.failedlogs ORDER BY date desc', (err, rows, fields) => {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                    return;
+                }
+
+                resolve(rows);
+            });
+        });
+    }
+
+
     async confirmRole(id: IdType, role: string): Promise<boolean> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.users WHERE _id =? AND role=?', [id, role], (err, rows, fields) => {
@@ -408,11 +462,11 @@ export class UserRepository implements IUserRepository<User> {
 
     }
 
-    async newUserPassword(id:IdType,password:string):Promise<User>{
+    async newUserPassword(id: IdType, password: string): Promise<User> {
 
         const hashedPassword = await bcrypt.hash(password, 10);
         return new Promise((resolve, reject) => {
-            this.pool.query(updateUserNewPassSql, [  hashedPassword, id], (err, rows, fields) => {
+            this.pool.query(updateUserNewPassSql, [hashedPassword, id], (err, rows, fields) => {
                 if (err) {
 
                     reject(err);
