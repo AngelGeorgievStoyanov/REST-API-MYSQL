@@ -79,7 +79,7 @@ export const verify = `CREATE TABLE IF NOT EXISTS hack_trip.verify (
 
 export const logFailed = `CREATE TABLE IF NOT EXISTS hack_trip.failedlogs (
         _id VARCHAR(36) NOT NULL,
-        date DATE NULL,
+        date VARCHAR(45) NULL,
         email VARCHAR(45) NOT NULL,
         ip VARCHAR(45) NOT NULL,
         userAgent VARCHAR(145) NOT NULL,

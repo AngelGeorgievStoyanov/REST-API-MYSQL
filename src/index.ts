@@ -164,6 +164,7 @@ app.get('/', (req, res) => {
 
 
 
+    app.set("trust proxy", true);
     app.set("usersRepo", new UserRepository(pool));
     app.set("tripsRepo", new TripRepository(pool));
     app.set("pointsRepo", new PointTripRepository(pool));

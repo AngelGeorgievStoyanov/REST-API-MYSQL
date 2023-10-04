@@ -112,7 +112,7 @@ export class UserRepository implements IUserRepository<User> {
 
     }
 
-    async logFailedLoginAttempt(date: Date, email: string, ip: string, userAgent: string): Promise<IFailedLogs> {
+    async logFailedLoginAttempt(date: string, email: string, ip: string, userAgent: string): Promise<IFailedLogs> {
         let _id = uuid()
         return new Promise((resolve, reject) => {
             this.pool.query(createFailedLog,

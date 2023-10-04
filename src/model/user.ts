@@ -47,7 +47,7 @@ export class User {
 
 export interface IFailedLogs {
     _id?:string,
-    date: Date,
+    date: string,
     email: string,
     ip: string,
     userAgent: string

@@ -11,6 +11,7 @@ import sendMail from '../utils/sendEmail';
 import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
 import { VerifyToken } from '../model/verifyToken';
 import { CONNECTIONURL } from '../utils/baseUrl';
+import * as ip from 'ip'
 dotenv.config()
 
 
@@ -72,8 +73,20 @@ authController.post('/login', async (req, res) => {
             } else {
                 loginAttempts[email].attempts++;
                 if (loginAttempts[email].attempts >= maxLoginAttempts) {
-
-                    await userRepo.logFailedLoginAttempt(new Date(), req.body.email, req.ip, req.headers['user-agent'])
+                    let ipAddress: string;
+                    if (ip.address()) {
+                        ipAddress = ip.address();
+                    }
+                    if (req.ip) {
+                        ipAddress += ' req ip-' + req.ip;
+                    } else if (Array.isArray(req.header('x-forwarded-for'))) {
+                        ipAddress = req.header('x-forwarded-for') + 'x-forwarded-for';
+                    } else if (typeof req.socket.remoteAddress === 'string') {
+                        ipAddress = req.socket.remoteAddress + 'req.socket.remoteAddress';
+                    } else {
+                        ipAddress = 'unknown';
+                    }
+                    await userRepo.logFailedLoginAttempt(new Date().toISOString(), req.body.email, ipAddress, req.headers['user-agent'])
                 }
             }
             throw new Error('Incorrect email or password');
