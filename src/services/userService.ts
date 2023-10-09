@@ -20,9 +20,10 @@ const createSql = `INSERT INTO hack_trip.users (
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 const createFailedLog = `INSERT INTO hack_trip.failedlogs (
-    _id, date, email,  ip, userAgent
+    _id, date, email,  ip, userAgent,  country_code,
+    country_name, postal, city, latitude, longitude, state
   )
-  VALUES (?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 
 
@@ -112,11 +113,13 @@ export class UserRepository implements IUserRepository<User> {
 
     }
 
-    async logFailedLoginAttempt(date: string, email: string, ip: string, userAgent: string): Promise<IFailedLogs> {
+    async logFailedLoginAttempt(date: string, email: string, ip: string, userAgent: string, country_code: string,
+        country_name: string, postal: string, city: string, latitude: number, longitude: number, state: string): Promise<IFailedLogs> {
         let _id = uuid()
         return new Promise((resolve, reject) => {
             this.pool.query(createFailedLog,
-                [_id, date, email, ip, userAgent],
+                [_id, date, email, ip, userAgent, country_code,
+                    country_name, postal, city, latitude, longitude, state],
                 (err, rows, fields) => {
                     if (err) {
 

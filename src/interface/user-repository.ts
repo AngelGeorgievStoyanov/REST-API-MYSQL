@@ -40,7 +40,8 @@ export interface IUserRepository<T extends Identifiable> {
 
     deletUserById(id: IdType): Promise<T>;
 
-    logFailedLoginAttempt(date: string, email: string, ip: string, userAgent: string): Promise<IFailedLogs>;
+    logFailedLoginAttempt(date: string, email: string, ip: string, userAgent: string, country_code: string,
+        country_name: string, postal: string, city: string, latitude: number, longitude: number, state: string): Promise<IFailedLogs>;
 
     getAllFailedLogs(): Promise<IFailedLogs[]>;
 

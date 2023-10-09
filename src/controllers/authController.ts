@@ -74,19 +74,16 @@ authController.post('/login', async (req, res) => {
                 loginAttempts[email].attempts++;
                 if (loginAttempts[email].attempts >= maxLoginAttempts) {
                     let ipAddress: string;
-                    if (ip.address()) {
-                        ipAddress = ip.address();
-                    }
-                    if (req.ip) {
-                        ipAddress += ' req ip-' + req.ip;
-                    } else if (Array.isArray(req.header('x-forwarded-for'))) {
-                        ipAddress = req.header('x-forwarded-for') + 'x-forwarded-for';
-                    } else if (typeof req.socket.remoteAddress === 'string') {
-                        ipAddress = req.socket.remoteAddress + 'req.socket.remoteAddress';
-                    } else {
-                        ipAddress = 'unknown';
-                    }
-                    await userRepo.logFailedLoginAttempt(new Date().toISOString(), req.body.email, ipAddress, req.headers['user-agent'])
+                    ipAddress = req.body.userGeolocation.IPv4;
+                    let country_code = req.body.userGeolocation.country_code;
+                    let country_name = req.body.userGeolocation.country_name;
+                    let postal = req.body.userGeolocation.postal;
+                    let city = req.body.userGeolocation.city;
+                    let latitude = req.body.userGeolocation.latitude;
+                    let longitude = req.body.userGeolocation.longitude;
+                    let state = req.body.userGeolocation.state
+                    await userRepo.logFailedLoginAttempt(new Date().toISOString(), req.body.email, ipAddress, req.headers['user-agent'],
+                        country_code, country_name,postal, city, latitude, longitude, state)
                 }
             }
             throw new Error('Incorrect email or password');
