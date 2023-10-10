@@ -178,6 +178,37 @@ commentController.put('/report/:id', async (req, res) => {
 });
 
 
+commentController.put('/admin/report/:id', async (req, res) => {
+    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
+
+
+    try {
+
+        const existing = await commentRepo.getCommentById(req.params.id);
+
+        try {
+            const result = await commentRepo.reportCommentByuserId(req.params.id, req.body);
+
+
+            try {
+
+                const comments = await commentRepo.getAllReports()
+                res.json(comments);
+            } catch (err) {
+                console.log(err.message);
+                res.status(400).json(err.message);
+            }
+        } catch (err) {
+            console.log(err.message);
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+        console.log(err.message);
+        res.status(400).json(err.message);
+    }
+});
+
+
 
 commentController.put('/admin/delete-report/:id', async (req, res) => {
 

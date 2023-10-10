@@ -45,5 +45,5 @@ export interface IUserRepository<T extends Identifiable> {
 
     getAllFailedLogs(): Promise<IFailedLogs[]>;
 
-
+    deletFailedLogsById(failedlogsArr: string[]): Promise<IFailedLogs[]>;
 }

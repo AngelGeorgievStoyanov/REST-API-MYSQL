@@ -37,9 +37,8 @@ const updateUserNewPassSql = `UPDATE hack_trip.users SET  hashedPassword=? WHERE
 const updateUserAdminSql = `UPDATE hack_trip.users SET firstName =?, lastName=?, timeEdited=?, imageFile=?, role=?, status=? WHERE _id =?`;
 const updateUserVerifyEmailSql = `UPDATE hack_trip.users SET verifyEmail =? WHERE _id =?`;
 const deleteOne = `DELETE from hack_trip.users WHERE _id =?`;
-
-
-
+const deleteFailedLogsArr = `DELETE from hack_trip.failedlogs WHERE _id IN(?)`;
+const selectDeleteFailedLogs = `SELECT * FROM hack_trip.failedlogs WHERE _id IN(?) ORDER BY date desc`;
 export class UserRepository implements IUserRepository<User> {
     constructor(protected pool: Pool) { }
 
@@ -320,6 +319,7 @@ export class UserRepository implements IUserRepository<User> {
         });
 
     }
+
     async updateUserPass(id: IdType, user): Promise<User> {
 
 
@@ -535,6 +535,37 @@ export class UserRepository implements IUserRepository<User> {
         });
     }
 
+
+    async deletFailedLogsById(failedlogsArr: string[]): Promise<IFailedLogs[]> {
+
+        let selectDeleteFailedLogsArr;
+        return new Promise((resolve, reject) => {
+            this.pool.query(selectDeleteFailedLogs, [failedlogsArr], (err, rows, fields) => {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                    return;
+                }
+                if (rows) {
+
+                    selectDeleteFailedLogsArr = rows.map(row => ({ ...row }));
+                    this.pool.query(deleteFailedLogsArr, [failedlogsArr], (err, rows, fields) => {
+                        if (err) {
+                            console.log(err);
+                            reject(err);
+                            return;
+                        }
+                        if (!err) {
+                            resolve(selectDeleteFailedLogsArr);
+                        }
+
+                    });
+                } else {
+                    reject(new Error(`Error finding new document in database`));
+                }
+            });
+        });
+    }
 
 }
 

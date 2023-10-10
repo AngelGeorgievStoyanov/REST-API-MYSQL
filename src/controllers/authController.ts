@@ -83,7 +83,7 @@ authController.post('/login', async (req, res) => {
                     let longitude = req.body.userGeolocation.longitude;
                     let state = req.body.userGeolocation.state
                     await userRepo.logFailedLoginAttempt(new Date().toISOString(), req.body.email, ipAddress, req.headers['user-agent'],
-                        country_code, country_name,postal, city, latitude, longitude, state)
+                        country_code, country_name, postal, city, latitude, longitude, state)
                 }
             }
             throw new Error('Incorrect email or password');
@@ -589,6 +589,34 @@ authController.put('/delete-image/:id', async (req, res) => {
     }
 })
 
+authController.delete('/admin/delete/failedlogs/:adminId', async (req, res) => {
+  
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+    try {
+
+        const user = await userRepo.findById(req.params.adminId);
+
+        if (user.role !== 'admin' && user.role !== 'manager') {
+            throw new Error(`Error finding new document in database`)
+        }
+
+        try {
+
+            const result = await userRepo.deletFailedLogsById(req.body);
+
+            res.json(result).status(204);
+        } catch (err) {
+            console.log(err.message)
+            res.status(400).json(err.message);
+        }
+
+    } catch (err) {
+        console.log(err.message)
+        res.status(400).json(err.message);
+    }
+
+});
 
 authController.get('/admin/failedlogs/:id', async (req, res) => {
 
