@@ -22,15 +22,23 @@ pointController.post('/upload', multer({ storage }).array('file', 12), function 
 
 pointController.post('/', async (req, res) => {
 
-
-    const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
+        const userId = req.body._ownerId;
+        const user = await userRepo.findById(userId)
+        try {
+            const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
-        const point = await pointRepo.create(req.body);
-        res.status(200).json(point);
+            const point = await pointRepo.create(req.body);
+            res.status(200).json(point);
+        } catch (err) {
+            console.log(err.message);
+            res.status(400).json(err.message);
+        }
     } catch (err) {
-        console.log(err.message);
-        res.json(err.message);
+        console.log(err.message)
+        res.status(400).json(err.message);
+
     }
 })
 
@@ -58,27 +66,19 @@ pointController.delete('/trip/:id/:userId', async (req, res) => {
                     const filePath = f;
 
                     try {
-
                         deleteFile(filePath);
                     } catch (err) {
                         console.log(err);
                     }
-
-
                 });
             });
-
-
-
             res.json(result).status(204);
         } catch (err) {
             console.log(err.message);
             res.status(400).json(err.message);
         }
-
     } catch (err) {
-
-        console.log(err.message)
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 })
@@ -86,11 +86,8 @@ pointController.delete('/trip/:id/:userId', async (req, res) => {
 
 pointController.get('/:id', async (req, res) => {
 
-
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
-
     try {
-
         const points = await pointRepo.findByTripId(req.params.id);
         points.map((point) => ({
             ...point,
@@ -101,8 +98,6 @@ pointController.get('/:id', async (req, res) => {
         console.log(err.message)
         res.status(400).json(err.message);
     }
-
-
 })
 
 
@@ -112,14 +107,12 @@ pointController.delete('/:id', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
-
         const pointId = req.params.id
         const userId = req.body.userId;
         const ownerTrip = req.body.idTrip;
 
         const user = await userRepo.findById(userId)
         const point = await pointRepo.findById(pointId)
-
 
         if (userId !== point._ownerId || (user.role !== 'admin' && user.role !== 'manager')) {
             throw new Error(`Error finding document in database`)
@@ -137,21 +130,15 @@ pointController.delete('/:id', async (req, res) => {
             } catch (err) {
                 console.log(err);
             }
-
         })
 
         const points = await pointRepo.findBytripIdOrderByPointPosition(ownerTrip);
 
         points.forEach(async (x, i) => {
-
             x.pointNumber = i + 1;
             let newPoint = x;
-
-
             const updated = await pointRepo.updatePointById(x._id, newPoint);
         })
-
-
         res.json(result).status(204);
     } catch (err) {
         console.log(err.message)
@@ -160,13 +147,10 @@ pointController.delete('/:id', async (req, res) => {
 })
 
 pointController.get('/edit/:id', async (req, res) => {
-
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
-
-
     try {
-
         const point = await pointRepo.getPointById(req.params.id);
+        point._ownerId = '';
         res.status(200).json(point);
     } catch (err) {
         console.log(err.message);
@@ -189,9 +173,7 @@ pointController.put('/edit-position/:id', async (req, res) => {
             const result = await pointRepo.updatePointPositionById(req.body.currentCardId, req.body.currentIdNewPosition);
             const result1 = await pointRepo.updatePointPositionById(req.body.upCurrentCardId, req.body.upCurrentCardNewPosition);
 
-
             const points = await pointRepo.findByTripId(req.params.id);
-
 
             res.status(200).json(points);
 
@@ -199,9 +181,6 @@ pointController.put('/edit-position/:id', async (req, res) => {
             console.log(err.message);
             res.status(400).json(err.message);
         }
-
-
-
 
     } catch (err) {
         console.log(err.message);
@@ -213,24 +192,32 @@ pointController.put('/edit-position/:id', async (req, res) => {
 
 pointController.put('/:id', async (req, res) => {
 
-    const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
-    try {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
-        const existing = await pointRepo.getPointById(req.params.id);
+    try {
+        const ownerTrip = req.body._ownerId;
+        const user = await userRepo.findById(ownerTrip)
 
         try {
-            const result = await pointRepo.updatePointById(req.params.id, req.body);
+            const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
-            res.json(result);
+            const existing = await pointRepo.getPointById(req.params.id);
+
+            try {
+                const result = await pointRepo.updatePointById(req.params.id, req.body);
+                res.status(200).json(result);
+            } catch (err) {
+                console.log(err.message);
+                res.status(400).json(err.message);
+            }
         } catch (err) {
-        console.log(err.message);
+            console.log(err.message);
             res.status(400).json(err.message);
         }
     } catch (err) {
         console.log(err.message);
         res.status(400).json(err.message);
     }
-
 })
 
 
@@ -274,7 +261,9 @@ pointController.put('/edit-images/:id', async (req, res) => {
 })
 
 
-
+pointController.use((req, res, next) => {
+    res.status(404).json('Route not found');
+});
 
 
 

@@ -50,7 +50,8 @@ tripController.get('/top/:id', async (req, res) => {
             ...trip,
             _ownerId: trip._ownerId === userId ? trip._ownerId = userId : trip._ownerId = '',
             likes: trip.likes = [trip.likes.length.toString()],
-            reportTrip: trip.reportTrip = [trip.reportTrip.length.toString()]
+            reportTrip: trip.reportTrip = [trip.reportTrip.length.toString()],
+            favorites: trip.favorites = []
         }))
 
         if (sort.length > 5) {
@@ -65,15 +66,21 @@ tripController.get('/top/:id', async (req, res) => {
 })
 
 tripController.post('/', async (req, res) => {
-
-    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
-
-        const trip = await tripRepo.create(req.body);
-        res.status(200).json(trip);
+        const userId = req.body._ownerId;
+        const user = await userRepo.findById(userId);
+        try {
+            const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
+            const trip = await tripRepo.create(req.body);
+            res.status(200).json(trip);
+        } catch (err) {
+            console.log(err.message);
+            res.status(400).json(err.message);
+        }
     } catch (err) {
-        res.json(err.message);
+        console.log(err.message);
+        res.status(401).json(err.message);
     }
 })
 
@@ -102,6 +109,7 @@ tripController.get('/', async (req, res) => {
 
 
 tripController.get('/background', async (req, res) => {
+    console.log(req.body)
     try {
         const list = await listBackground();
         res.status(200).json(list);
@@ -132,9 +140,9 @@ tripController.get('/paginate', async (req, res) => {
             ...page,
             _ownerId: page._ownerId === userId ? page._ownerId = userId : page._ownerId = '',
             likes: page.likes = [page.likes.length.toString()],
-            reportTrip: page.reportTrip = [page.reportTrip.length.toString()]
-
-        }))
+            reportTrip: page.reportTrip = [page.reportTrip.length.toString()],
+            favorites: page.favorites = []
+        }));
 
 
         res.status(200).json(paginatane);
@@ -169,8 +177,8 @@ tripController.get('/reports/:id', async (req, res) => {
             trips.map((trip) => ({
                 ...trip,
                 likes: trip.likes = [trip.likes.length.toString()],
-
-            }))
+                favorites: trip.favorites = []
+            }));
             res.status(200).json(trips);
         } catch (err) {
             throw new Error(err.message);
@@ -191,12 +199,12 @@ tripController.get('/my-trips/:id', async (req, res) => {
         trips.map((trip) => ({
             ...trip,
             _ownerId: trip._ownerId === userId ? trip._ownerId = userId : trip._ownerId = '',
-            likes: trip.likes.length > 0 ? trip.likes = [trip.likes.length.toString()] : []
-
-        }))
+            likes: trip.likes.length > 0 ? trip.likes = [trip.likes.length.toString()] : [],
+            favorites: trip.favorites = []
+        }));
         res.json(trips);
     } catch (err) {
-        console.log(err.message)
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 
@@ -212,15 +220,13 @@ tripController.get('/favorites/:id', async (req, res) => {
         trips.map((trip) => ({
             ...trip,
             _ownerId: trip._ownerId === userId ? trip._ownerId = userId : trip._ownerId = '',
-            likes: trip.likes.length > 0 ? trip.likes = [trip.likes.length.toString()] : []
-
-        }))
-
-
+            likes: trip.likes.length > 0 ? trip.likes = [trip.likes.length.toString()] : [],
+            favorites: trip.favorites = []
+        }));
 
         res.json(trips);
     } catch (err) {
-        console.log(err.message)
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 
@@ -248,11 +254,15 @@ tripController.get('/:id/:userId', async (req, res) => {
         } else {
             trip.likes = []
         }
-
+        if (trip.favorites.includes(userId)) {
+            trip.favorites = [userId]
+        } else {
+            trip.favorites = []
+        }
 
         res.status(200).json(trip);
     } catch (err) {
-        console.log(err)
+        console.log(err);
         res.status(400).json(err.message);
     }
 
@@ -290,15 +300,16 @@ tripController.delete('/:id/:userId', async (req, res) => {
                 }
 
             })
-
+            result.favorites = [];
+            result.likes = [];
 
             res.json(result).status(204);
         } catch (err) {
-            console.log(err.message)
+            console.log(err.message);
             res.status(400).json(err.message);
         }
     } catch (err) {
-        console.log(err.message)
+        console.log(err.message);
         res.status(400).json(err.message);
     }
 })
@@ -313,7 +324,7 @@ tripController.put('/like/:id', async (req, res) => {
 
         const userId = req.body.userId;
         const user = await userRepo.findById(userId)
-
+        console.log(user)
         const existing = await tripRepo.getTripById(req.params.id);
 
         if (existing.likes.includes(userId)) {
@@ -321,19 +332,21 @@ tripController.put('/like/:id', async (req, res) => {
             const index = existing.likes.indexOf(userId);
             existing.likes.splice(index, 1);
         } else {
-            existing.likes.push(userId)
+            existing.likes.push(userId);
         }
 
         try {
             const result = await tripRepo.updateTripLikeByuserId(req.params.id, existing);
             if (result.likes.includes(userId)) {
-                result.likes = [userId]
+                result.likes = [userId];
             } else {
-                result.likes = []
+                result.likes = [];
             }
+            result.favorites = [];
+            result._ownerId = '';
             res.json(result);
         } catch (err) {
-            console.log(err.message)
+            console.log(err.message);
             res.status(400).json(err.message);
         }
     } catch (err) {
@@ -343,9 +356,28 @@ tripController.put('/like/:id', async (req, res) => {
 
 });
 
-tripController.put('/:id/:userId', async (req, res) => {
+tripController.put('/favorites/:id', async (req, res) => {
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
+    try {
 
-  
+        const existing = await tripRepo.getTripById(req.params.id);
+        try {
+            const result = await tripRepo.updateTripFavoritesByuserId(req.params.id, req.body);
+            result.likes = [];
+            result.favorites = [];
+            result._ownerId = '';
+            res.json(result);
+        } catch (err) {
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+        console.log(err.message);
+        res.status(400).json(err.message);
+    }
+});
+
+
+tripController.put('/details/:id/:userId', async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -355,44 +387,24 @@ tripController.put('/:id/:userId', async (req, res) => {
 
         const trip = await tripRepo.getTripById(req.params.id);
         const user = await userRepo.findById(userId)
-        if (userId !== trip._ownerId || (user.role !== 'admin' && user.role !== 'manager')) {
+        if (userId !== trip._ownerId && (user.role !== 'admin' && user.role !== 'manager')) {
             throw new Error(`Error finding document in database`)
         }
 
         try {
             const result = await tripRepo.updateTripById(req.params.id, req.body);
-            res.json(result);
+            result.likes = [];
+            result.favorites = [];
+            res.status(200).json(result);
         } catch (err) {
-            console.log(err.message)
-            res.status(400).json(err.message);
-        }
-    } catch (err) {
-        console.log(err.message)
-        res.status(400).json(err.message);
-    }
-
-});
-
-
-
-
-
-tripController.put('/favorites/:id', async (req, res) => {
-    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-    try {
-
-        const existing = await tripRepo.getTripById(req.params.id);
-        try {
-            const result = await tripRepo.updateTripFavoritesByuserId(req.params.id, req.body);
-
-            res.json(result);
-        } catch (err) {
+            console.log(err.message);
             res.status(400).json(err.message);
         }
     } catch (err) {
         console.log(err.message);
         res.status(400).json(err.message);
     }
+
 });
 
 tripController.put('/report/:id', async (req, res) => {
@@ -472,6 +484,12 @@ tripController.put('/edit-images/:id', async (req, res) => {
 
     }
 });
+
+
+tripController.use((req, res, next) => {
+    res.status(404).json('Route not found');
+});
+
 
 
 const deleteFile = async (filePath) => {

@@ -28,8 +28,13 @@ export class Trip {
         public timeCreated: Date,
         public timeEdited: Date,
         public reportTrip: string[],
-        public imageFile:string[],
-        public favorites:string[],
-       
+        public imageFile: string[],
+        public favorites: string[],
+
     ) { }
+}
+
+
+export interface CloudImages {
+    imageFile: string[]
 }

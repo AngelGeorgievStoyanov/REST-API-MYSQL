@@ -590,7 +590,7 @@ authController.put('/delete-image/:id', async (req, res) => {
 })
 
 authController.delete('/admin/delete/failedlogs/:adminId', async (req, res) => {
-  
+
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
@@ -742,7 +742,9 @@ authController.delete('/admin/:adminId/:id', async (req, res) => {
     }
 })
 
-
+authController.use((req, res, next) => {
+    res.status(404).json('Route not found');
+});
 
 const deleteFile = async (filePath) => {
     try {

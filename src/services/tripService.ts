@@ -244,7 +244,7 @@ export class TripRepository implements ITripRepository<Trip> {
                     likes: row.likes ? row.likes.split(/[,\s]+/) : [],
                     reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
                     imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
+                    favorites: row.favorites = [],
 
                 })));
             });
@@ -266,7 +266,7 @@ export class TripRepository implements ITripRepository<Trip> {
                     likes: row.likes ? row.likes.split(/[,\s]+/) : [],
                     reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
                     imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
+                    favorites: row.favorites = [],
 
                 })));
             });
@@ -531,7 +531,7 @@ export class TripRepository implements ITripRepository<Trip> {
                     likes: row.likes ? row.likes.split(/[,\s]+/) : [],
                     reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
                     imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
+                    favorites: row.favorites = [],
 
                 })));
             });

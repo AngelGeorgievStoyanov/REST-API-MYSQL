@@ -269,5 +269,9 @@ commentController.get('/image-user/:id', async (req, res) => {
 
 })
 
+commentController.use((req, res, next) => {
+    res.status(404).json('Route not found');
+});
+
 
 export default commentController

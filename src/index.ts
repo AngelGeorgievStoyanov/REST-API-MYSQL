@@ -13,6 +13,8 @@ import { CommentTripRepository } from './services/commentService';
 import { VerifyTokenRepository } from './services/verifyTokenService';
 import { comments, createuser, database, flush, grantuser, logFailed, points, trips, usedb, users, verify } from './db/createMySQL';
 import * as dotenv from 'dotenv';
+import cloudController from './controllers/cloudController';
+import { CloudRepository } from './services/cloudService';
 dotenv.config()
 
 const app = express()
@@ -35,11 +37,12 @@ app.use(cors(options));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 100000 }));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
+
 app.use('/users', authController);
 app.use('/data/trips', tripController);
 app.use('/data/points', pointController);
 app.use('/data/comments', commentController);
-
+app.use('/data/cloud', cloudController);
 
 
 app.get('/', (req, res) => {
@@ -170,6 +173,7 @@ app.get('/', (req, res) => {
     app.set("pointsRepo", new PointTripRepository(pool));
     app.set("commentsRepo", new CommentTripRepository(pool));
     app.set("verifyTokenRepo", new VerifyTokenRepository(pool));
+    app.set("imagesRepo", new CloudRepository(pool));
 
     app.listen(port, () => {
         console.log(`Connected succesfully on port ${port}`)
