@@ -109,7 +109,6 @@ tripController.get('/', async (req, res) => {
 
 
 tripController.get('/background', async (req, res) => {
-    console.log(req.body)
     try {
         const list = await listBackground();
         res.status(200).json(list);
@@ -245,7 +244,7 @@ tripController.get('/:id/:userId', async (req, res) => {
         const user = await userRepo.findById(userId)
         const trip = await tripRepo.getTripById(req.params.id);
         if (user.role === 'admin' || user.role === 'manager') {
-
+            // you can see trip._ownerId
         } else if (trip._ownerId !== userId) {
             trip._ownerId = '';
         }

@@ -85,7 +85,7 @@ cloudController.get('/unique-images/:userId', async (req, res) => {
         if (allCloudImages.length > 0 && allDBImages.length > 0) {
 
             const dbOnlyImages = allDBImages.filter(image => !allCloudImages.includes(image));
-            const cloudOnlyImages = [...allCloudImages].filter(image => !allDBImages.includes(image));
+            const cloudOnlyImages = allCloudImages.filter(image => !allDBImages.includes(image));
             res.status(200).json({ dbOnlyImages, cloudOnlyImages });
         }
     } catch (err) {

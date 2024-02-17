@@ -12,6 +12,7 @@ import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
 import { VerifyToken } from '../model/verifyToken';
 import { CONNECTIONURL } from '../utils/baseUrl';
 import * as ip from 'ip'
+import { authenticateToken } from '../guard/jwt.middleware';
 dotenv.config()
 
 
@@ -677,7 +678,7 @@ authController.get('/admin/:id', async (req, res) => {
 
 
 
-authController.post('/guard', async (req, res) => {
+authController.post('/guard', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
