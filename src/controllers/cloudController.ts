@@ -100,12 +100,12 @@ export async function listCloudImages(storage: Storage): Promise<any[]> {
     const bucketName = 'hack-trip';
     const [files] = await storage.bucket(bucketName).getFiles();
 
-    const images = files.map((file) => ({
-        name: file.name,
-        generation: file.metadata.generation,
-        timeCreated: file.metadata.timeCreated,
-        updated: file.metadata.updated,
-        timeStorageClassUpdated: file.metadata.timeStorageClassUpdated
+  const images = files.filter((file) => !file.name.endsWith('/')).map((file) => ({
+      name: file.name,
+      generation: file.metadata.generation,
+      timeCreated: file.metadata.timeCreated,
+      updated: file.metadata.updated,
+      timeStorageClassUpdated: file.metadata.timeStorageClassUpdated,
     }));
 
     return images;

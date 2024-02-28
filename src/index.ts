@@ -166,7 +166,10 @@ app.get('/', (req, res) => {
 
 
 
-
+    app.use((req, res, next) => {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+        next();
+    });
     app.set("trust proxy", true);
     app.set("usersRepo", new UserRepository(pool));
     app.set("tripsRepo", new TripRepository(pool));

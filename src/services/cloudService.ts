@@ -11,7 +11,7 @@ export class CloudRepository implements ICloudImages<CloudImages> {
     getAllImagesFromDB(): Promise<string[]> {
         return new Promise((resolve, reject) => {
             this.pool.query(`
-            SELECT
+            SELECT distinct
             trips.imageFile AS tripImageFile,
             points.imageFile AS pointImageFile,
             users.imageFile AS userImageFile
