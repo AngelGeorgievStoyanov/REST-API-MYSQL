@@ -64,6 +64,7 @@ app.get('/', (req, res) => {
         if (err) throw err;
         console.log("Connected!");
 
+        //TODO: remove for prod
         pool.query(createuser, function (err, result) {
             if (err) throw err;
             console.log("USER hack_trip created");
@@ -150,6 +151,8 @@ app.get('/', (req, res) => {
 
         })
 
+        connection.release()
+
         pool.query(logFailed, function (err, result) {
             if (err) {
                 console.log(err)
@@ -158,6 +161,8 @@ app.get('/', (req, res) => {
             }
 
         })
+        //TODO: remove for prod to here
+       
         connection.destroy()
 
 

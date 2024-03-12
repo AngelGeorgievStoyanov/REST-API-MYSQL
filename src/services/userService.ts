@@ -72,9 +72,9 @@ export class UserRepository implements IUserRepository<User> {
 
     async create(user): Promise<User> {
         let pass = user.password;
-        user.timeCreated = new Date();
-        user.timeEdited = new Date();
-        user.lastTimeLogin = new Date();
+        user.timeCreated = new Date().toISOString();
+        user.timeEdited = new Date().toISOString();
+        user.lastTimeLogin = new Date().toISOString();
 
 
         user.hashedPassword = await bcrypt.hash(pass, 10);
@@ -154,7 +154,7 @@ export class UserRepository implements IUserRepository<User> {
 
 
     async login(id: IdType, count: IdType): Promise<User> {
-        let newLastTimeLogs = new Date();
+        let newLastTimeLogs = new Date().toISOString();
         let newCount = Number(count) + 1
         return new Promise((resolve, reject) => {
             this.pool.query(loginSql, [newLastTimeLogs, newCount, id], (err, rows, fields) => {
@@ -215,7 +215,7 @@ export class UserRepository implements IUserRepository<User> {
 
     async updateUserAdmin(id: IdType, user: User): Promise<User> {
 
-        user.timeEdited = new Date();
+        user.timeEdited = new Date().toISOString();
         return new Promise((resolve, reject) => {
             this.pool.query(updateUserAdminSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, user.role, user.status, id], (err, rows, fields) => {
                 if (err) {
@@ -252,7 +252,7 @@ export class UserRepository implements IUserRepository<User> {
 
     async updateUser(id: IdType, user: User): Promise<User> {
 
-        user.timeEdited = new Date();
+        user.timeEdited = new Date().toISOString();
         return new Promise((resolve, reject) => {
             this.pool.query(updateUserSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, id], (err, rows, fields) => {
                 if (err) {
@@ -324,7 +324,7 @@ export class UserRepository implements IUserRepository<User> {
 
 
         let pass = user.password;
-        user.timeEdited = new Date();
+        user.timeEdited = new Date().toISOString();
         user.hashedPassword = await bcrypt.hash(pass, 10);
 
 
