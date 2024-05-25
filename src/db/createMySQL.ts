@@ -1,10 +1,8 @@
-
-export const createuser = `CREATE USER IF NOT EXISTS 'hack_trip'@'localhost' IDENTIFIED WITH mysql_native_password BY 'angel.stoyanov';`
-export const grantuser = `GRANT ALL PRIVILEGES ON *.* TO 'hack_trip'@'localhost';`
-export const flush = 'FLUSH PRIVILEGES;'
-export const database = `CREATE DATABASE IF NOT EXISTS hack_trip;`
-export const usedb = 'USE hack_trip;'
-
+export const createuser = `CREATE USER IF NOT EXISTS 'hack_trip'@'localhost' IDENTIFIED WITH mysql_native_password BY 'angel.stoyanov';`;
+export const grantuser = `GRANT ALL PRIVILEGES ON *.* TO 'hack_trip'@'localhost';`;
+export const flush = "FLUSH PRIVILEGES;";
+export const database = `CREATE DATABASE IF NOT EXISTS hack_trip;`;
+export const usedb = "USE hack_trip;";
 
 export const users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
     _id VARCHAR(36) NOT NULL,
@@ -21,7 +19,7 @@ export const users = `CREATE TABLE IF NOT EXISTS hack_trip.users (
     status VARCHAR(12) NOT NULL DEFAULT 'ACTIVE',
     verifyEmail TINYINT NULL DEFAULT 0,
     PRIMARY KEY (_id)
-    );`
+    );`;
 
 export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     _id VARCHAR(36) NOT NULL,
@@ -43,8 +41,7 @@ export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     favorites VARCHAR(3600) NULL DEFAULT NULL,
     PRIMARY KEY (_id)
-    );`
-
+    );`;
 
 export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     _id VARCHAR(36) NOT NULL,
@@ -57,7 +54,7 @@ export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     _ownerId VARCHAR(45) NOT NULL,
     PRIMARY KEY (_id)
-    );`
+    );`;
 
 export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     _id VARCHAR(36) NOT NULL,
@@ -66,16 +63,14 @@ export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     _tripId VARCHAR(45) NOT NULL,
     _ownerId VARCHAR(45) NOT NULL,
     reportComment VARCHAR(3600) NULL DEFAULT NULL,
-    PRIMARY KEY (_id));`
-
+    PRIMARY KEY (_id));`;
 
 export const verify = `CREATE TABLE IF NOT EXISTS hack_trip.verify (
     _id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     verifyToken VARCHAR(36) NOT NULL,
     userId VARCHAR(36) NOT NULL,
     verifyTokenForgotPassword VARCHAR(36) NULL
-    );`
-
+    );`;
 
 export const logFailed = `CREATE TABLE IF NOT EXISTS hack_trip.failedlogs (
     _id VARCHAR(36) NOT NULL,
@@ -90,4 +85,18 @@ export const logFailed = `CREATE TABLE IF NOT EXISTS hack_trip.failedlogs (
     latitude DOUBLE(30,27) NULL,
     longitude DOUBLE(30,27) NULL,
     state VARCHAR(45) NULL,
-    PRIMARY KEY (_id));`
+    PRIMARY KEY (_id));`;
+
+export const routeNotFoundLogs = `CREATE TABLE IF NOT EXISTS hack_trip.routenotfoundlogs (
+        _id VARCHAR(36) NOT NULL,
+        date VARCHAR(45) NULL DEFAULT NULL,
+        reqUrl VARCHAR(145) NULL DEFAULT NULL,
+        reqMethod VARCHAR(15) NULL DEFAULT NULL,
+        reqHeaders VARCHAR(500) NULL DEFAULT NULL,
+        reqQuery VARCHAR(145) NULL DEFAULT NULL,
+        reqBody VARCHAR(1000) NULL DEFAULT NULL,
+        reqParams VARCHAR(145) NULL DEFAULT NULL,
+        reqIp VARCHAR(45) NULL DEFAULT NULL,
+        reqUserId VARCHAR(36) NULL DEFAULT NULL,
+        reqUserEmail VARCHAR(245) NULL DEFAULT NULL,
+        PRIMARY KEY (_id));`;

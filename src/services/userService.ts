@@ -43,7 +43,7 @@ export class UserRepository implements IUserRepository<User> {
     constructor(protected pool: Pool) { }
 
 
-    async findByEmail(email,): Promise<User> {
+    async findByEmail(email): Promise<User> {
 
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.users WHERE email =?', [email], (err, rows, fields) => {

@@ -11,8 +11,10 @@ import sendMail from '../utils/sendEmail';
 import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
 import { VerifyToken } from '../model/verifyToken';
 import { CONNECTIONURL } from '../utils/baseUrl';
-import * as ip from 'ip'
+var ip = require('ip');
 import { authenticateToken } from '../guard/jwt.middleware';
+import { IRouteNotFoundLogs } from '../model/routeNotFoudLogs';
+import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
 dotenv.config()
 
 
@@ -75,7 +77,7 @@ authController.post('/login', async (req, res) => {
                 loginAttempts[email].attempts++;
                 if (loginAttempts[email].attempts >= maxLoginAttempts) {
                     let ipAddress: string;
-                    ipAddress = req.body.userGeolocation.IPv4;
+                    ipAddress = req.body.userGeolocation.IPv4 || req.ip;
                     let country_code = req.body.userGeolocation.country_code;
                     let country_name = req.body.userGeolocation.country_name;
                     let postal = req.body.userGeolocation.postal;
@@ -646,7 +648,34 @@ authController.get('/admin/failedlogs/:id', async (req, res) => {
 
 })
 
+authController.get('/admin/routenotfoundlogs/:id', async (req, res) => {
 
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
+    req.app.get("routeNotFoundLogsRepo");
+ 
+
+    try {
+
+        const user = await userRepo.findById(req.params.id);
+        if (user.role !== 'admin' && user.role !== 'manager') {
+            throw new Error(`Error finding new document in database`)
+        }
+
+        try {
+            const allRouteNotFoundLogs = await routeNotFoundLogsRepo.getAllRouteNotFoundLogs();
+            res.status(200).json(allRouteNotFoundLogs);
+        } catch (err) {
+            throw new Error(err.message);
+        }
+
+    } catch (err) {
+        console.log(err.message)
+        res.status(400).json(err.message);
+    }
+
+})
 
 authController.get('/admin/:id', async (req, res) => {
 
@@ -743,8 +772,33 @@ authController.delete('/admin/:adminId/:id', async (req, res) => {
     }
 })
 
-authController.use((req, res, next) => {
-    res.status(404).json('Route not found');
+authController.use(async (req, res, next) => {
+  const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
+    req.app.get("routeNotFoundLogsRepo");
+
+  try {
+    await routeNotFoundLogsRepo.create(
+      req.originalUrl,
+      req.method,
+      req.headers,
+      req.query,
+      req.body,
+      req.params,
+      ip.address() ||
+        req.header("x-forwarded-for") ||
+        req.socket.remoteAddress ||
+        req.ip,
+      req["user"]?.id,
+      req["user"]?.email
+    );
+
+    console.log("Route not found!");
+
+    res.status(404).json("Route not found!");
+  } catch (err) {
+    console.log(err.message);
+    res.status(404).json("Route not found!");
+  }
 });
 
 const deleteFile = async (filePath) => {

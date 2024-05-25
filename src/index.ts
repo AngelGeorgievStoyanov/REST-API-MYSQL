@@ -11,10 +11,15 @@ import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
 import { CommentTripRepository } from './services/commentService';
 import { VerifyTokenRepository } from './services/verifyTokenService';
-import { comments, createuser, database, flush, grantuser, logFailed, points, trips, usedb, users, verify } from './db/createMySQL';
+import { comments, createuser, database, flush, grantuser, logFailed, points, routeNotFoundLogs, trips, usedb, users, verify } from './db/createMySQL';
 import * as dotenv from 'dotenv';
 import cloudController from './controllers/cloudController';
 import { CloudRepository } from './services/cloudService';
+import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
+import { IRouteNotFoundLogsRepository } from './interface/routeNotFoundLogs-repository';
+import { IRouteNotFoundLogs } from './model/routeNotFoudLogs';
+var ip = require('ip');
+
 dotenv.config()
 
 const app = express()
@@ -60,112 +65,48 @@ app.get('/', (req, res) => {
         password: process.env.MYSQL_PASSWORD,
     });
 
-    pool.getConnection(function (err, connection) {
-        if (err) throw err;
+    pool.getConnection(async (err, connection) => {
+        if (err) {
+            console.error('Error getting database connection:', err);
+            return;
+        }
+
         console.log("Connected!");
 
-        //TODO: remove for prod
-        pool.query(createuser, function (err, result) {
-            if (err) throw err;
-            console.log("USER hack_trip created");
-        });
-        connection.release()
+        const queries = [
+            { sql: createuser, message: "USER hack_trip created" },
+            { sql: grantuser, message: "GRANT USER hack_trip" },
+            { sql: flush, message: "FLUSH PRIVILEGES hack_trip" },
+            { sql: database, message: "DATA BASE hack_trip created" },
+            { sql: usedb, message: "USE DATA BASE hack_trip" },
+            { sql: users, message: "Table USERS created!" },
+            { sql: trips, message: "Table TRIPS created!" },
+            { sql: points, message: "Table POINTS created!" },
+            { sql: comments, message: "Table COMMENTS created!" },
+            { sql: verify, message: "Table VERIFY created!" },
+            { sql: logFailed, message: "Table FAILED LOGS created!" },
+            { sql: routeNotFoundLogs, message: "Table ROUTE NOT FOUND LOGS created!" },
+        ];
 
-        pool.query(grantuser, function (err, result) {
-            if (err) throw err;
-            console.log("GRANT USER hack_trip");
-        });
-
-        connection.release()
-
-        pool.query(flush, function (err, result) {
-            if (err) throw err;
-            console.log("FLUSH PRIVILEGES hack_trip");
-        });
-
-        connection.release()
-
-        pool.query(database, function (err, result) {
-            if (err) throw err;
-            console.log("DATA BASE hack_trip created");
-        });
-
-        connection.release()
-        pool.query(usedb, function (err, result) {
-            if (err) throw err;
-            console.log("USE DATA BASE hack_trip");
-        });
-
-        connection.release()
-        pool.query(users, function (err, result) {
-            if (err) {
-                console.log(err)
-            } else {
-                console.log(`Table USERS created!`)
+        try {
+            for (const query of queries) {
+                await new Promise((resolve, reject) => {
+                    connection.query(query.sql, (err, result) => {
+                        if (err) {
+                            console.error(`Error executing query: ${query.sql}`, err);
+                            reject(err);
+                        } else {
+                            console.log(query.message);
+                            resolve(result);
+                        }
+                    });
+                });
             }
-
-        })
-        connection.release()
-
-        pool.query(trips, function (err, result) {
-            if (err) {
-                console.log(err)
-            } else {
-                console.log(`Table TRIPS created!`)
-            }
-
-        })
-        connection.release()
-
-
-
-        pool.query(points, function (err, result) {
-            if (err) {
-                console.log(err)
-            } else {
-                console.log(`Table POINTS created!`)
-            }
-
-        })
-        connection.release()
-
-
-        pool.query(comments, function (err, result) {
-            if (err) {
-                console.log(err)
-            } else {
-                console.log(`Table COMMENTS created!`)
-            }
-
-        })
-
-        connection.release()
-
-
-        pool.query(verify, function (err, result) {
-            if (err) {
-                console.log(err)
-            } else {
-                console.log(`Table VERIFY created!`)
-            }
-
-        })
-
-        connection.release()
-
-        pool.query(logFailed, function (err, result) {
-            if (err) {
-                console.log(err)
-            } else {
-                console.log(`Table FAILED LOGS created!`)
-            }
-
-        })
-        //TODO: remove for prod to here
-       
-        connection.destroy()
-
-
+        } catch (error) {
+            console.error('Error executing queries:', error);
+        } finally {
+            connection.release();
+        }
     });
 
 
@@ -182,13 +123,41 @@ app.get('/', (req, res) => {
     app.set("commentsRepo", new CommentTripRepository(pool));
     app.set("verifyTokenRepo", new VerifyTokenRepository(pool));
     app.set("imagesRepo", new CloudRepository(pool));
+    app.set("routeNotFoundLogsRepo", new RouteNotFoudLogsRepository(pool));
 
     app.listen(port, () => {
         console.log(`Connected succesfully on port ${port}`)
     });
 })();
 
+app.use(async (req, res, next) => {
+  const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
+    req.app.get("routeNotFoundLogsRepo");
 
+  try {
+    await routeNotFoundLogsRepo.create(
+      req.originalUrl,
+      req.method,
+      req.headers,
+      req.query,
+      req.body,
+      req.params,
+      ip.address() ||
+        req.header("x-forwarded-for") ||
+        req.socket.remoteAddress ||
+        req.ip,
+      req["user"]?.id,
+      req["user"]?.email
+    );
+
+    console.log("Route not found!");
+
+    res.status(404).json("Route not found!");
+  } catch (err) {
+    console.log(err.message);
+    res.status(404).json("Route not found!");
+  }
+});
 
 app.on('error', err => {
     console.log('Server error:', err);

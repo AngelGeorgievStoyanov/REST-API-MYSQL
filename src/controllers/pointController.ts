@@ -5,7 +5,9 @@ import * as multer from 'multer';
 import { storage } from './tripController';
 import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
-
+import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
+import { IRouteNotFoundLogs } from '../model/routeNotFoudLogs';
+var ip = require('ip');
 
 const pointController = express.Router();
 
@@ -261,8 +263,33 @@ pointController.put('/edit-images/:id', async (req, res) => {
 })
 
 
-pointController.use((req, res, next) => {
-    res.status(404).json('Route not found');
+pointController.use(async (req, res, next) => {
+    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
+      req.app.get("routeNotFoundLogsRepo");
+  
+    try {
+      await routeNotFoundLogsRepo.create(
+        req.originalUrl,
+        req.method,
+        req.headers,
+        req.query,
+        req.body,
+        req.params,
+        ip.address() ||
+          req.header("x-forwarded-for") ||
+          req.socket.remoteAddress ||
+          req.ip,
+        req["user"]?.id,
+        req["user"]?.email
+      );
+  
+      console.log("Route not found!");
+  
+      res.status(404).json("Route not found!");
+    } catch (err) {
+      console.log(err.message);
+      res.status(404).json("Route not found!");
+    }
 });
 
 
