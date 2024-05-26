@@ -37,17 +37,26 @@ export class RouteNotFoudLogsRepository
     let _id = uuid();
     let date = new Date().toISOString();
 
-    const stringifyIfNeeded = (input: any) => {
-      if (input && typeof input !== "string") {
-        return JSON.stringify(input, null, 2);
-      }
-      return input || null;
+    const trimString = (str: string, maxLength: number) => {
+      return str.length > maxLength ? str.substring(0, maxLength) : str;
     };
 
-    reqHeaders = stringifyIfNeeded(reqHeaders);
-    reqQuery = stringifyIfNeeded(reqQuery);
-    reqBody = stringifyIfNeeded(reqBody);
-    reqParams = stringifyIfNeeded(reqParams);
+    const stringifyIfNeeded = (input: any, maxLength: number) => {
+      if (input && typeof input !== "string") {
+        return trimString(JSON.stringify(input, null, 2), maxLength);
+      }
+      return trimString(input || "", maxLength);
+    };
+
+    reqUrl = trimString(reqUrl || "", 145);
+    reqMethod = trimString(reqMethod || "", 15);
+    reqHeaders = stringifyIfNeeded(reqHeaders, 500);
+    reqQuery = stringifyIfNeeded(reqQuery, 145);
+    reqBody = stringifyIfNeeded(reqBody, 1000);
+    reqParams = stringifyIfNeeded(reqParams, 145);
+    reqIp = trimString(reqIp || "", 45);
+    reqUserId = trimString(reqUserId || "", 36);
+    reqUserEmail = trimString(reqUserEmail || "", 245);
 
     return new Promise((resolve, reject) => {
       this.pool.query(
@@ -55,15 +64,15 @@ export class RouteNotFoudLogsRepository
         [
           _id,
           date,
-          reqUrl || null,
-          reqMethod || null,
+          reqUrl,
+          reqMethod,
           reqHeaders,
           reqQuery,
           reqBody,
           reqParams,
-          reqIp || null,
-          reqUserId || null,
-          reqUserEmail || null,
+          reqIp,
+          reqUserId,
+          reqUserEmail,
         ],
         (err, result) => {
           if (err) {
@@ -78,19 +87,20 @@ export class RouteNotFoudLogsRepository
     });
   }
 
-
   async getAllRouteNotFoundLogs(): Promise<IRouteNotFoundLogs[]> {
-
     return new Promise((resolve, reject) => {
-        this.pool.query('SELECT * FROM hack_trip.routenotfoundlogs ORDER BY date desc', (err, rows, fields) => {
-            if (err) {
-                console.log(err);
-                reject(err);
-                return;
-            }
+      this.pool.query(
+        "SELECT * FROM hack_trip.routenotfoundlogs ORDER BY date desc",
+        (err, rows, fields) => {
+          if (err) {
+            console.log(err);
+            reject(err);
+            return;
+          }
 
-            resolve(rows);
-        });
+          resolve(rows);
+        }
+      );
     });
-}
+  }
 }

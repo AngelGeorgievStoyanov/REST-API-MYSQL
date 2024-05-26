@@ -11,10 +11,10 @@ import sendMail from '../utils/sendEmail';
 import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
 import { VerifyToken } from '../model/verifyToken';
 import { CONNECTIONURL } from '../utils/baseUrl';
-var ip = require('ip');
 import { authenticateToken } from '../guard/jwt.middleware';
 import { IRouteNotFoundLogs } from '../model/routeNotFoudLogs';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
+import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 dotenv.config()
 
 
@@ -772,34 +772,7 @@ authController.delete('/admin/:adminId/:id', async (req, res) => {
     }
 })
 
-authController.use(async (req, res, next) => {
-  const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
-    req.app.get("routeNotFoundLogsRepo");
-
-  try {
-    await routeNotFoundLogsRepo.create(
-      req.originalUrl,
-      req.method,
-      req.headers,
-      req.query,
-      req.body,
-      req.params,
-      ip.address() ||
-        req.header("x-forwarded-for") ||
-        req.socket.remoteAddress ||
-        req.ip,
-      req["user"]?.id,
-      req["user"]?.email
-    );
-
-    console.log("Route not found!");
-
-    res.status(404).json("Route not found!");
-  } catch (err) {
-    console.log(err.message);
-    res.status(404).json("Route not found!");
-  }
-});
+authController.use(routeNotFoundLogsMiddleware);
 
 const deleteFile = async (filePath) => {
     try {

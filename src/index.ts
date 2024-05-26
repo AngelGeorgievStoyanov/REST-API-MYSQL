@@ -130,34 +130,6 @@ app.get('/', (req, res) => {
     });
 })();
 
-app.use(async (req, res, next) => {
-  const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
-    req.app.get("routeNotFoundLogsRepo");
-
-  try {
-    await routeNotFoundLogsRepo.create(
-      req.originalUrl,
-      req.method,
-      req.headers,
-      req.query,
-      req.body,
-      req.params,
-      ip.address() ||
-        req.header("x-forwarded-for") ||
-        req.socket.remoteAddress ||
-        req.ip,
-      req["user"]?.id,
-      req["user"]?.email
-    );
-
-    console.log("Route not found!");
-
-    res.status(404).json("Route not found!");
-  } catch (err) {
-    console.log(err.message);
-    res.status(404).json("Route not found!");
-  }
-});
 
 app.on('error', err => {
     console.log('Server error:', err);

@@ -4,9 +4,8 @@ import { ICloudImages } from '../interface/cloudService-repository';
 import { CloudImages } from '../model/trip';
 import { IUserRepository } from '../interface/user-repository';
 import { User } from '../model/user';
-import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
-import { IRouteNotFoundLogs } from '../model/routeNotFoudLogs';
-var ip = require('ip');
+import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
+
 
 const cloudController = express.Router();
 const storageGoogle = new Storage();
@@ -99,34 +98,7 @@ cloudController.get('/unique-images/:userId', async (req, res) => {
 })
 
 
-cloudController.use(async (req, res, next) => {
-    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
-      req.app.get("routeNotFoundLogsRepo");
-  
-    try {
-      await routeNotFoundLogsRepo.create(
-        req.originalUrl,
-        req.method,
-        req.headers,
-        req.query,
-        req.body,
-        req.params,
-        ip.address() ||
-          req.header("x-forwarded-for") ||
-          req.socket.remoteAddress ||
-          req.ip,
-        req["user"]?.id,
-        req["user"]?.email
-      );
-  
-      console.log("Route not found!");
-  
-      res.status(404).json("Route not found!");
-    } catch (err) {
-      console.log(err.message);
-      res.status(404).json("Route not found!");
-    }
-});
+cloudController.use(routeNotFoundLogsMiddleware);
 
 export async function listCloudImages(storage: Storage): Promise<any[]> {
     const bucketName = 'hack-trip';
