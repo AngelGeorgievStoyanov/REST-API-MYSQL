@@ -8,6 +8,14 @@ export const routeNotFoundLogsMiddleware = async (req: Request, res: Response, n
     const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> = req.app.get('routeNotFoundLogsRepo');
 
     try {
+        const clientIp = [
+            req.header('x-real-ip') ? `x-real-ip: ${req.header('x-real-ip')}` : null,
+            req.header('x-forwarded-for') ? `x-forwarded-for: ${req.header('x-forwarded-for')}` : null,
+            req.socket.remoteAddress ? `remoteAddress: ${req.socket.remoteAddress}` : null,
+            req.ip ? `req.ip: ${req.ip}` : null,
+            `server-ip: ${ip.address()}`
+        ].filter(Boolean).join(', ');
+      
         await routeNotFoundLogsRepo.create(
             req.originalUrl,
             req.method,
@@ -15,10 +23,7 @@ export const routeNotFoundLogsMiddleware = async (req: Request, res: Response, n
             req.query,
             req.body,
             req.params,
-            ip.address() ||
-            req.header('x-forwarded-for') ||
-            req.socket.remoteAddress ||
-            req.ip,
+            clientIp,
             req['user']?.id,
             req['user']?.email
         );

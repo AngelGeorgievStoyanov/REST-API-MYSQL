@@ -96,7 +96,7 @@ export const routeNotFoundLogs = `CREATE TABLE IF NOT EXISTS hack_trip.routenotf
         reqQuery VARCHAR(145) NULL DEFAULT NULL,
         reqBody VARCHAR(1000) NULL DEFAULT NULL,
         reqParams VARCHAR(145) NULL DEFAULT NULL,
-        reqIp VARCHAR(45) NULL DEFAULT NULL,
+        reqIp VARCHAR(1000) NULL DEFAULT NULL,
         reqUserId VARCHAR(36) NULL DEFAULT NULL,
         reqUserEmail VARCHAR(245) NULL DEFAULT NULL,
         PRIMARY KEY (_id));`;
