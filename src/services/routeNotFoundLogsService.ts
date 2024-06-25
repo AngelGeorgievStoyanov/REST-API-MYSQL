@@ -50,11 +50,11 @@ export class RouteNotFoudLogsRepository
 
     reqUrl = trimString(reqUrl || "", 145);
     reqMethod = trimString(reqMethod || "", 15);
-    reqHeaders = stringifyIfNeeded(reqHeaders, 500);
+    reqHeaders = stringifyIfNeeded(reqHeaders, 1000);
     reqQuery = stringifyIfNeeded(reqQuery, 145);
     reqBody = stringifyIfNeeded(reqBody, 1000);
     reqParams = stringifyIfNeeded(reqParams, 145);
-    reqIp = trimString(reqIp || "", 45);
+    reqIp = trimString(reqIp || "", 1000);
     reqUserId = trimString(reqUserId || "", 36);
     reqUserEmail = trimString(reqUserEmail || "", 245);
 

@@ -15,9 +15,10 @@ const createSql = `INSERT INTO hack_trip.points (
     lng,
     pointNumber,
     imageFile,
-    _ownerId
+    _ownerId,
+    timeCreated
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 
 const selectOne = `SELECT * FROM hack_trip.points WHERE _id =?`;
@@ -29,7 +30,7 @@ const deleteByOTripId = `DELETE from hack_trip.points WHERE _ownerTripId =?`;
 const selectByOwnerId = `SELECT * FROM hack_trip.points WHERE _ownerTripId =?`;
 
 
-const updateSql = `UPDATE hack_trip.points SET name =?, description=?, lat=?, lng=?, pointNumber=?, imageFile =? WHERE _id =?`;
+const updateSql = `UPDATE hack_trip.points SET name =?, description=?, lat=?, lng=?, pointNumber=?, imageFile =?, timeEdited =?, countEdited = countEdited + 1 WHERE _id =?`;
 
 const updatePositionSql = `UPDATE hack_trip.points SET pointNumber=? WHERE _id =?`;
 
@@ -43,11 +44,12 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
     async create(point: Point): Promise<Point> {
         point._id = uuid()
+        const timeCreated = new Date().toISOString()
         return new Promise((resolve, reject) => {
             let imagesNew = point.imageFile.join();
 
             this.pool.query(createSql,
-                [point._id, point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew, point._ownerId],
+                [point._id, point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew, point._ownerId, timeCreated],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -197,7 +199,8 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         let editedImg = point.imageFile.join();
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSql, [point.name, point.description, point.lat, point.lng, point.pointNumber, editedImg, id], (err, rows, fields) => {
+            const timeEdited = new Date().toISOString()
+            this.pool.query(updateSql, [point.name, point.description, point.lat, point.lng, point.pointNumber, editedImg, timeEdited, id], (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);

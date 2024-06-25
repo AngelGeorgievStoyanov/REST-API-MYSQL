@@ -324,7 +324,6 @@ tripController.put('/like/:id', async (req, res) => {
 
         const userId = req.body.userId;
         const user = await userRepo.findById(userId)
-        console.log(user)
         const existing = await tripRepo.getTripById(req.params.id);
 
         if (existing.likes.includes(userId)) {

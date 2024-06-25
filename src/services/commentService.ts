@@ -12,12 +12,13 @@ const createSql = `INSERT INTO hack_trip.comments (
     comment,
     _tripId,
     _ownerId,
-    reportComment
+    reportComment,
+    timeCreated
   )
-  VALUES (?, ?, ?, ?, ?, ?);`;
+  VALUES (?, ?, ?, ?, ?, ?, ?);`;
 
 
-const updateSql = `UPDATE hack_trip.comments SET comment =? WHERE _id =?`;
+const updateSql = `UPDATE hack_trip.comments SET comment =?, timeEdited =?, countEdited = countEdited + 1  WHERE _id =?`;
 
 const selectOne = `SELECT * FROM hack_trip.comments WHERE _id =?`;
 
@@ -36,9 +37,10 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
     async create(comment: Comment): Promise<Comment> {
         comment._id = uuid()
+        const timeCreated =  new Date().toISOString()
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [comment._id, comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId, comment.reportComment],
+                [comment._id, comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId, comment.reportComment, timeCreated],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -113,7 +115,8 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
     async updateCommentById(id: IdType, comment: Comment): Promise<Comment> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSql, [comment.comment, id, id], (err, rows, fields) => {
+            const timeEdited = new Date().toISOString()
+            this.pool.query(updateSql, [comment.comment, timeEdited, id], (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);

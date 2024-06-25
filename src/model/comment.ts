@@ -8,6 +8,9 @@ export class Comment {
         public comment: string,
         public _tripId: string,
         public _ownerId: string,
-        public reportComment: string[],
+        public reportComment: string[], 
+        public timeCreated: string,
+        public timeEdited: string,
+        public countEdited: number
     ) { }
 }

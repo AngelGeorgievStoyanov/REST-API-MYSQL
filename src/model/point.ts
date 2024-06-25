@@ -12,5 +12,8 @@ export class Point {
         public pointNumber: IdType,
         public imageFile:string[],
         public _ownerId: string,
+        public timeCreated: string,
+        public timeEdited: string,
+        public countEdited: number
     ) { }
 }

@@ -12,11 +12,12 @@ const createSql = `INSERT INTO hack_trip.verify (
 
 const forgotPasswordSql = `UPDATE hack_trip.verify SET verifyTokenForgotPassword =? WHERE userId =?`;
 
-
+const updateDateVerifyToken = `UPDATE hack_trip.verify SET timeVerifyToken =? WHERE userId =? AND verifyToken =?`;
+const updateVerifyTokenForgotPassword  = `UPDATE hack_trip.verify SET timeVerifyTokenForgotPassword =?, countForgotPassword = countForgotPassword + 1 WHERE userId =? AND verifyTokenForgotPassword =?`;
 
 export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken> {
     constructor(protected pool: Pool) { }
-
+    
 
     async create(token: string, userId: string): Promise<VerifyToken> {
 
@@ -110,7 +111,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
 
     }
 
-    async findByIdAndVerifyTokenForgotPassword(userId, token: string): Promise<VerifyToken> {
+    async findByIdAndVerifyTokenForgotPassword(userId:string, token: string): Promise<VerifyToken> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.verify WHERE (userId like ? AND verifyTokenForgotPassword like ?);', [userId, token],
                 (err, rows, fields) => {
@@ -152,4 +153,46 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
         });
 
     }
+
+    async updateVerifyToken(userId: string, verifyToken:string): Promise<VerifyToken> {
+       const timeVerifyToken = new Date().toISOString()
+        return new Promise((resolve, reject) => {
+            this.pool.query(updateDateVerifyToken, [timeVerifyToken,userId, verifyToken],
+                (err, rows, fields) => {
+                    if (err) {
+
+                        console.log(err);
+                        reject(err);
+                        return;
+                    } else if (rows.length === 1) {
+
+                        resolve({ ...rows[0] });
+                    } else {
+                        resolve(rows);
+                    }
+
+                });
+        });
+    }
+
+    async updateVerifyTokenForgotPassword(userId: string, verifyToken:string): Promise<VerifyToken> {
+        const timeVerifyTokenForgotPassword = new Date().toISOString()
+         return new Promise((resolve, reject) => {
+             this.pool.query(updateVerifyTokenForgotPassword, [timeVerifyTokenForgotPassword, userId, verifyToken],
+                 (err, rows, fields) => {
+                     if (err) {
+ 
+                         console.log(err);
+                         reject(err);
+                         return;
+                     } else if (rows.length === 1) {
+ 
+                         resolve({ ...rows[0] });
+                     } else {
+                         resolve(rows);
+                     }
+ 
+                 });
+         });
+     }
 }

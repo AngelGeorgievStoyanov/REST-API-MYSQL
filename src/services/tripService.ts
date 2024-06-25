@@ -34,7 +34,7 @@ const selectOne = `SELECT * FROM hack_trip.trips WHERE _id =?`;
 
 const deleteOne = `DELETE from hack_trip.trips WHERE _id =?`;
 
-const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, lat=?,lng=?, timeEdited=?, imageFile =? WHERE _id =?`;
+const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, lat=?,lng=?, timeEdited=?, imageFile =?, countEdited = countEdited + 1 WHERE _id =?`;
 
 const updateSqlLikes = `UPDATE hack_trip.trips SET likes =? WHERE _id =?`;
 const updateSqlFavorites = `UPDATE hack_trip.trips SET favorites =? WHERE _id =?`;
@@ -50,10 +50,10 @@ export class TripRepository implements ITripRepository<Trip> {
 
 
     async create(trip: Trip): Promise<Trip> {
-        trip.timeCreated = new Date()
-        trip.timeEdited = new Date()
-        trip._id = uuid()
-        let imagesNew = trip.imageFile.join()
+        trip.timeCreated = new Date().toISOString();
+        trip.timeEdited = new Date().toISOString();
+        trip._id = uuid();
+        let imagesNew = trip.imageFile.join();
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
                 [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites],
@@ -275,7 +275,7 @@ export class TripRepository implements ITripRepository<Trip> {
 
 
     async updateTripById(id: IdType, trip: Trip): Promise<Trip> {
-        trip.timeEdited = new Date();
+        trip.timeEdited = new Date().toISOString();
         let editedImg = trip.imageFile.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [trip.title, trip.description, trip.price, trip.transport,

@@ -15,6 +15,8 @@ import { authenticateToken } from '../guard/jwt.middleware';
 import { IRouteNotFoundLogs } from '../model/routeNotFoudLogs';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
+var ip = require('ip');
+
 dotenv.config()
 
 
@@ -64,6 +66,28 @@ authController.post('/login', async (req, res) => {
 
         if (user.email !== req.body.email) {
             console.log(req.body.email)
+            
+            const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> = req.app.get('routeNotFoundLogsRepo');
+         
+            const clientIp = [
+                req.header('x-real-ip') ? `x-real-ip: ${req.header('x-real-ip')}` : null,
+                req.header('x-forwarded-for') ? `x-forwarded-for: ${req.header('x-forwarded-for')}` : null,
+                req.socket.remoteAddress ? `remoteAddress: ${req.socket.remoteAddress}` : null,
+                req.ip ? `req.ip: ${req.ip}` : null,
+                `server-ip: ${ip.address()}`
+            ].filter(Boolean).join(', ');
+          
+            await routeNotFoundLogsRepo.create(
+                req.originalUrl,
+                req.method,
+                req.headers,
+                req.query,
+                req.body,
+                req.params,
+                clientIp,
+                req['user']?.id,
+                req['user']?.email
+            );
             throw new Error('Incorrect email or password');
         }
 
@@ -206,7 +230,6 @@ authController.post('/new-password', async (req, res) => {
     const token = req.body.token;
     const password = req.body.password;
 
-
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
 
@@ -216,7 +239,7 @@ authController.post('/new-password', async (req, res) => {
         if (verifiedUser) {
             try {
                 const user = await userRepo.newUserPassword(userId, password);
-
+                const updateVerify = await verifyTokenRepo.updateVerifyTokenForgotPassword(userId, token)
                 res.status(200).json(user);
 
             } catch (err) {
@@ -271,7 +294,7 @@ authController.get('/verify-email/:id/:token', async (req, res) => {
             try {
 
                 const verifiedUser = await userRepo.updateUserverifyEmail(id, true)
-
+                const updateVerify = await verifyTokenRepo.updateVerifyToken(id, token)
 
                 res.status(200).json(true)
             } catch (err) {

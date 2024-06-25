@@ -35,8 +35,8 @@ export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     _ownerId VARCHAR(45) NULL DEFAULT NULL,
     lat DOUBLE NULL DEFAULT NULL,
     lng DOUBLE NULL DEFAULT NULL,
-    timeCreated DATE NULL DEFAULT NULL,
-    timeEdited DATE NULL DEFAULT NULL,
+    timeCreated VARCHAR(24) NULL DEFAULT NULL,
+    timeEdited VARCHAR(24) NULL DEFAULT NULL,
     reportTrip VARCHAR(360) NULL DEFAULT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     favorites VARCHAR(3600) NULL DEFAULT NULL,
@@ -53,6 +53,9 @@ export const points = `CREATE TABLE IF NOT EXISTS hack_trip.points (
     pointNumber VARCHAR(45) NOT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     _ownerId VARCHAR(45) NOT NULL,
+    timeCreated VARCHAR(24) NULL DEFAULT NULL,
+    timeEdited VARCHAR(24) NULL DEFAULT NULL,
+    countEdited INT NULL DEFAULT 0,
     PRIMARY KEY (_id)
     );`;
 
@@ -63,13 +66,19 @@ export const comments = `CREATE TABLE IF NOT EXISTS hack_trip.comments (
     _tripId VARCHAR(45) NOT NULL,
     _ownerId VARCHAR(45) NOT NULL,
     reportComment VARCHAR(3600) NULL DEFAULT NULL,
+    timeCreated VARCHAR(24) NULL DEFAULT NULL,
+    timeEdited VARCHAR(24) NULL DEFAULT NULL,
+    countEdited INT NULL DEFAULT 0,
     PRIMARY KEY (_id));`;
 
 export const verify = `CREATE TABLE IF NOT EXISTS hack_trip.verify (
     _id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     verifyToken VARCHAR(36) NOT NULL,
     userId VARCHAR(36) NOT NULL,
-    verifyTokenForgotPassword VARCHAR(36) NULL
+    verifyTokenForgotPassword VARCHAR(36) NULL,
+    timeVerifyToken VARCHAR(24) NULL DEFAULT NULL,
+    timeVerifyTokenForgotPassword VARCHAR(24) NULL DEFAULT NULL,
+    countForgotPassword INT NULL DEFAULT 0
     );`;
 
 export const logFailed = `CREATE TABLE IF NOT EXISTS hack_trip.failedlogs (
@@ -92,7 +101,7 @@ export const routeNotFoundLogs = `CREATE TABLE IF NOT EXISTS hack_trip.routenotf
         date VARCHAR(45) NULL DEFAULT NULL,
         reqUrl VARCHAR(145) NULL DEFAULT NULL,
         reqMethod VARCHAR(15) NULL DEFAULT NULL,
-        reqHeaders VARCHAR(500) NULL DEFAULT NULL,
+        reqHeaders VARCHAR(1000) NULL DEFAULT NULL,
         reqQuery VARCHAR(145) NULL DEFAULT NULL,
         reqBody VARCHAR(1000) NULL DEFAULT NULL,
         reqParams VARCHAR(145) NULL DEFAULT NULL,
