@@ -40,6 +40,7 @@ export const trips = `CREATE TABLE IF NOT EXISTS hack_trip.trips (
     reportTrip VARCHAR(360) NULL DEFAULT NULL,
     imageFile VARCHAR(2000) NULL DEFAULT NULL,
     favorites VARCHAR(3600) NULL DEFAULT NULL,
+    currency VARCHAR(3) NULL DEFAULT 'EUR',
     PRIMARY KEY (_id)
     );`;
 

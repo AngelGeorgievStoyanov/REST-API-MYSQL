@@ -54,28 +54,27 @@ pointController.delete('/trip/:id/:userId', async (req, res) => {
         if (point.some((x) => x._ownerId !== userId) || (user.role !== 'admin' && user.role !== 'manager')) {
             throw new Error(`Error finding document in database`)
         }
+        if (point.length > 0) {
+            try {
+                const result = await pointRepo.deletePointByTripId(req.params.id);
 
-        try {
+                result.map((x) => {
+                    let images = x.imageFile as any;
+                    images.split(",").map((f) => {
+                        const filePath = f;
 
-            const result = await pointRepo.deletePointByTripId(req.params.id);
-
-            result.map((x) => {
-
-                let images = x.imageFile as any;
-                images.split(',').map((f) => {
-                    const filePath = f;
-
-                    try {
-                        deleteFile(filePath);
-                    } catch (err) {
-                        console.log(err);
-                    }
+                        try {
+                            deleteFile(filePath);
+                        } catch (err) {
+                            console.log(err);
+                        }
+                    });
                 });
-            });
-            res.json(result).status(204);
-        } catch (err) {
-            console.log(err.message);
-            res.status(400).json(err.message);
+                res.json(result).status(204);
+            } catch (err) {
+                console.log(err.message);
+                res.status(400).json(err.message);
+            }
         }
     } catch (err) {
         console.log(err.message);

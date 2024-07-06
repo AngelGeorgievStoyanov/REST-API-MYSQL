@@ -26,15 +26,16 @@ const createSql = `INSERT INTO hack_trip.trips (
     timeEdited,
     reportTrip,
     imageFile,
-    favorites
+    favorites,
+    currency
   )
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 const selectOne = `SELECT * FROM hack_trip.trips WHERE _id =?`;
 
 const deleteOne = `DELETE from hack_trip.trips WHERE _id =?`;
 
-const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, lat=?,lng=?, timeEdited=?, imageFile =?, countEdited = countEdited + 1 WHERE _id =?`;
+const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, lat=?,lng=?, timeEdited=?, imageFile =?, currency =?, countEdited = countEdited + 1 WHERE _id =?`;
 
 const updateSqlLikes = `UPDATE hack_trip.trips SET likes =? WHERE _id =?`;
 const updateSqlFavorites = `UPDATE hack_trip.trips SET favorites =? WHERE _id =?`;
@@ -56,7 +57,7 @@ export class TripRepository implements ITripRepository<Trip> {
         let imagesNew = trip.imageFile.join();
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
-                [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites],
+                [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites, trip.currency],
                 (err, rows, fields) => {
                     if (err) {
 
@@ -279,7 +280,7 @@ export class TripRepository implements ITripRepository<Trip> {
         let editedImg = trip.imageFile.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [trip.title, trip.description, trip.price, trip.transport,
-            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.lat, trip.lng, trip.timeEdited, editedImg, id], (err, rows, fields) => {
+            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.lat, trip.lng, trip.timeEdited, editedImg, trip.currency, id], (err, rows, fields) => {
                 if (err) {
                     reject(err);
                     return;
