@@ -6,12 +6,13 @@ import { storage } from './tripController';
 import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
+import { authenticateToken } from '../guard/jwt.middleware';
 
 const pointController = express.Router();
 
 
 
-pointController.post('/upload', multer({ storage }).array('file', 12), function (req, res) {
+pointController.post('/upload', authenticateToken, multer({ storage }).array('file', 12), function (req, res) {
 
     let files = req.files;
 
@@ -19,8 +20,7 @@ pointController.post('/upload', multer({ storage }).array('file', 12), function 
     res.status(200).json(files);
 })
 
-
-pointController.post('/', async (req, res) => {
+pointController.post('/', authenticateToken, async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
@@ -42,16 +42,17 @@ pointController.post('/', async (req, res) => {
     }
 })
 
-pointController.delete('/trip/:id/:userId', async (req, res) => {
+pointController.delete('/trip/:id/:userId', authenticateToken, async (req, res) => {
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
         const userId = req.params.userId;
+        const pointId = req.params.id;
         const user = await userRepo.findById(userId)
         const point = await pointRepo.findByTripId(req.params.id);
-
-        if (point.some((x) => x._ownerId !== userId) || (user.role !== 'admin' && user.role !== 'manager')) {
+       
+        if (point.some((x) => x._ownerTripId !== pointId) || (user.role !== 'admin' && user.role !== 'manager')) {
             throw new Error(`Error finding document in database`)
         }
         if (point.length > 0) {
@@ -70,11 +71,13 @@ pointController.delete('/trip/:id/:userId', async (req, res) => {
                         }
                     });
                 });
-                res.json(result).status(204);
+                res.json(result).status(200);
             } catch (err) {
                 console.log(err.message);
                 res.status(400).json(err.message);
             }
+        } else {
+            res.json([]).status(200);
         }
     } catch (err) {
         console.log(err.message);
@@ -82,8 +85,7 @@ pointController.delete('/trip/:id/:userId', async (req, res) => {
     }
 })
 
-
-pointController.get('/:id', async (req, res) => {
+pointController.get('/:id', authenticateToken, async (req, res) => {
 
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
     try {
@@ -99,8 +101,7 @@ pointController.get('/:id', async (req, res) => {
     }
 })
 
-
-pointController.delete('/:id', async (req, res) => {
+pointController.delete('/:id', authenticateToken, async (req, res) => {
 
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -145,7 +146,7 @@ pointController.delete('/:id', async (req, res) => {
     }
 })
 
-pointController.get('/edit/:id', async (req, res) => {
+pointController.get('/edit/:id', authenticateToken, async (req, res) => {
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
     try {
         const point = await pointRepo.getPointById(req.params.id);
@@ -157,8 +158,7 @@ pointController.get('/edit/:id', async (req, res) => {
     }
 })
 
-
-pointController.put('/edit-position/:id', async (req, res) => {
+pointController.put('/edit-position/:id', authenticateToken, async (req, res) => {
 
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
@@ -189,7 +189,7 @@ pointController.put('/edit-position/:id', async (req, res) => {
 
 })
 
-pointController.put('/:id', async (req, res) => {
+pointController.put('/:id', authenticateToken, async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -219,11 +219,7 @@ pointController.put('/:id', async (req, res) => {
     }
 })
 
-
-
-
-
-pointController.put('/edit-images/:id', async (req, res) => {
+pointController.put('/edit-images/:id', authenticateToken, async (req, res) => {
 
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
@@ -259,12 +255,10 @@ pointController.put('/edit-images/:id', async (req, res) => {
     }
 })
 
-
 pointController.use(routeNotFoundLogsMiddleware);
 
 
-
-const deleteFile = async (filePath) => {
+const deleteFile = async (filePath: string) => {
     try {
         await storage.bucket('hack-trip')
             .file(filePath)

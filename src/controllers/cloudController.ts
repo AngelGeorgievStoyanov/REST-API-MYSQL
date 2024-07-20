@@ -5,12 +5,14 @@ import { CloudImages } from '../model/trip';
 import { IUserRepository } from '../interface/user-repository';
 import { User } from '../model/user';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
+import { authenticateToken } from '../guard/jwt.middleware';
 
 
 const cloudController = express.Router();
 const storageGoogle = new Storage();
 
-cloudController.get('/cloud-images/:userId', async (req, res) => {
+
+cloudController.get('/cloud-images/:userId', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
 
@@ -32,7 +34,7 @@ cloudController.get('/cloud-images/:userId', async (req, res) => {
 });
 
 
-cloudController.get('/db-images/:userId', async (req, res) => {
+cloudController.get('/db-images/:userId', authenticateToken, async (req, res) => {
     const imagesRepo: ICloudImages<CloudImages> = req.app.get('imagesRepo');
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -56,7 +58,7 @@ cloudController.get('/db-images/:userId', async (req, res) => {
     }
 });
 
-cloudController.get('/unique-images/:userId', async (req, res) => {
+cloudController.get('/unique-images/:userId', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
 
@@ -104,12 +106,12 @@ export async function listCloudImages(storage: Storage): Promise<any[]> {
     const bucketName = 'hack-trip';
     const [files] = await storage.bucket(bucketName).getFiles();
 
-  const images = files.filter((file) => !file.name.endsWith('/')).map((file) => ({
-      name: file.name,
-      generation: file.metadata.generation,
-      timeCreated: file.metadata.timeCreated,
-      updated: file.metadata.updated,
-      timeStorageClassUpdated: file.metadata.timeStorageClassUpdated,
+    const images = files.filter((file) => !file.name.endsWith('/')).map((file) => ({
+        name: file.name,
+        generation: file.metadata.generation,
+        timeCreated: file.metadata.timeCreated,
+        updated: file.metadata.updated,
+        timeStorageClassUpdated: file.metadata.timeStorageClassUpdated,
     }));
 
     return images;

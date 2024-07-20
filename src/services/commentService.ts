@@ -37,7 +37,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
     async create(comment: Comment): Promise<Comment> {
         comment._id = uuid()
-        const timeCreated =  new Date().toISOString()
+        const timeCreated = new Date().toISOString()
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
                 [comment._id, comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId, comment.reportComment, timeCreated],
@@ -162,7 +162,9 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                 }
                 if (rows.length > 0) {
                     deleteOne;
-                    commentDel = rows;
+                    commentDel = rows.map(row => ({
+                        ...row
+                    }));
                     this.pool.query(deleteOne, [id], (err, rows, fields) => {
                         if (err) {
                             console.log(err)
@@ -186,9 +188,9 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
     }
 
 
-    async deleteCommentByOwnerId(id: IdType): Promise<Comment> {
+    async deleteCommentByOwnerId(id: IdType): Promise<Comment[]> {
 
-        let commentDel;
+        let commentDel = [];
 
         return new Promise((resolve, reject) => {
             this.pool.query(selectByOwnerId, [id], (err, rows, fields) => {
@@ -197,9 +199,12 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                     reject(err);
                     return;
                 }
+
                 if (rows.length > 0) {
 
-                    commentDel = rows;
+                    commentDel = rows.map(row => ({
+                        ...row
+                    }));
 
                     this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
                         if (err) {
@@ -214,7 +219,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
                     });
                 } else {
-                    return;
+                    resolve([]);
                 }
             });
         });

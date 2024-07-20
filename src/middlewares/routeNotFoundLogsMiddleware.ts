@@ -28,7 +28,7 @@ export const routeNotFoundLogsMiddleware = async (req: Request, res: Response, n
             req['user']?.email
         );
 
-        console.log('Route not found!');
+        console.log(req.originalUrl,'Route not found!');
 
         res.status(404).json('Route not found!');
     } catch (err) {

@@ -66,9 +66,9 @@ authController.post('/login', async (req, res) => {
 
         if (user.email !== req.body.email) {
             console.log(req.body.email)
-            
+
             const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> = req.app.get('routeNotFoundLogsRepo');
-         
+
             const clientIp = [
                 req.header('x-real-ip') ? `x-real-ip: ${req.header('x-real-ip')}` : null,
                 req.header('x-forwarded-for') ? `x-forwarded-for: ${req.header('x-forwarded-for')}` : null,
@@ -76,7 +76,7 @@ authController.post('/login', async (req, res) => {
                 req.ip ? `req.ip: ${req.ip}` : null,
                 `server-ip: ${ip.address()}`
             ].filter(Boolean).join(', ');
-          
+
             await routeNotFoundLogsRepo.create(
                 req.originalUrl,
                 req.method,
@@ -223,58 +223,6 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
     })
 
 
-authController.post('/new-password', async (req, res) => {
-
-
-    const userId = req.body.id;
-    const token = req.body.token;
-    const password = req.body.password;
-
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
-
-    try {
-        const verifiedUser = await verifyTokenRepo.findByIdAndVerifyTokenForgotPassword(userId, token);
-
-        if (verifiedUser) {
-            try {
-                const user = await userRepo.newUserPassword(userId, password);
-                const updateVerify = await verifyTokenRepo.updateVerifyTokenForgotPassword(userId, token)
-                res.status(200).json(user);
-
-            } catch (err) {
-                console.log(err.message);
-                res.status(400).json(err.message);
-            }
-        }
-
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-
-})
-
-
-authController.get('/profile/:id', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-
-    try {
-
-        const user = await userRepo.findById(req.params.id);
-
-
-        res.status(200).json(user);
-
-    } catch (err) {
-        console.log(err.message);
-        res.status(401).json(err.message);
-    }
-
-})
-
-
-
 authController.get('/verify-email/:id/:token', async (req, res) => {
 
     const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
@@ -316,7 +264,6 @@ authController.get('/verify-email/:id/:token', async (req, res) => {
 })
 
 
-
 authController.post('/confirmpassword/:id', async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -334,114 +281,7 @@ authController.post('/confirmpassword/:id', async (req, res) => {
         console.log(err);
         res.status(401).json(err.message);
     }
-})
-
-
-
-authController.put('/admin/edit/:id', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const id = req.params.id;
-
-    try {
-
-        const user = await userRepo.findById(req.params.id);
-
-        try {
-
-            if (req.body.imageFile === undefined) {
-                req.body.imageFile = user.imageFile;
-            } else {
-                if (user.imageFile !== null) {
-                    const filePath = user.imageFile;
-                    try {
-                        deleteFile(filePath);
-                    } catch (err) {
-                        console.log(err);
-                    }
-                }
-            }
-
-            const editedUser = await userRepo.updateUserAdmin(id, req.body);
-            res.status(200).json(editedUser);
-
-        } catch (err) {
-            console.log(err);
-        }
-
-    } catch (err) {
-        console.log(err.message);
-        res.status(401).json(err.message);
-    }
-
-})
-
-
-
-
-authController.put('/edit/:id', async (req, res) => {
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const id = req.params.id;
-    try {
-        const user = await userRepo.findById(req.params.id);
-
-        try {
-
-
-            if (req.body.password !== undefined && req.body.password.length > 0) {
-
-                if (req.body.password.length > 0 && req.body.oldpassword.length > 0 && req.body.confirmpass.length > 0) {
-                    if (req.body.imageFile === undefined) {
-                        req.body.imageFile = user.imageFile;
-                    } else {
-
-                        if (user.imageFile !== null) {
-                            const filePath = user.imageFile;
-                            try {
-                                deleteFile(filePath);
-                            } catch (err) {
-                                console.log(err);
-                            }
-                        }
-                    }
-                }
-
-
-                const editedUserPassword = await userRepo.updateUserPass(id, req.body);
-                res.status(200).json(editedUserPassword);
-
-            } else {
-
-                if (req.body.imageFile === undefined) {
-                    req.body.imageFile = user.imageFile;
-                } else {
-
-                    if (user.imageFile !== null) {
-                        const filePath = user.imageFile;
-
-                        try {
-
-                            deleteFile(filePath);
-                        } catch (err) {
-                            console.log(err);
-                        }
-                    }
-                }
-                const editedUser = await userRepo.updateUser(id, req.body);
-
-
-                res.status(200).json(editedUser);
-
-            }
-
-        } catch (err) {
-            console.log(err);
-        }
-
-    } catch (err) {
-        console.log(err.message);
-        res.status(401).json(err.message);
-    }
-})
+});
 
 
 authController.post('/forgot-password', async (req, res) => {
@@ -543,24 +383,6 @@ authController.post('/resend-email', async (req, res) => {
     }
 })
 
-function createToken(user: User) {
-    const payload = {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role
-    };
-
-    return {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        accessToken: jwt.sign(payload, secret)
-    };
-}
-
 
 authController.post('/logout', async (req, res) => {
 
@@ -576,9 +398,162 @@ authController.post('/logout', async (req, res) => {
 })
 
 
+authController.get('/profile/:id', async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+    try {
+
+        const user = await userRepo.findById(req.params.id);
 
 
-authController.post('/upload', multer({ storage }).array('file', 1), function (req, res) {
+        res.status(200).json(user);
+
+    } catch (err) {
+        console.log(err.message);
+        res.status(401).json(err.message);
+    }
+
+})
+
+
+authController.post('/new-password', async (req, res) => {
+
+
+    const userId = req.body.id;
+    const token = req.body.token;
+    const password = req.body.password;
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const verifyTokenRepo: IVerifyTokenRepository<VerifyToken> = req.app.get('verifyTokenRepo');
+
+    try {
+        const verifiedUser = await verifyTokenRepo.findByIdAndVerifyTokenForgotPassword(userId, token);
+
+        if (verifiedUser) {
+            try {
+                const user = await userRepo.newUserPassword(userId, password);
+                const updateVerify = await verifyTokenRepo.updateVerifyTokenForgotPassword(userId, token)
+                res.status(200).json(user);
+
+            } catch (err) {
+                console.log(err.message);
+                res.status(400).json(err.message);
+            }
+        }
+
+    } catch (err) {
+        console.log(err.message);
+        res.status(400).json(err.message);
+    }
+
+})
+
+
+authController.put('/admin/edit/:id', authenticateToken, async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const id = req.params.id;
+
+    try {
+
+        const user = await userRepo.findById(req.params.id);
+
+        try {
+
+            if (req.body.imageFile === undefined) {
+                req.body.imageFile = user.imageFile;
+            } else {
+                if (user.imageFile !== null) {
+                    const filePath = user.imageFile;
+                    try {
+                        deleteFile(filePath);
+                    } catch (err) {
+                        console.log(err);
+                    }
+                }
+            }
+
+            const editedUser = await userRepo.updateUserAdmin(id, req.body);
+            res.status(200).json(editedUser);
+
+        } catch (err) {
+            console.log(err);
+        }
+
+    } catch (err) {
+        console.log(err.message);
+        res.status(401).json(err.message);
+    }
+
+})
+
+
+authController.put('/edit/:id',authenticateToken, async (req, res) => {
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const id = req.params.id;
+    try {
+        const user = await userRepo.findById(req.params.id);
+
+        try {
+
+
+            if (req.body.password !== undefined && req.body.password.length > 0) {
+
+                if (req.body.password.length > 0 && req.body.oldpassword.length > 0 && req.body.confirmpass.length > 0) {
+                    if (req.body.imageFile === undefined) {
+                        req.body.imageFile = user.imageFile;
+                    } else {
+
+                        if (user.imageFile !== null) {
+                            const filePath = user.imageFile;
+                            try {
+                                deleteFile(filePath);
+                            } catch (err) {
+                                console.log(err);
+                            }
+                        }
+                    }
+                }
+
+
+                const editedUserPassword = await userRepo.updateUserPass(id, req.body);
+                res.status(200).json(editedUserPassword);
+
+            } else {
+
+                if (req.body.imageFile === undefined) {
+                    req.body.imageFile = user.imageFile;
+                } else {
+
+                    if (user.imageFile !== null) {
+                        const filePath = user.imageFile;
+
+                        try {
+
+                            deleteFile(filePath);
+                        } catch (err) {
+                            console.log(err);
+                        }
+                    }
+                }
+                const editedUser = await userRepo.updateUser(id, req.body);
+
+
+                res.status(200).json(editedUser);
+
+            }
+
+        } catch (err) {
+            console.log(err);
+        }
+
+    } catch (err) {
+        console.log(err.message);
+        res.status(401).json(err.message);
+    }
+})
+
+
+authController.post('/upload',authenticateToken, multer({ storage }).array('file', 1), function (req, res) {
 
     let files = req.files;
 
@@ -586,8 +561,7 @@ authController.post('/upload', multer({ storage }).array('file', 1), function (r
 })
 
 
-
-authController.put('/delete-image/:id', async (req, res) => {
+authController.put('/delete-image/:id',authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
 
@@ -615,7 +589,8 @@ authController.put('/delete-image/:id', async (req, res) => {
     }
 })
 
-authController.delete('/admin/delete/failedlogs/:adminId', async (req, res) => {
+
+authController.delete('/admin/delete/failedlogs/:adminId',authenticateToken, async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -631,7 +606,7 @@ authController.delete('/admin/delete/failedlogs/:adminId', async (req, res) => {
 
             const result = await userRepo.deletFailedLogsById(req.body);
 
-            res.json(result).status(204);
+            res.json(result).status(200);
         } catch (err) {
             console.log(err.message)
             res.status(400).json(err.message);
@@ -644,7 +619,8 @@ authController.delete('/admin/delete/failedlogs/:adminId', async (req, res) => {
 
 });
 
-authController.get('/admin/failedlogs/:id', async (req, res) => {
+
+authController.get('/admin/failedlogs/:id',authenticateToken, async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -671,13 +647,13 @@ authController.get('/admin/failedlogs/:id', async (req, res) => {
 
 })
 
-authController.get('/admin/routenotfoundlogs/:id', async (req, res) => {
+authController.get('/admin/routenotfoundlogs/:id', authenticateToken,async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
-    req.app.get("routeNotFoundLogsRepo");
- 
+        req.app.get("routeNotFoundLogsRepo");
+
 
     try {
 
@@ -700,7 +676,8 @@ authController.get('/admin/routenotfoundlogs/:id', async (req, res) => {
 
 })
 
-authController.get('/admin/:id', async (req, res) => {
+
+authController.get('/admin/:id',authenticateToken, async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -729,8 +706,7 @@ authController.get('/admin/:id', async (req, res) => {
 })
 
 
-
-authController.post('/guard', authenticateToken, async (req, res) => {
+authController.post('/guard',authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
@@ -751,7 +727,7 @@ authController.post('/guard', authenticateToken, async (req, res) => {
 })
 
 
-authController.get('/userId/:id', async (req, res) => {
+authController.get('/userId/:id', authenticateToken,async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
@@ -766,7 +742,7 @@ authController.get('/userId/:id', async (req, res) => {
 })
 
 
-authController.delete('/admin/:adminId/:id', async (req, res) => {
+authController.delete('/admin/:adminId/:id',authenticateToken, async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -783,7 +759,7 @@ authController.delete('/admin/:adminId/:id', async (req, res) => {
 
             const result = await userRepo.deletUserById(req.params.id);
 
-            res.json(result).status(204);
+            res.json(result).status(200);
         } catch (err) {
             console.log(err.message)
             res.status(400).json(err.message);
@@ -795,7 +771,9 @@ authController.delete('/admin/:adminId/:id', async (req, res) => {
     }
 })
 
+
 authController.use(routeNotFoundLogsMiddleware);
+
 
 const deleteFile = async (filePath) => {
     try {
@@ -819,6 +797,24 @@ function verifyToken() {
     return hex.length > 36 ? hex.slice(0, 36) : hex
 }
 
+
+function createToken(user: User) {
+    const payload = {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role
+    };
+
+    return {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        accessToken: jwt.sign(payload, secret)
+    };
+}
 
 
 export default authController;

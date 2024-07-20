@@ -4,12 +4,13 @@ import { IUserRepository } from '../interface/user-repository';
 import { Comment } from '../model/comment';
 import { User } from '../model/user';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
+import { authenticateToken } from '../guard/jwt.middleware';
 
 
 const commentController = express.Router();
 
 
-commentController.get('/reports/:id', async (req, res) => {
+commentController.get('/reports/:id', authenticateToken, async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -41,7 +42,7 @@ commentController.get('/reports/:id', async (req, res) => {
 })
 
 
-commentController.post('/', async (req, res) => {
+commentController.post('/', authenticateToken, async (req, res) => {
 
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
     try {
@@ -56,7 +57,7 @@ commentController.post('/', async (req, res) => {
 
 
 
-commentController.get('/:id', async (req, res) => {
+commentController.get('/:id', authenticateToken, async (req, res) => {
 
 
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
@@ -74,7 +75,7 @@ commentController.get('/:id', async (req, res) => {
 })
 
 
-commentController.get('/trip/:id/:userId', async (req, res) => {
+commentController.get('/trip/:id/:userId', authenticateToken, async (req, res) => {
 
     const tripId = req.params.id;
     const userId = req.params.userId;
@@ -100,7 +101,7 @@ commentController.get('/trip/:id/:userId', async (req, res) => {
 })
 
 
-commentController.put('/:id', async (req, res) => {
+commentController.put('/:id', authenticateToken, async (req, res) => {
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
 
     try {
@@ -115,14 +116,13 @@ commentController.put('/:id', async (req, res) => {
 })
 
 
-commentController.delete('/trip/:id', async (req, res) => {
+commentController.delete('/trip/:id/:userId', authenticateToken, async (req, res) => {
 
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
     try {
 
         const result = await commentRepo.deleteCommentByOwnerId(req.params.id);
-
-        res.status(204).json(result);
+        res.status(200).json(result);
     } catch (err) {
         console.log(err.message);
         res.status(400).json(err.message);
@@ -130,7 +130,7 @@ commentController.delete('/trip/:id', async (req, res) => {
 })
 
 
-commentController.delete('/:id', async (req, res) => {
+commentController.delete('/:id', authenticateToken, async (req, res) => {
 
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
 
@@ -138,7 +138,7 @@ commentController.delete('/:id', async (req, res) => {
 
         const result = await commentRepo.deleteCommentById(req.params.id);
 
-        res.json(result).status(204);
+        res.status(200).json(result);
     } catch (err) {
         console.log(err.message);
         res.status(400).json(err.message);
@@ -147,7 +147,7 @@ commentController.delete('/:id', async (req, res) => {
 })
 
 
-commentController.put('/report/:id', async (req, res) => {
+commentController.put('/report/:id', authenticateToken, async (req, res) => {
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
 
 
@@ -162,7 +162,7 @@ commentController.put('/report/:id', async (req, res) => {
             try {
 
                 const comments = await commentRepo.getCommentsByTripId(req.body._tripId)
-                res.json(comments);
+                res.status(200).json(comments);
             } catch (err) {
                 console.log(err.message);
                 res.status(400).json(err.message);
@@ -178,7 +178,7 @@ commentController.put('/report/:id', async (req, res) => {
 });
 
 
-commentController.put('/admin/report/:id', async (req, res) => {
+commentController.put('/admin/report/:id', authenticateToken, async (req, res) => {
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
 
 
@@ -210,7 +210,7 @@ commentController.put('/admin/report/:id', async (req, res) => {
 
 
 
-commentController.put('/admin/delete-report/:id', async (req, res) => {
+commentController.put('/admin/delete-report/:id', authenticateToken, async (req, res) => {
 
 
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
@@ -236,7 +236,7 @@ commentController.put('/admin/delete-report/:id', async (req, res) => {
 })
 
 
-commentController.get('/image-user/:id', async (req, res) => {
+commentController.get('/image-user/:id', authenticateToken, async (req, res) => {
 
     const commentId = req.params.id
 

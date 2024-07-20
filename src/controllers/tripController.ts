@@ -8,6 +8,7 @@ import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
 import { Storage } from '@google-cloud/storage';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
+import { authenticateToken } from '../guard/jwt.middleware';
 
 const tripController = express.Router();
 
@@ -25,14 +26,14 @@ export const storage = new MulterGoogleCloudStorage({
 });
 
 
-
-tripController.post('/upload', multer({ storage, limits: { fieldSize: 50000000 } }).array('file', 12), function (req, res) {
+tripController.post('/upload', authenticateToken, multer({ storage, limits: { fieldSize: 50000000 } }).array('file', 12), function (req, res) {
 
     let files = req.files;
 
 
     res.status(200).json(files);
 });
+
 
 tripController.get('/top/:id', async (req, res) => {
 
@@ -66,7 +67,8 @@ tripController.get('/top/:id', async (req, res) => {
 
 })
 
-tripController.post('/', async (req, res) => {
+
+tripController.post('/', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
         const userId = req.body._ownerId;
@@ -120,8 +122,6 @@ tripController.get('/background', async (req, res) => {
 });
 
 
-
-
 tripController.get('/paginate', async (req, res) => {
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
@@ -155,7 +155,7 @@ tripController.get('/paginate', async (req, res) => {
 });
 
 
-tripController.get('/reports/:id', async (req, res) => {
+tripController.get('/reports/:id', authenticateToken, async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -190,7 +190,7 @@ tripController.get('/reports/:id', async (req, res) => {
 
 })
 
-tripController.get('/my-trips/:id', async (req, res) => {
+tripController.get('/my-trips/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     const userId = req.params.id;
 
@@ -211,7 +211,7 @@ tripController.get('/my-trips/:id', async (req, res) => {
 })
 
 
-tripController.get('/favorites/:id', async (req, res) => {
+tripController.get('/favorites/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     const userId = req.params.id;
     try {
@@ -232,7 +232,7 @@ tripController.get('/favorites/:id', async (req, res) => {
 
 })
 
-tripController.get('/:id/:userId', async (req, res) => {
+tripController.get('/:id/:userId', authenticateToken, async (req, res) => {
 
 
 
@@ -270,7 +270,7 @@ tripController.get('/:id/:userId', async (req, res) => {
 })
 
 
-tripController.delete('/:id/:userId', async (req, res) => {
+tripController.delete('/:id/:userId', authenticateToken, async (req, res) => {
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
 
@@ -303,7 +303,7 @@ tripController.delete('/:id/:userId', async (req, res) => {
             result.favorites = [];
             result.likes = [];
 
-            res.json(result).status(204);
+            res.json(result).status(200);
         } catch (err) {
             console.log(err.message);
             res.status(400).json(err.message);
@@ -315,7 +315,7 @@ tripController.delete('/:id/:userId', async (req, res) => {
 })
 
 
-tripController.put('/like/:id', async (req, res) => {
+tripController.put('/like/:id', authenticateToken, async (req, res) => {
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -355,7 +355,7 @@ tripController.put('/like/:id', async (req, res) => {
 
 });
 
-tripController.put('/favorites/:id', async (req, res) => {
+tripController.put('/favorites/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     try {
 
@@ -376,7 +376,7 @@ tripController.put('/favorites/:id', async (req, res) => {
 });
 
 
-tripController.put('/details/:id/:userId', async (req, res) => {
+tripController.put('/details/:id/:userId', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -406,7 +406,7 @@ tripController.put('/details/:id/:userId', async (req, res) => {
 
 });
 
-tripController.put('/report/:id', async (req, res) => {
+tripController.put('/report/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
 
     try {
@@ -427,7 +427,7 @@ tripController.put('/report/:id', async (req, res) => {
 });
 
 
-tripController.put('/admin/delete-report/:id', async (req, res) => {
+tripController.put('/admin/delete-report/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
 
     try {
@@ -448,7 +448,7 @@ tripController.put('/admin/delete-report/:id', async (req, res) => {
 })
 
 
-tripController.put('/edit-images/:id', async (req, res) => {
+tripController.put('/edit-images/:id', authenticateToken, async (req, res) => {
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
 
