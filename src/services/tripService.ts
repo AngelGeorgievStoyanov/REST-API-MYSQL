@@ -54,7 +54,9 @@ export class TripRepository implements ITripRepository<Trip> {
         trip.timeCreated = new Date().toISOString();
         trip.timeEdited = new Date().toISOString();
         trip._id = uuid();
-        let imagesNew = trip.imageFile.join();
+
+        let imagesNew = (trip.imageFile || []).join();
+
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
                 [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites, trip.currency],
@@ -174,6 +176,7 @@ export class TripRepository implements ITripRepository<Trip> {
                     reject(err);
                     return;
                 }
+
                 if (rows.length == 1) {
 
                     const trip = rows[0];
@@ -187,7 +190,10 @@ export class TripRepository implements ITripRepository<Trip> {
                     });
 
 
-                } else {
+                } else if (Array.isArray(rows) && rows.length == 0) {
+                    resolve(rows[0])
+                }
+                else {
 
                     reject(new Error(`Error finding new document in database`));
                 }

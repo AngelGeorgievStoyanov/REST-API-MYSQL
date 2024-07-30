@@ -100,8 +100,11 @@ authController.post('/login', async (req, res) => {
             } else {
                 loginAttempts[email].attempts++;
                 if (loginAttempts[email].attempts >= maxLoginAttempts) {
-                    let ipAddress: string;
-                    ipAddress = req.body.userGeolocation.IPv4 || req.ip;
+                    let ipAddress = (
+                        req.body.userGeolocation.IPv4+'-->' +
+                        (req.header('x-real-ip') ? ` x-real-ip: ${req.header('x-real-ip')}` : '')
+                    ) || req.ip;
+                    ipAddress = ipAddress.slice(0, 45);
                     let country_code = req.body.userGeolocation.country_code;
                     let country_name = req.body.userGeolocation.country_name;
                     let postal = req.body.userGeolocation.postal;
@@ -487,7 +490,7 @@ authController.put('/admin/edit/:id', authenticateToken, async (req, res) => {
 })
 
 
-authController.put('/edit/:id',authenticateToken, async (req, res) => {
+authController.put('/edit/:id', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     const id = req.params.id;
     try {
@@ -553,7 +556,7 @@ authController.put('/edit/:id',authenticateToken, async (req, res) => {
 })
 
 
-authController.post('/upload',authenticateToken, multer({ storage }).array('file', 1), function (req, res) {
+authController.post('/upload', authenticateToken, multer({ storage }).array('file', 1), function (req, res) {
 
     let files = req.files;
 
@@ -561,7 +564,7 @@ authController.post('/upload',authenticateToken, multer({ storage }).array('file
 })
 
 
-authController.put('/delete-image/:id',authenticateToken, async (req, res) => {
+authController.put('/delete-image/:id', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
 
@@ -590,7 +593,7 @@ authController.put('/delete-image/:id',authenticateToken, async (req, res) => {
 })
 
 
-authController.delete('/admin/delete/failedlogs/:adminId',authenticateToken, async (req, res) => {
+authController.delete('/admin/delete/failedlogs/:adminId', authenticateToken, async (req, res) => {
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -620,7 +623,7 @@ authController.delete('/admin/delete/failedlogs/:adminId',authenticateToken, asy
 });
 
 
-authController.get('/admin/failedlogs/:id',authenticateToken, async (req, res) => {
+authController.get('/admin/failedlogs/:id', authenticateToken, async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -647,7 +650,7 @@ authController.get('/admin/failedlogs/:id',authenticateToken, async (req, res) =
 
 })
 
-authController.get('/admin/routenotfoundlogs/:id', authenticateToken,async (req, res) => {
+authController.get('/admin/routenotfoundlogs/:id', authenticateToken, async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -677,7 +680,7 @@ authController.get('/admin/routenotfoundlogs/:id', authenticateToken,async (req,
 })
 
 
-authController.get('/admin/:id',authenticateToken, async (req, res) => {
+authController.get('/admin/:id', authenticateToken, async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
@@ -706,7 +709,7 @@ authController.get('/admin/:id',authenticateToken, async (req, res) => {
 })
 
 
-authController.post('/guard',authenticateToken, async (req, res) => {
+authController.post('/guard', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
@@ -727,7 +730,7 @@ authController.post('/guard',authenticateToken, async (req, res) => {
 })
 
 
-authController.get('/userId/:id', authenticateToken,async (req, res) => {
+authController.get('/userId/:id', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
@@ -742,7 +745,7 @@ authController.get('/userId/:id', authenticateToken,async (req, res) => {
 })
 
 
-authController.delete('/admin/:adminId/:id',authenticateToken, async (req, res) => {
+authController.delete('/admin/:adminId/:id', authenticateToken, async (req, res) => {
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');

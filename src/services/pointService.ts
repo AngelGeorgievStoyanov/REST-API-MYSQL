@@ -46,7 +46,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         point._id = uuid()
         const timeCreated = new Date().toISOString()
         return new Promise((resolve, reject) => {
-            let imagesNew = point.imageFile.join();
+            let imagesNew = (point.imageFile || []).join();
 
             this.pool.query(createSql,
                 [point._id, point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew, point._ownerId, timeCreated],
