@@ -27,15 +27,17 @@ const createSql = `INSERT INTO hack_trip.trips (
     reportTrip,
     imageFile,
     favorites,
-    currency
+    currency,
+    dayNumber,
+    tripGroupId
   )
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 const selectOne = `SELECT * FROM hack_trip.trips WHERE _id =?`;
 
 const deleteOne = `DELETE from hack_trip.trips WHERE _id =?`;
 
-const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, lat=?,lng=?, timeEdited=?, imageFile =?, currency =?, countEdited = countEdited + 1 WHERE _id =?`;
+const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, lat=?,lng=?, timeEdited=?, imageFile =?, currency =?, dayNumber =?, countEdited = countEdited + 1 WHERE _id =?`;
 
 const updateSqlLikes = `UPDATE hack_trip.trips SET likes =? WHERE _id =?`;
 const updateSqlFavorites = `UPDATE hack_trip.trips SET favorites =? WHERE _id =?`;
@@ -44,7 +46,8 @@ const updateSqlReports = `UPDATE hack_trip.trips SET reportTrip =? WHERE _id =?`
 const updateSqlImages = `UPDATE hack_trip.trips SET imageFile =? WHERE _id =?`;
 
 
-const selectCreatedTrip = `SELECT * FROM hack_trip.trips WHERE title=? AND description=? AND price=? AND transport=? AND countPeoples=? AND typeOfPeople=? AND destination=? AND _ownerId=?`;
+const selectCreatedTrip = `SELECT * FROM hack_trip.trips WHERE title=? AND description=? AND price=? AND transport=? AND countPeoples=? AND typeOfPeople=? AND destination=? AND _ownerId=? AND dayNumber =? AND tripGroupId =?`;
+
 
 export class TripRepository implements ITripRepository<Trip> {
     constructor(protected pool: Pool) { }
@@ -55,36 +58,46 @@ export class TripRepository implements ITripRepository<Trip> {
         trip.timeEdited = new Date().toISOString();
         trip._id = uuid();
 
-        let imagesNew = (trip.imageFile || []).join();
+        if (!trip.tripGroupId) {
+            trip.tripGroupId = uuid();
+        }
+
+        const duplicateCheckQuery = `SELECT * FROM hack_trip.trips WHERE tripGroupId = ? AND dayNumber = ? LIMIT 1`;
 
         return new Promise((resolve, reject) => {
-            this.pool.query(createSql,
-                [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites, trip.currency],
-                (err, rows, fields) => {
-                    if (err) {
 
-                        console.log(err.message)
-                        reject(err);
-                        return;
-                    }
-                    this.pool.query(selectCreatedTrip,
-                        [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip._ownerId],
-                        (err, rows, fields) => {
-                            if (err) {
+            this.pool.query(duplicateCheckQuery, [trip.tripGroupId, trip.dayNumber], (err, rows) => {
+                if (err) {
+                    return reject(err);
+                }
 
-                                console.log(err.message)
-                                reject(err);
-                                return;
-                            }
+                if (rows.length > 0) {
+                    return reject(new Error(`A trip ${trip.title} with day ${trip.dayNumber} already exists, please change the day of trip.`));
+                }
 
-                            resolve(rows[0]);
-                        });
+                let imagesNew = (trip.imageFile || []).join();
 
-                });
+                this.pool.query(createSql,
+                    [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites, trip.currency, trip.dayNumber, trip.tripGroupId],
+                    (err, rows, fields) => {
+                        if (err) {
+                            return reject(err);
+                        }
+
+                        this.pool.query(selectCreatedTrip,
+                            [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip._ownerId, trip.dayNumber, trip.tripGroupId],
+                            (err, rows, fields) => {
+                                if (err) {
+                                    return reject(err);
+                                }
+
+                                resolve(rows[0]);
+                            });
+                    });
+            });
         });
-
-
     }
+
 
 
     async getAll(search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
@@ -93,7 +106,17 @@ export class TripRepository implements ITripRepository<Trip> {
         const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport;
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.title LIKE ? AND trips.typeOfPeople LIKE ? AND trips.transport LIKE ?;', [searchInp, typeGroupSelect, typeTransportSelect], (err, rows, fields) => {
+            this.pool.query(`SELECT t1.*
+        FROM hack_trip.trips t1
+        JOIN (
+            SELECT tripGroupId, MIN(dayNumber) as minDayNumber
+            FROM hack_trip.trips
+            WHERE title LIKE ? AND typeOfPeople LIKE ? AND transport LIKE ?
+            GROUP BY tripGroupId
+        ) t2
+        ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
+        ;
+    `, [searchInp, typeGroupSelect, typeTransportSelect], (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -113,6 +136,7 @@ export class TripRepository implements ITripRepository<Trip> {
     }
 
 
+   
     async getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
 
         page = page || 1;
@@ -124,9 +148,20 @@ export class TripRepository implements ITripRepository<Trip> {
 
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.title LIKE ? AND trips.typeOfPeople LIKE ? AND trips.transport LIKE ? LIMIT ? OFFSET ?', [searchInp, typeGroupSelect, typeTransportSelect, perPage, currentPage], (err, rows, fields) => {
+            this.pool.query(` SELECT t1.*
+        FROM hack_trip.trips t1
+        JOIN (
+            SELECT tripGroupId, MIN(dayNumber) as minDayNumber
+            FROM hack_trip.trips
+            WHERE title LIKE ? AND typeOfPeople LIKE ? AND transport LIKE ?
+            GROUP BY tripGroupId
+        ) t2
+        ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
+        LIMIT ? OFFSET ?;
+    `, [searchInp, typeGroupSelect, typeTransportSelect, perPage, currentPage], (err, rows, fields) => {
+
                 if (err) {
-                    console.log(err);
+                    (err);
                     reject(err);
                     return;
                 }
@@ -149,7 +184,7 @@ export class TripRepository implements ITripRepository<Trip> {
         return new Promise((resolve, reject) => {
             this.pool.query("SELECT * FROM hack_trip.trips WHERE reportTrip IS NOT NULL AND TRIM(reportTrip) <> '';", (err, rows, fields) => {
                 if (err) {
-                    console.log(err);
+                    (err);
                     reject(err);
                     return;
                 }
@@ -240,7 +275,16 @@ export class TripRepository implements ITripRepository<Trip> {
     async getAllMyTrips(id: IdType): Promise<Trip[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE _ownerId =?', [id], (err, rows, fields) => {
+            this.pool.query(`SELECT t1.*
+                FROM hack_trip.trips t1
+                JOIN (
+                    SELECT tripGroupId, MIN(dayNumber) as minDayNumber
+                    FROM hack_trip.trips
+                    WHERE _ownerId =?
+                    GROUP BY tripGroupId
+                ) t2
+                ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
+                ;`, [id], (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -262,7 +306,7 @@ export class TripRepository implements ITripRepository<Trip> {
     async getAllMyFavorites(id: IdType): Promise<Trip[]> {
         id = '%' + id + '%';
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.favorites LIKE ?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.favorites LIKE ? GROUP BY trips.tripGroupId;', [id], (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -286,7 +330,7 @@ export class TripRepository implements ITripRepository<Trip> {
         let editedImg = trip.imageFile.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [trip.title, trip.description, trip.price, trip.transport,
-            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.lat, trip.lng, trip.timeEdited, editedImg, trip.currency, id], (err, rows, fields) => {
+            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.lat, trip.lng, trip.timeEdited, editedImg, trip.currency, trip.dayNumber, id], (err, rows, fields) => {
                 if (err) {
                     reject(err);
                     return;
@@ -544,6 +588,24 @@ export class TripRepository implements ITripRepository<Trip> {
             });
         });
     }
+    async getTripsByGroupId(id: string): Promise<Trip[]> {
+        return new Promise((resolve, reject) => {
+            this.pool.query(`SELECT * FROM hack_trip.trips WHERE tripGroupId = ? ORDER BY dayNumber DESC;`, [id], (err, rows, fields) => {
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                    return;
+                }
+                if (rows) {
 
+                    resolve(
+                        rows.map(row => ({
+                            ...row
+                        }))
+                    );
+                }
+            });
+        });
 
+    }
 }

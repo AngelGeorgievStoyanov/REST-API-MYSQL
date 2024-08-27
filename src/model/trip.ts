@@ -217,8 +217,9 @@ export class Trip {
         public reportTrip: string[],
         public imageFile: string[],
         public favorites: string[],
-        public currency: CurrencyCode.EUR
-
+        public currency: CurrencyCode.EUR,
+        public dayNumber: number,
+        public tripGroupId: string
     ) { }
 }
 

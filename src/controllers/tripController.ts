@@ -75,8 +75,40 @@ tripController.post('/', authenticateToken, async (req, res) => {
         const user = await userRepo.findById(userId);
         try {
             const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-            const trip = await tripRepo.create(req.body);
-            res.status(200).json(trip);
+            if (req.body.tripGroupId) {
+
+                const trips = await tripRepo.getTripsByGroupId(req.body.tripGroupId)
+                if (trips.some((trip) => trip._ownerId !== user._id)) {
+                    throw new Error('User is not authorized to access this trip group.')
+                }
+            }
+
+            const trip = new Trip(
+                req.body.title,
+                req.body.description,
+                req.body.price,
+                req.body.transport,
+                req.body.countPeoples,
+                req.body.typeOfPeople,
+                req.body.destination,
+                req.body.coments,
+                req.body.likes,
+                req.body._ownerId,
+                req.body.lat,
+                req.body.lng,
+                req.body.timeCreated,
+                req.body.timeEdited,
+                req.body.countEdited,
+                req.body.reportTrip,
+                req.body.imageFile,
+                req.body.favorites,
+                req.body.currency,
+                req.body.dayNumber,
+                req.body.tripGroupId
+            );
+            const createdTrip = await tripRepo.create(trip);
+
+            res.status(200).json(createdTrip);
         } catch (err) {
             console.log(err.message);
             res.status(400).json(err.message);
@@ -121,7 +153,10 @@ tripController.get('/background', async (req, res) => {
     }
 });
 
-
+export interface TripGroup {
+    tripGroupId: string;
+    trips: Trip[];
+}
 tripController.get('/paginate', async (req, res) => {
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
@@ -232,86 +267,21 @@ tripController.get('/favorites/:id', authenticateToken, async (req, res) => {
 
 })
 
-tripController.get('/:id/:userId', authenticateToken, async (req, res) => {
-
-
-
+tripController.get('/trip-group/:tripGroupId', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+    const tripGroupId = req.params.tripGroupId;
 
     try {
-        const userId = req.params.userId;
-        const user = await userRepo.findById(userId)
-        const trip = await tripRepo.getTripById(req.params.id);
-        if (user.role === 'admin' || user.role === 'manager') {
-            // you can see trip._ownerId
-        } else if (trip._ownerId !== userId) {
-            trip._ownerId = '';
-        }
-        if (trip.likes.includes(userId)) {
-            trip.likes = [userId]
-        } else {
-            trip.likes = []
-        }
-        if (trip.favorites.includes(userId)) {
-            trip.favorites = [userId]
-        } else {
-            trip.favorites = []
-        }
+        const trips = await tripRepo.getTripsByGroupId(tripGroupId);
 
-        res.status(200).json(trip);
-    } catch (err) {
-        console.log(err);
-        res.status(400).json(err.message);
-    }
+        const tripGroupsIds = trips.map((trip) => ({ _id: trip._id, tripGroupId: trip.tripGroupId, dayNumber: trip.dayNumber, _ownerId: trip._ownerId }))
 
-
-})
-
-
-tripController.delete('/:id/:userId', authenticateToken, async (req, res) => {
-
-    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-
-    try {
-        const userId = req.params.userId;
-        const user = await userRepo.findById(userId)
-        const trip = await tripRepo.getTripById(req.params.id);
-
-        if (userId !== trip._ownerId || (user.role !== 'admin' && user.role !== 'manager')) {
-            throw new Error(`Error finding document in database`)
-        }
-
-        try {
-
-            const result = await tripRepo.deleteTrypById(req.params.id);
-            let images;
-            images = result.imageFile;
-            images.split(',').map((x) => {
-                const filePath = x;
-                try {
-
-                    deleteFile(filePath);
-                } catch (err) {
-                    console.log(err);
-                }
-
-            })
-            result.favorites = [];
-            result.likes = [];
-
-            res.json(result).status(200);
-        } catch (err) {
-            console.log(err.message);
-            res.status(400).json(err.message);
-        }
+        res.json(tripGroupsIds);
     } catch (err) {
         console.log(err.message);
         res.status(400).json(err.message);
     }
+
 })
 
 
@@ -481,6 +451,92 @@ tripController.put('/edit-images/:id', authenticateToken, async (req, res) => {
         console.log(err.message);
         res.status(400).json(err.message);
 
+    }
+});
+
+
+tripController.get('/:id/:userId', authenticateToken, async (req, res) => {
+
+
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+    try {
+        const userId = req.params.userId;
+        const user = await userRepo.findById(userId)
+        const trip = await tripRepo.getTripById(req.params.id);
+        if (user.role === 'admin' || user.role === 'manager') {
+            // you can see trip._ownerId
+        } else if (trip._ownerId !== userId) {
+            trip._ownerId = '';
+        }
+        if (trip.likes.includes(userId)) {
+            trip.likes = [userId]
+        } else {
+            trip.likes = trip.likes.length > 0 ? [trip.likes.length.toString()] : []
+
+        }
+        if (trip.favorites.includes(userId)) {
+            trip.favorites = [userId]
+        } else {
+            trip.favorites = []
+        }
+
+        res.status(200).json(trip);
+    } catch (err) {
+        console.log(err);
+        res.status(400).json(err.message);
+    }
+
+
+});
+
+
+tripController.delete('/:id/:userId', authenticateToken, async (req, res) => {
+
+    const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
+
+    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
+
+    try {
+        const userId = req.params.userId;
+        const user = await userRepo.findById(userId)
+        const trip = await tripRepo.getTripById(req.params.id);
+
+        if (userId !== trip._ownerId || (user.role !== 'admin' && user.role !== 'manager')) {
+            throw new Error(`Error finding document in database`)
+        }
+
+        try {
+
+            const result = await tripRepo.deleteTrypById(req.params.id);
+
+            if (result.imageFile.length > 0) {
+
+                let images = result.imageFile.toString();
+                images.split(',').map((x) => {
+                    const filePath = x;
+                    try {
+
+                        deleteFile(filePath);
+                    } catch (err) {
+                        console.log(err);
+                    }
+
+                })
+            }
+            result.favorites = [];
+            result.likes = [];
+
+            res.json(result).status(200);
+        } catch (err) {
+            console.log(err.message);
+            res.status(400).json(err.message);
+        }
+    } catch (err) {
+        console.log(err.message);
+        res.status(400).json(err.message);
     }
 });
 

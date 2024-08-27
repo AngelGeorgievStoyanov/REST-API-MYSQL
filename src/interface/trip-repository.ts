@@ -1,3 +1,4 @@
+import { TripGroup } from "../controllers/tripController";
 import { Identifiable, IdType } from "./user-repository";
 
 
@@ -17,7 +18,7 @@ export interface ITripRepository<T extends Identifiable> {
     updateTripFavoritesByuserId(id: IdType, entity: T): Promise<T>;
     getAllMyFavorites(id: IdType): Promise<T[]>;
     getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<T[]>;
-  
+    getTripsByGroupId(id: IdType): Promise<T[]>
 }
 
 
