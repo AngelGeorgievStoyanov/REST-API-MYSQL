@@ -101,7 +101,7 @@ authController.post('/login', async (req, res) => {
                 loginAttempts[email].attempts++;
                 if (loginAttempts[email].attempts >= maxLoginAttempts) {
                     let ipAddress = (
-                        req.body.userGeolocation.IPv4+'-->' +
+                        req.body.userGeolocation.IPv4 + '-->' +
                         (req.header('x-real-ip') ? ` x-real-ip: ${req.header('x-real-ip')}` : '')
                     ) || req.ip;
                     ipAddress = ipAddress.slice(0, 45);
@@ -468,7 +468,7 @@ authController.put('/admin/edit/:id', authenticateToken, async (req, res) => {
                 if (user.imageFile !== null) {
                     const filePath = user.imageFile;
                     try {
-                        deleteFile(filePath);
+                        await deleteFile(filePath);
                     } catch (err) {
                         console.log(err);
                     }

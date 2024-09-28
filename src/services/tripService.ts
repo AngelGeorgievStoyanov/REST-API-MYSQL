@@ -136,7 +136,6 @@ export class TripRepository implements ITripRepository<Trip> {
     }
 
 
-   
     async getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
 
         page = page || 1;
@@ -306,7 +305,15 @@ export class TripRepository implements ITripRepository<Trip> {
     async getAllMyFavorites(id: IdType): Promise<Trip[]> {
         id = '%' + id + '%';
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE trips.favorites LIKE ? GROUP BY trips.tripGroupId;', [id], (err, rows, fields) => {
+            this.pool.query(`SELECT t.*
+            FROM hack_trip.trips t
+            JOIN (
+                SELECT tripGroupId, MAX(_id) AS max_id
+                FROM hack_trip.trips
+                WHERE favorites LIKE ?
+                GROUP BY tripGroupId
+            ) AS grouped_trips ON t.tripGroupId = grouped_trips.tripGroupId AND t._id = grouped_trips.max_id
+            WHERE t.favorites LIKE ?;`, [id, id], (err, rows, fields) => {
                 if (err) {
                     console.log(err);
                     reject(err);
