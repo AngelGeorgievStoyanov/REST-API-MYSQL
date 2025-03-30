@@ -577,7 +577,19 @@ export class TripRepository implements ITripRepository<Trip> {
 
     async getTop(): Promise<Trip[]> {
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips', (err, rows, fields) => {
+            this.pool.query(`
+             SELECT t1.*
+                FROM hack_trip.trips t1
+            LEFT JOIN hack_trip.trips t2
+            ON t1.tripGroupId = t2.tripGroupId
+            AND (
+                LENGTH(t1.likes) < LENGTH(t2.likes) 
+                OR (LENGTH(t1.likes) = LENGTH(t2.likes) AND t1.dayNumber > t2.dayNumber)
+            )
+            WHERE t2.tripGroupId IS NULL
+            ORDER BY LENGTH(t1.likes) DESC, t1.dayNumber ASC
+            LIMIT 5;
+            `, (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -589,12 +601,12 @@ export class TripRepository implements ITripRepository<Trip> {
                     likes: row.likes ? row.likes.split(/[,\s]+/) : [],
                     reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
                     imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites = [],
-
+                    favorites: [],
                 })));
             });
         });
     }
+
     async getTripsByGroupId(id: string): Promise<Trip[]> {
         return new Promise((resolve, reject) => {
             this.pool.query(`SELECT * FROM hack_trip.trips WHERE tripGroupId = ? ORDER BY dayNumber DESC;`, [id], (err, rows, fields) => {

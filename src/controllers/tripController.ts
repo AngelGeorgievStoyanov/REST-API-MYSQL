@@ -46,9 +46,7 @@ tripController.get('/top/:id', async (req, res) => {
         const trips = await tripRepo.getTop();
 
 
-        let sort = trips.sort((a, b) => b.likes.length - a.likes.length);
-
-        sort.map((trip) => ({
+        trips.map((trip) => ({
             ...trip,
             _ownerId: trip._ownerId === userId ? trip._ownerId = userId : trip._ownerId = '',
             likes: trip.likes = [trip.likes.length.toString()],
@@ -56,10 +54,7 @@ tripController.get('/top/:id', async (req, res) => {
             favorites: trip.favorites = []
         }))
 
-        if (sort.length > 5) {
-            sort = sort.slice(0, 5);
-        }
-        res.status(200).json(sort);
+        res.status(200).json(trips);
     } catch (err) {
         console.log(err.message)
         res.status(400).json(err.message);
