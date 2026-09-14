@@ -1,7 +1,6 @@
 import * as express from 'express';
 import { Storage } from '@google-cloud/storage';
 import { ICloudImages } from '../interface/cloudService-repository';
-import { CloudImages } from '../model/trip';
 import { IUserRepository } from '../interface/user-repository';
 import { User } from '../model/user';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
@@ -35,7 +34,7 @@ cloudController.get('/cloud-images/:userId', authenticateToken, async (req, res)
 
 
 cloudController.get('/db-images/:userId', authenticateToken, async (req, res) => {
-    const imagesRepo: ICloudImages<CloudImages> = req.app.get('imagesRepo');
+    const imagesRepo: ICloudImages = req.app.get('imagesRepo');
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
@@ -68,7 +67,7 @@ cloudController.get('/unique-images/:userId', authenticateToken, async (req, res
         }
 
 
-        const imagesRepo: ICloudImages<CloudImages> = req.app.get('imagesRepo');
+        const imagesRepo: ICloudImages = req.app.get('imagesRepo');
         let allCloudImages: any[];
         let allDBImages: string[];
         try {

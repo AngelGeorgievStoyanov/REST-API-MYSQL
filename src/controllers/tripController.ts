@@ -211,7 +211,7 @@ tripController.get('/reports/:id', authenticateToken, async (req, res) => {
             }));
             res.status(200).json(trips);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
     } catch (err) {
         console.log(err.message)
@@ -288,7 +288,7 @@ tripController.put('/like/:id', authenticateToken, async (req, res) => {
     try {
 
         const userId = req.body.userId;
-        const user = await userRepo.findById(userId)
+        await userRepo.findById(userId)
         const existing = await tripRepo.getTripById(req.params.id);
 
         if (existing.likes.includes(userId)) {
@@ -324,7 +324,7 @@ tripController.put('/favorites/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     try {
 
-        const existing = await tripRepo.getTripById(req.params.id);
+        await tripRepo.getTripById(req.params.id);
         try {
             const result = await tripRepo.updateTripFavoritesByuserId(req.params.id, req.body);
             result.likes = [];
@@ -376,7 +376,7 @@ tripController.put('/report/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const existing = await tripRepo.getTripById(req.params.id);
+        await tripRepo.getTripById(req.params.id);
 
         try {
             const result = await tripRepo.reportTripByuserId(req.params.id, req.body);
@@ -397,7 +397,7 @@ tripController.put('/admin/delete-report/:id', authenticateToken, async (req, re
 
     try {
 
-        const existing = await tripRepo.getTripById(req.params.id);
+        await tripRepo.getTripById(req.params.id);
 
         try {
             const result = await tripRepo.deleteReportTripByuserId(req.params.id, req.body);

@@ -1,4 +1,4 @@
-import { Identifiable, IdType } from "./user-repository";
+import { Identifiable } from "./user-repository";
 
 
 export interface IVerifyTokenRepository<T extends Identifiable> {

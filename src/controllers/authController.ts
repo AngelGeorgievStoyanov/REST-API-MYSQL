@@ -1,6 +1,6 @@
 import * as express from 'express';
 import { body, validationResult } from 'express-validator';
-import { IUser, User } from '../model/user';
+import { User } from '../model/user';
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from '../interface/user-repository';
@@ -12,7 +12,6 @@ import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
 import { VerifyToken } from '../model/verifyToken';
 import { CONNECTIONURL } from '../utils/baseUrl';
 import { authenticateToken } from '../guard/jwt.middleware';
-import { IRouteNotFoundLogs } from '../model/routeNotFoudLogs';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 var ip = require('ip');
@@ -67,7 +66,7 @@ authController.post('/login', async (req, res) => {
         if (user.email !== req.body.email) {
             console.log(req.body.email)
 
-            const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> = req.app.get('routeNotFoundLogsRepo');
+            const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository = req.app.get('routeNotFoundLogsRepo');
 
             const clientIp = [
                 req.header('x-real-ip') ? `x-real-ip: ${req.header('x-real-ip')}` : null,
@@ -130,13 +129,13 @@ authController.post('/login', async (req, res) => {
         const token = createToken(user);
 
         try {
-            const result = await userRepo.login(user._id, user.countOfLogs);
+            await userRepo.login(user._id, user.countOfLogs);
             if (loginAttempts[email]) {
                 delete loginAttempts[email];
             }
         } catch (err) {
             console.log(err);
-            throw new Error(err);
+            throw new Error(err.message, { cause: err });
         }
 
         res.status(200).json(token);
@@ -201,7 +200,7 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
                     const subject = 'Email verification - HACK-TRIP'
                     try {
 
-                        const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
+                        await sendMail(req.body.email, confirmUrl, subject)
 
                         res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
                     } catch (err) {
@@ -244,8 +243,8 @@ authController.get('/verify-email/:id/:token', async (req, res) => {
         if (userVerifyTokenTable.userId === id && user.verifyEmail === 0) {
             try {
 
-                const verifiedUser = await userRepo.updateUserverifyEmail(id, true)
-                const updateVerify = await verifyTokenRepo.updateVerifyToken(id, token)
+                await userRepo.updateUserverifyEmail(id, true)
+                await verifyTokenRepo.updateVerifyToken(id, token)
 
                 res.status(200).json(true)
             } catch (err) {
@@ -304,7 +303,7 @@ authController.post('/forgot-password', async (req, res) => {
 
             try {
                 const subject = 'Forgot password - HACK-TRIP'
-                const sendEmail = await sendMail(req.body.email, resetUrl, subject)
+                await sendMail(req.body.email, resetUrl, subject)
 
                 res.status(201).json('An email has been sent to you with a reset password link.');
             } catch (err) {
@@ -350,7 +349,7 @@ authController.post('/resend-email', async (req, res) => {
                 const subject = 'Email verification - HACK-TRIP'
                 try {
 
-                    const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
+                    await sendMail(req.body.email, confirmUrl, subject)
 
                     res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
                 } catch (err) {
@@ -367,7 +366,7 @@ authController.post('/resend-email', async (req, res) => {
                 const subject = 'Email verification - HACK-TRIP'
                 try {
 
-                    const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
+                    await sendMail(req.body.email, confirmUrl, subject)
 
                     res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
                 } catch (err) {
@@ -435,7 +434,7 @@ authController.post('/new-password', async (req, res) => {
         if (verifiedUser) {
             try {
                 const user = await userRepo.newUserPassword(userId, password);
-                const updateVerify = await verifyTokenRepo.updateVerifyTokenForgotPassword(userId, token)
+                await verifyTokenRepo.updateVerifyTokenForgotPassword(userId, token)
                 res.status(200).json(user);
 
             } catch (err) {
@@ -571,7 +570,7 @@ authController.put('/delete-image/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const existing = await userRepo.findById(req.params.id);
+        await userRepo.findById(req.params.id);
         const fileName = req.body.image;
         const filePath = fileName;
 
@@ -640,7 +639,7 @@ authController.get('/admin/failedlogs/:id', authenticateToken, async (req, res) 
             const allFailedLogs = await userRepo.getAllFailedLogs();
             res.status(200).json(allFailedLogs);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
 
     } catch (err) {
@@ -654,7 +653,7 @@ authController.get('/admin/routenotfoundlogs/:id', authenticateToken, async (req
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
+    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository =
         req.app.get("routeNotFoundLogsRepo");
 
 
@@ -669,7 +668,7 @@ authController.get('/admin/routenotfoundlogs/:id', authenticateToken, async (req
             const allRouteNotFoundLogs = await routeNotFoundLogsRepo.getAllRouteNotFoundLogs();
             res.status(200).json(allRouteNotFoundLogs);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
 
     } catch (err) {
@@ -698,7 +697,7 @@ authController.get('/admin/:id', authenticateToken, async (req, res) => {
             const users = await userRepo.getAll();
             res.status(200).json(users);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
 
     } catch (err) {

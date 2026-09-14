@@ -31,7 +31,7 @@ commentController.get('/reports/:id', authenticateToken, async (req, res) => {
 
             res.status(200).json(comments);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
 
     } catch (err) {
@@ -153,10 +153,10 @@ commentController.put('/report/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const existing = await commentRepo.getCommentById(req.params.id);
+        await commentRepo.getCommentById(req.params.id);
 
         try {
-            const result = await commentRepo.reportCommentByuserId(req.params.id, req.body);
+            await commentRepo.reportCommentByuserId(req.params.id, req.body);
 
 
             try {
@@ -184,10 +184,10 @@ commentController.put('/admin/report/:id', authenticateToken, async (req, res) =
 
     try {
 
-        const existing = await commentRepo.getCommentById(req.params.id);
+        await commentRepo.getCommentById(req.params.id);
 
         try {
-            const result = await commentRepo.reportCommentByuserId(req.params.id, req.body);
+            await commentRepo.reportCommentByuserId(req.params.id, req.body);
 
 
             try {
@@ -219,7 +219,7 @@ commentController.put('/admin/delete-report/:id', authenticateToken, async (req,
 
     try {
 
-        const existing = await commentRepo.getCommentById(req.params.id);
+        await commentRepo.getCommentById(req.params.id);
 
         try {
             const result = await commentRepo.deleteReportCommentByuserId(req.params.id, req.body);

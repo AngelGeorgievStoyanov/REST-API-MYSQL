@@ -16,9 +16,6 @@ import * as dotenv from 'dotenv';
 import cloudController from './controllers/cloudController';
 import { CloudRepository } from './services/cloudService';
 import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
-import { IRouteNotFoundLogsRepository } from './interface/routeNotFoundLogs-repository';
-import { IRouteNotFoundLogs } from './model/routeNotFoudLogs';
-var ip = require('ip');
 
 dotenv.config()
 

@@ -25,7 +25,7 @@ pointController.post('/', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
         const userId = req.body._ownerId;
-        const user = await userRepo.findById(userId)
+        await userRepo.findById(userId)
         try {
             const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
@@ -137,7 +137,7 @@ pointController.delete('/:id', authenticateToken, async (req, res) => {
         points.forEach(async (x, i) => {
             x.pointNumber = i + 1;
             let newPoint = x;
-            const updated = await pointRepo.updatePointById(x._id, newPoint);
+            await pointRepo.updatePointById(x._id, newPoint);
         })
         res.json(result).status(204);
     } catch (err) {
@@ -164,13 +164,13 @@ pointController.put('/edit-position/:id', authenticateToken, async (req, res) =>
 
     try {
 
-        const existing1 = await pointRepo.getPointById(req.body.currentCardId);
-        const existing2 = await pointRepo.getPointById(req.body.upCurrentCardId);
+        await pointRepo.getPointById(req.body.currentCardId);
+        await pointRepo.getPointById(req.body.upCurrentCardId);
 
         try {
 
-            const result = await pointRepo.updatePointPositionById(req.body.currentCardId, req.body.currentIdNewPosition);
-            const result1 = await pointRepo.updatePointPositionById(req.body.upCurrentCardId, req.body.upCurrentCardNewPosition);
+            await pointRepo.updatePointPositionById(req.body.currentCardId, req.body.currentIdNewPosition);
+            await pointRepo.updatePointPositionById(req.body.upCurrentCardId, req.body.upCurrentCardNewPosition);
 
             const points = await pointRepo.findByTripId(req.params.id);
 
@@ -195,12 +195,12 @@ pointController.put('/:id', authenticateToken, async (req, res) => {
 
     try {
         const ownerTrip = req.body._ownerId;
-        const user = await userRepo.findById(ownerTrip)
+        await userRepo.findById(ownerTrip)
 
         try {
             const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
-            const existing = await pointRepo.getPointById(req.params.id);
+            await pointRepo.getPointById(req.params.id);
 
             try {
                 const result = await pointRepo.updatePointById(req.params.id, req.body);

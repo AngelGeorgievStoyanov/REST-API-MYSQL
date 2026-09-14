@@ -108,7 +108,6 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                     return;
                 }
                 if (rows.length === 1) {
-                    deleteOne;
                     pointDel = rows[0];
                     this.pool.query(deleteOne, [id], (err, rows, fields) => {
                         if (err) {
@@ -145,7 +144,6 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                     return;
                 }
                 if (rows.length > 0) {
-                    deleteOne;
                     pointsDel = rows;
                     this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
                         if (err) {

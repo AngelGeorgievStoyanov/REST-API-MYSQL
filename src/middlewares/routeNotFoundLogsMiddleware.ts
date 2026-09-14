@@ -1,11 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
-import { IRouteNotFoundLogs } from '../model/routeNotFoudLogs';
 var ip = require('ip');
 
 
 export const routeNotFoundLogsMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> = req.app.get('routeNotFoundLogsRepo');
+    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository = req.app.get('routeNotFoundLogsRepo');
 
     try {
         const clientIp = [
