@@ -3,7 +3,7 @@ import { ITripRepository } from '../interface/trip-repository';
 import { Trip } from '../model/trip';
 import * as multer from 'multer';
 import * as path from 'path';
-import { MulterGoogleCloudStorage } from '@duplexsi/multer-storage-google-cloud';
+import { GoogleCloudStorage } from '../storage/googleCloudStorage';
 import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
 import { Storage } from '@google-cloud/storage';
@@ -18,7 +18,7 @@ const storageGoogle = new Storage();
 
 
 
-export const storage = new MulterGoogleCloudStorage({
+export const storage = new GoogleCloudStorage({
     bucketName: 'hack-trip',
     keyFilename: path.join(__dirname, '../utils/hack-trip-414441f1b5d4.json'),
     destination: (req, f, cb) => cb(null, Date.now() + Math.random().toString().slice(-3) + `${f.originalname}`),
