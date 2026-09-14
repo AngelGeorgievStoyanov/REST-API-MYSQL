@@ -7,6 +7,7 @@ import { IdType, IUserRepository } from '../interface/user-repository';
 import { storage } from './tripController';
 import * as multer from 'multer';
 import * as dotenv from 'dotenv';
+import * as os from 'os';
 import sendMail from '../utils/sendEmail';
 import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
 import { VerifyToken } from '../model/verifyToken';
@@ -14,7 +15,6 @@ import { CONNECTIONURL } from '../utils/baseUrl';
 import { authenticateToken } from '../guard/jwt.middleware';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
-var ip = require('ip');
 
 dotenv.config()
 
@@ -73,7 +73,7 @@ authController.post('/login', async (req, res) => {
                 req.header('x-forwarded-for') ? `x-forwarded-for: ${req.header('x-forwarded-for')}` : null,
                 req.socket.remoteAddress ? `remoteAddress: ${req.socket.remoteAddress}` : null,
                 req.ip ? `req.ip: ${req.ip}` : null,
-                `server-ip: ${ip.address()}`
+                `server-ip: ${Object.values(os.networkInterfaces()).flat().find(network => network?.family === 'IPv4' && !network.internal)?.address ?? '127.0.0.1'}`
             ].filter(Boolean).join(', ');
 
             await routeNotFoundLogsRepo.create(

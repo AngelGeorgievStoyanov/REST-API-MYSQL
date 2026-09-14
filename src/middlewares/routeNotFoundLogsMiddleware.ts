@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
-var ip = require('ip');
+import * as os from 'os';
 
 
 export const routeNotFoundLogsMiddleware = async (req: Request, res: Response, next: NextFunction) => {
@@ -12,7 +12,7 @@ export const routeNotFoundLogsMiddleware = async (req: Request, res: Response, n
             req.header('x-forwarded-for') ? `x-forwarded-for: ${req.header('x-forwarded-for')}` : null,
             req.socket.remoteAddress ? `remoteAddress: ${req.socket.remoteAddress}` : null,
             req.ip ? `req.ip: ${req.ip}` : null,
-            `server-ip: ${ip.address()}`
+            `server-ip: ${Object.values(os.networkInterfaces()).flat().find(network => network?.family === 'IPv4' && !network.internal)?.address ?? '127.0.0.1'}`
         ].filter(Boolean).join(', ');
       
         await routeNotFoundLogsRepo.create(
