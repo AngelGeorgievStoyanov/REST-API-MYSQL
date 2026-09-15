@@ -51,7 +51,7 @@ pointController.delete('/trip/:id/:userId', authenticateToken, async (req, res) 
         const pointId = req.params.id;
         const user = await userRepo.findById(userId)
         const point = await pointRepo.findByTripId(req.params.id);
-       
+
         if (point.some((x) => x._ownerTripId !== pointId) || (user.role !== 'admin' && user.role !== 'manager')) {
             throw new Error(`Error finding document in database`)
         }
@@ -114,7 +114,9 @@ pointController.delete('/:id', authenticateToken, async (req, res) => {
         const user = await userRepo.findById(userId)
         const point = await pointRepo.findById(pointId)
 
-        if (userId !== point._ownerId || (user.role !== 'admin' && user.role !== 'manager')) {
+        if (userId !== point._ownerId &&
+            user.role !== 'admin' &&
+            user.role !== 'manager') {
             throw new Error(`Error finding document in database`)
         }
 
@@ -150,7 +152,7 @@ pointController.get('/edit/:id', authenticateToken, async (req, res) => {
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
     try {
         const point = await pointRepo.getPointById(req.params.id);
-        point._ownerId = '';
+       
         res.status(200).json(point);
     } catch (err) {
         console.log(err.message);

@@ -269,7 +269,7 @@ tripController.get('/trip-group/:tripGroupId', authenticateToken, async (req, re
     try {
         const trips = await tripRepo.getTripsByGroupId(tripGroupId);
 
-        const tripGroupsIds = trips.map((trip) => ({ _id: trip._id, tripGroupId: trip.tripGroupId, dayNumber: trip.dayNumber, _ownerId: trip._ownerId }))
+        const tripGroupsIds = trips.map((trip) => ({ _id: trip._id, tripGroupId: trip.tripGroupId, dayNumber: trip.dayNumber }))
 
         res.json(tripGroupsIds);
     } catch (err) {
