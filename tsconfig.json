@@ -3,6 +3,8 @@
     "target": "ES2022",
     "module": "commonjs",
     "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "rootDir": "src",
     "outDir": "./build",
     "sourceMap": true,

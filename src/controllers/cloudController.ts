@@ -1,10 +1,11 @@
-import * as express from 'express';
+import express from 'express';
 import { Storage } from '@google-cloud/storage';
 import { ICloudImages } from '../interface/cloudService-repository';
 import { IUserRepository } from '../interface/user-repository';
 import { User } from '../model/user';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { authenticateToken } from '../guard/jwt.middleware';
+import { routeParam } from '../utils/routeParam';
 
 
 const cloudController = express.Router();
@@ -15,7 +16,7 @@ cloudController.get('/cloud-images/:userId', authenticateToken, async (req, res)
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
 
-        const user = await userRepo.findById(req.params.userId);
+        const user = await userRepo.findById(routeParam(req.params.userId));
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding document in database`)
         }
@@ -40,7 +41,7 @@ cloudController.get('/db-images/:userId', authenticateToken, async (req, res) =>
 
     try {
 
-        const user = await userRepo.findById(req.params.userId);
+        const user = await userRepo.findById(routeParam(req.params.userId));
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding document in database`)
         }
@@ -61,7 +62,7 @@ cloudController.get('/unique-images/:userId', authenticateToken, async (req, res
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
     try {
 
-        const user = await userRepo.findById(req.params.userId);
+        const user = await userRepo.findById(routeParam(req.params.userId));
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding document in database`)
         }

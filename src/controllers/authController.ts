@@ -1,13 +1,13 @@
-import * as express from 'express';
+import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { User } from '../model/user';
-import * as jwt from 'jsonwebtoken';
-import * as bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from '../interface/user-repository';
 import { storage } from './tripController';
-import * as multer from 'multer';
-import * as dotenv from 'dotenv';
-import * as os from 'os';
+import multer from 'multer';
+import dotenv from 'dotenv';
+import os from 'os';
 import sendMail from '../utils/sendEmail';
 import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
 import { VerifyToken } from '../model/verifyToken';
@@ -15,6 +15,7 @@ import { CONNECTIONURL } from '../utils/baseUrl';
 import { authenticateToken } from '../guard/jwt.middleware';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
+import { routeParam } from '../utils/routeParam';
 
 dotenv.config()
 
@@ -271,7 +272,7 @@ authController.post('/confirmpassword/:id', async (req, res) => {
 
 
     try {
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
         const match = await bcrypt.compare(req.body.password, user.hashedPassword);
         if (!match) {
             throw new Error('Incorrect  password');
@@ -453,11 +454,11 @@ authController.post('/new-password', async (req, res) => {
 
 authController.put('/admin/edit/:id', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const id = req.params.id;
+    const id = routeParam(req.params.id);
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
 
         try {
 
@@ -491,9 +492,9 @@ authController.put('/admin/edit/:id', authenticateToken, async (req, res) => {
 
 authController.put('/edit/:id', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const id = req.params.id;
+    const id = routeParam(req.params.id);
     try {
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
 
         try {
 
@@ -570,14 +571,14 @@ authController.put('/delete-image/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        await userRepo.findById(req.params.id);
+        await userRepo.findById(routeParam(req.params.id));
         const fileName = req.body.image;
         const filePath = fileName;
 
 
         try {
             deleteFile(filePath);
-            const result = await userRepo.editProfileImage(req.params.id, fileName);
+            const result = await userRepo.editProfileImage(routeParam(req.params.id), fileName);
 
             res.json(result);
 
@@ -598,7 +599,7 @@ authController.delete('/admin/delete/failedlogs/:adminId', authenticateToken, as
 
     try {
 
-        const user = await userRepo.findById(req.params.adminId);
+        const user = await userRepo.findById(routeParam(req.params.adminId));
 
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
@@ -630,7 +631,7 @@ authController.get('/admin/failedlogs/:id', authenticateToken, async (req, res) 
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
         }
@@ -659,7 +660,7 @@ authController.get('/admin/routenotfoundlogs/:id', authenticateToken, async (req
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
         }
@@ -687,7 +688,7 @@ authController.get('/admin/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
 
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
@@ -734,7 +735,7 @@ authController.get('/userId/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const guard = await userRepo.confirmUserId(req.params.id);
+        const guard = await userRepo.confirmUserId(routeParam(req.params.id));
         res.status(200).json(guard);
     } catch (err) {
         console.log(err);
@@ -751,7 +752,7 @@ authController.delete('/admin/:adminId/:id', authenticateToken, async (req, res)
 
     try {
 
-        const user = await userRepo.findById(req.params.adminId);
+        const user = await userRepo.findById(routeParam(req.params.adminId));
 
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
@@ -759,7 +760,7 @@ authController.delete('/admin/:adminId/:id', authenticateToken, async (req, res)
 
         try {
 
-            const result = await userRepo.deletUserById(req.params.id);
+            const result = await userRepo.deletUserById(routeParam(req.params.id));
 
             res.json(result).status(200);
         } catch (err) {

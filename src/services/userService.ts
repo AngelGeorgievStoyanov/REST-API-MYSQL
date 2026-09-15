@@ -1,6 +1,6 @@
 import { Pool } from 'mysql';
 import { IFailedLogs, User } from "../model/user";
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from "../interface/user-repository";
 import { v4 as uuid } from 'uuid';
 const tokenBlacklist = new Set();

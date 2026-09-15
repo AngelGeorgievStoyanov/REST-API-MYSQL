@@ -1,17 +1,17 @@
-import * as express from 'express';
-import * as cors from 'cors';
-import * as bodyParser from 'body-parser';
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
 import authController from './controllers/authController';
 import tripController from './controllers/tripController';
 import pointController from './controllers/pointController';
 import commentController from './controllers/commentController';
-import * as mysql from 'mysql';
+import mysql from 'mysql';
 import { UserRepository } from './services/userService';
 import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
 import { CommentTripRepository } from './services/commentService';
 import { VerifyTokenRepository } from './services/verifyTokenService';
-import * as dotenv from 'dotenv';
+import dotenv from 'dotenv';
 import cloudController from './controllers/cloudController';
 import { CloudRepository } from './services/cloudService';
 import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
@@ -46,7 +46,7 @@ app.use('/data/comments', commentController);
 app.use('/data/cloud', cloudController);
 
 
-app.get('/', (req, res) => {
+app.get('/', (req: express.Request, res: express.Response) => {
     res.send('Hello  HACK TRIP ')
 });
 
@@ -73,12 +73,11 @@ app.get('/', (req, res) => {
     app.set("imagesRepo", new CloudRepository(pool));
     app.set("routeNotFoundLogsRepo", new RouteNotFoudLogsRepository(pool));
 
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
         console.log(`Connected succesfully on port ${port}`)
     });
+
+    server.on('error', err => {
+        console.log('Server error:', err);
+    });
 })();
-
-
-app.on('error', err => {
-    console.log('Server error:', err);
-});

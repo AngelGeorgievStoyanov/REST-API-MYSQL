@@ -1,12 +1,13 @@
-import * as express from 'express';
+import express from 'express';
 import { IPointTripRepository } from '../interface/point-repository';
 import { Point } from '../model/point';
-import * as multer from 'multer';
+import multer from 'multer';
 import { storage } from './tripController';
 import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { authenticateToken } from '../guard/jwt.middleware';
+import { routeParam } from '../utils/routeParam';
 
 const pointController = express.Router();
 
@@ -47,17 +48,17 @@ pointController.delete('/trip/:id/:userId', authenticateToken, async (req, res) 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
-        const userId = req.params.userId;
-        const pointId = req.params.id;
+        const userId = routeParam(req.params.userId);
+        const pointId = routeParam(req.params.id);
         const user = await userRepo.findById(userId)
-        const point = await pointRepo.findByTripId(req.params.id);
+        const point = await pointRepo.findByTripId(routeParam(req.params.id));
 
         if (point.some((x) => x._ownerTripId !== pointId) || (user.role !== 'admin' && user.role !== 'manager')) {
             throw new Error(`Error finding document in database`)
         }
         if (point.length > 0) {
             try {
-                const result = await pointRepo.deletePointByTripId(req.params.id);
+                const result = await pointRepo.deletePointByTripId(routeParam(req.params.id));
 
                 result.map((x) => {
                     let images = x.imageFile as any;
@@ -89,7 +90,7 @@ pointController.get('/:id', authenticateToken, async (req, res) => {
 
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
     try {
-        const points = await pointRepo.findByTripId(req.params.id);
+        const points = await pointRepo.findByTripId(routeParam(req.params.id));
         points.map((point) => ({
             ...point,
             _ownerId: point._ownerId = ''
@@ -107,7 +108,7 @@ pointController.delete('/:id', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
-        const pointId = req.params.id
+        const pointId = routeParam(req.params.id)
         const userId = req.body.userId;
         const ownerTrip = req.body.idTrip;
 
@@ -120,7 +121,7 @@ pointController.delete('/:id', authenticateToken, async (req, res) => {
             throw new Error(`Error finding document in database`)
         }
 
-        const result = await pointRepo.deletePointById(req.params.id);
+        const result = await pointRepo.deletePointById(routeParam(req.params.id));
 
         let images;
         images = result.imageFile;
@@ -151,7 +152,7 @@ pointController.delete('/:id', authenticateToken, async (req, res) => {
 pointController.get('/edit/:id', authenticateToken, async (req, res) => {
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
     try {
-        const point = await pointRepo.getPointById(req.params.id);
+        const point = await pointRepo.getPointById(routeParam(req.params.id));
        
         res.status(200).json(point);
     } catch (err) {
@@ -174,7 +175,7 @@ pointController.put('/edit-position/:id', authenticateToken, async (req, res) =>
             await pointRepo.updatePointPositionById(req.body.currentCardId, req.body.currentIdNewPosition);
             await pointRepo.updatePointPositionById(req.body.upCurrentCardId, req.body.upCurrentCardNewPosition);
 
-            const points = await pointRepo.findByTripId(req.params.id);
+            const points = await pointRepo.findByTripId(routeParam(req.params.id));
 
             res.status(200).json(points);
 
@@ -202,10 +203,10 @@ pointController.put('/:id', authenticateToken, async (req, res) => {
         try {
             const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
 
-            await pointRepo.getPointById(req.params.id);
+            await pointRepo.getPointById(routeParam(req.params.id));
 
             try {
-                const result = await pointRepo.updatePointById(req.params.id, req.body);
+                const result = await pointRepo.updatePointById(routeParam(req.params.id), req.body);
                 res.status(200).json(result);
             } catch (err) {
                 console.log(err.message);
@@ -228,7 +229,7 @@ pointController.put('/edit-images/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const existing = await pointRepo.getPointById(req.params.id);
+        const existing = await pointRepo.getPointById(routeParam(req.params.id));
         const fileName = req.body[0];
         const filePath = fileName;
 
@@ -242,7 +243,7 @@ pointController.put('/edit-images/:id', authenticateToken, async (req, res) => {
 
         try {
             deleteFile(filePath)
-            const result = await pointRepo.editImagesByPointId(req.params.id, existing);
+            const result = await pointRepo.editImagesByPointId(routeParam(req.params.id), existing);
 
             res.json(result);
 

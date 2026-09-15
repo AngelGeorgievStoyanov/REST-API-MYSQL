@@ -1,4 +1,4 @@
-import * as nodemailer from 'nodemailer';
+import nodemailer from 'nodemailer';
 
 
 export default async function sendMail(email: string, html: string , subject:string) {
