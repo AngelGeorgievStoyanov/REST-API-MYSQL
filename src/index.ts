@@ -11,7 +11,6 @@ import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
 import { CommentTripRepository } from './services/commentService';
 import { VerifyTokenRepository } from './services/verifyTokenService';
-import { comments, createuser, database, flush, grantuser, logFailed, points, routeNotFoundLogs, trips, usedb, users, verify } from './db/createMySQL';
 import * as dotenv from 'dotenv';
 import cloudController from './controllers/cloudController';
 import { CloudRepository } from './services/cloudService';
@@ -53,7 +52,7 @@ app.get('/', (req, res) => {
 
 
 
-(async () => {
+(() => {
     const pool = mysql.createPool({
         connectionLimit: 10,
         host: process.env.MYSQL_HOST,
@@ -61,54 +60,6 @@ app.get('/', (req, res) => {
         user: process.env.MYSQL_USER,
         password: process.env.MYSQL_PASSWORD,
     });
-
-    pool.getConnection(async (err, connection) => {
-        if (err) {
-            console.error('Error getting database connection:', err);
-            return;
-        }
-
-        console.log("Connected!");
-
-        const queries = [
-            { sql: createuser, message: "USER hack_trip created" },
-            { sql: grantuser, message: "GRANT USER hack_trip" },
-            { sql: flush, message: "FLUSH PRIVILEGES hack_trip" },
-            { sql: database, message: "DATA BASE hack_trip created" },
-            { sql: usedb, message: "USE DATA BASE hack_trip" },
-            { sql: users, message: "Table USERS created!" },
-            { sql: trips, message: "Table TRIPS created!" },
-            { sql: points, message: "Table POINTS created!" },
-            { sql: comments, message: "Table COMMENTS created!" },
-            { sql: verify, message: "Table VERIFY created!" },
-            { sql: logFailed, message: "Table FAILED LOGS created!" },
-            { sql: routeNotFoundLogs, message: "Table ROUTE NOT FOUND LOGS created!" },
-        ];
-
-        try {
-            for (const query of queries) {
-                await new Promise((resolve, reject) => {
-                    connection.query(query.sql, (err, result) => {
-                        if (err) {
-                            console.error(`Error executing query: ${query.sql}`, err);
-                            reject(err);
-                        } else {
-                            console.log(query.message);
-                            resolve(result);
-                        }
-                    });
-                });
-            }
-        } catch (error) {
-            console.error('Error executing queries:', error);
-        } finally {
-            connection.release();
-        }
-    });
-
-
-
-
     app.use((req, res, next) => {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         next();
