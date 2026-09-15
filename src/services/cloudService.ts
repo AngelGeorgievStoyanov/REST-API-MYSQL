@@ -1,12 +1,11 @@
 import { Pool } from "mysql";
-import { CloudImages } from "../model/trip";
 import { ICloudImages } from "../interface/cloudService-repository";
 
 
 
 
 
-export class CloudRepository implements ICloudImages<CloudImages> {
+export class CloudRepository implements ICloudImages {
     constructor(protected pool: Pool) { }
     getAllImagesFromDB(): Promise<string[]> {
         return new Promise((resolve, reject) => {

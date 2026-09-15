@@ -1,24 +1,20 @@
-import * as express from 'express';
-import * as cors from 'cors';
-import * as bodyParser from 'body-parser';
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
 import authController from './controllers/authController';
 import tripController from './controllers/tripController';
 import pointController from './controllers/pointController';
 import commentController from './controllers/commentController';
-import * as mysql from 'mysql';
+import mysql from 'mysql';
 import { UserRepository } from './services/userService';
 import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
 import { CommentTripRepository } from './services/commentService';
 import { VerifyTokenRepository } from './services/verifyTokenService';
-import { comments, createuser, database, flush, grantuser, logFailed, points, routeNotFoundLogs, trips, usedb, users, verify } from './db/createMySQL';
-import * as dotenv from 'dotenv';
+import dotenv from 'dotenv';
 import cloudController from './controllers/cloudController';
 import { CloudRepository } from './services/cloudService';
 import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
-import { IRouteNotFoundLogsRepository } from './interface/routeNotFoundLogs-repository';
-import { IRouteNotFoundLogs } from './model/routeNotFoudLogs';
-var ip = require('ip');
 
 dotenv.config()
 
@@ -50,13 +46,13 @@ app.use('/data/comments', commentController);
 app.use('/data/cloud', cloudController);
 
 
-app.get('/', (req, res) => {
+app.get('/', (req: express.Request, res: express.Response) => {
     res.send('Hello  HACK TRIP ')
 });
 
 
 
-(async () => {
+(() => {
     const pool = mysql.createPool({
         connectionLimit: 10,
         host: process.env.MYSQL_HOST,
@@ -64,54 +60,6 @@ app.get('/', (req, res) => {
         user: process.env.MYSQL_USER,
         password: process.env.MYSQL_PASSWORD,
     });
-
-    pool.getConnection(async (err, connection) => {
-        if (err) {
-            console.error('Error getting database connection:', err);
-            return;
-        }
-
-        console.log("Connected!");
-
-        const queries = [
-            { sql: createuser, message: "USER hack_trip created" },
-            { sql: grantuser, message: "GRANT USER hack_trip" },
-            { sql: flush, message: "FLUSH PRIVILEGES hack_trip" },
-            { sql: database, message: "DATA BASE hack_trip created" },
-            { sql: usedb, message: "USE DATA BASE hack_trip" },
-            { sql: users, message: "Table USERS created!" },
-            { sql: trips, message: "Table TRIPS created!" },
-            { sql: points, message: "Table POINTS created!" },
-            { sql: comments, message: "Table COMMENTS created!" },
-            { sql: verify, message: "Table VERIFY created!" },
-            { sql: logFailed, message: "Table FAILED LOGS created!" },
-            { sql: routeNotFoundLogs, message: "Table ROUTE NOT FOUND LOGS created!" },
-        ];
-
-        try {
-            for (const query of queries) {
-                await new Promise((resolve, reject) => {
-                    connection.query(query.sql, (err, result) => {
-                        if (err) {
-                            console.error(`Error executing query: ${query.sql}`, err);
-                            reject(err);
-                        } else {
-                            console.log(query.message);
-                            resolve(result);
-                        }
-                    });
-                });
-            }
-        } catch (error) {
-            console.error('Error executing queries:', error);
-        } finally {
-            connection.release();
-        }
-    });
-
-
-
-
     app.use((req, res, next) => {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         next();
@@ -125,12 +73,11 @@ app.get('/', (req, res) => {
     app.set("imagesRepo", new CloudRepository(pool));
     app.set("routeNotFoundLogsRepo", new RouteNotFoudLogsRepository(pool));
 
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
         console.log(`Connected succesfully on port ${port}`)
     });
+
+    server.on('error', err => {
+        console.log('Server error:', err);
+    });
 })();
-
-
-app.on('error', err => {
-    console.log('Server error:', err);
-});

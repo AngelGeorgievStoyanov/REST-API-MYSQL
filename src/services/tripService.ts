@@ -160,7 +160,6 @@ export class TripRepository implements ITripRepository<Trip> {
     `, [searchInp, typeGroupSelect, typeTransportSelect, perPage, currentPage], (err, rows, fields) => {
 
                 if (err) {
-                    (err);
                     reject(err);
                     return;
                 }
@@ -183,7 +182,6 @@ export class TripRepository implements ITripRepository<Trip> {
         return new Promise((resolve, reject) => {
             this.pool.query("SELECT * FROM hack_trip.trips WHERE reportTrip IS NOT NULL AND TRIM(reportTrip) <> '';", (err, rows, fields) => {
                 if (err) {
-                    (err);
                     reject(err);
                     return;
                 }

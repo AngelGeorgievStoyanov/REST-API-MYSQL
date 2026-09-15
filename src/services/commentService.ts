@@ -161,7 +161,6 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                     return;
                 }
                 if (rows.length > 0) {
-                    deleteOne;
                     commentDel = rows.map(row => ({
                         ...row
                     }));

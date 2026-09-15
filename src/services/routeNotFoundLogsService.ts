@@ -19,7 +19,7 @@ const createSql = `INSERT INTO hack_trip.routenotfoundlogs (
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
 
 export class RouteNotFoudLogsRepository
-  implements IRouteNotFoundLogsRepository<IRouteNotFoundLogs>
+  implements IRouteNotFoundLogsRepository
 {
   constructor(protected pool: Pool) {}
 

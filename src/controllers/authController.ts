@@ -1,21 +1,21 @@
-import * as express from 'express';
+import express from 'express';
 import { body, validationResult } from 'express-validator';
-import { IUser, User } from '../model/user';
-import * as jwt from 'jsonwebtoken';
-import * as bcrypt from 'bcrypt';
+import { User } from '../model/user';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from '../interface/user-repository';
 import { storage } from './tripController';
-import * as multer from 'multer';
-import * as dotenv from 'dotenv';
+import multer from 'multer';
+import dotenv from 'dotenv';
+import os from 'os';
 import sendMail from '../utils/sendEmail';
 import { IVerifyTokenRepository } from '../interface/verifyToken-repository';
 import { VerifyToken } from '../model/verifyToken';
 import { CONNECTIONURL } from '../utils/baseUrl';
 import { authenticateToken } from '../guard/jwt.middleware';
-import { IRouteNotFoundLogs } from '../model/routeNotFoudLogs';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
-var ip = require('ip');
+import { routeParam } from '../utils/routeParam';
 
 dotenv.config()
 
@@ -67,14 +67,14 @@ authController.post('/login', async (req, res) => {
         if (user.email !== req.body.email) {
             console.log(req.body.email)
 
-            const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> = req.app.get('routeNotFoundLogsRepo');
+            const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository = req.app.get('routeNotFoundLogsRepo');
 
             const clientIp = [
                 req.header('x-real-ip') ? `x-real-ip: ${req.header('x-real-ip')}` : null,
                 req.header('x-forwarded-for') ? `x-forwarded-for: ${req.header('x-forwarded-for')}` : null,
                 req.socket.remoteAddress ? `remoteAddress: ${req.socket.remoteAddress}` : null,
                 req.ip ? `req.ip: ${req.ip}` : null,
-                `server-ip: ${ip.address()}`
+                `server-ip: ${Object.values(os.networkInterfaces()).flat().find(network => network?.family === 'IPv4' && !network.internal)?.address ?? '127.0.0.1'}`
             ].filter(Boolean).join(', ');
 
             await routeNotFoundLogsRepo.create(
@@ -130,13 +130,13 @@ authController.post('/login', async (req, res) => {
         const token = createToken(user);
 
         try {
-            const result = await userRepo.login(user._id, user.countOfLogs);
+            await userRepo.login(user._id, user.countOfLogs);
             if (loginAttempts[email]) {
                 delete loginAttempts[email];
             }
         } catch (err) {
             console.log(err);
-            throw new Error(err);
+            throw new Error(err.message, { cause: err });
         }
 
         res.status(200).json(token);
@@ -201,7 +201,7 @@ authController.post('/register', body('email').isEmail().withMessage('Invalid em
                     const subject = 'Email verification - HACK-TRIP'
                     try {
 
-                        const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
+                        await sendMail(req.body.email, confirmUrl, subject)
 
                         res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
                     } catch (err) {
@@ -244,8 +244,8 @@ authController.get('/verify-email/:id/:token', async (req, res) => {
         if (userVerifyTokenTable.userId === id && user.verifyEmail === 0) {
             try {
 
-                const verifiedUser = await userRepo.updateUserverifyEmail(id, true)
-                const updateVerify = await verifyTokenRepo.updateVerifyToken(id, token)
+                await userRepo.updateUserverifyEmail(id, true)
+                await verifyTokenRepo.updateVerifyToken(id, token)
 
                 res.status(200).json(true)
             } catch (err) {
@@ -272,7 +272,7 @@ authController.post('/confirmpassword/:id', async (req, res) => {
 
 
     try {
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
         const match = await bcrypt.compare(req.body.password, user.hashedPassword);
         if (!match) {
             throw new Error('Incorrect  password');
@@ -304,7 +304,7 @@ authController.post('/forgot-password', async (req, res) => {
 
             try {
                 const subject = 'Forgot password - HACK-TRIP'
-                const sendEmail = await sendMail(req.body.email, resetUrl, subject)
+                await sendMail(req.body.email, resetUrl, subject)
 
                 res.status(201).json('An email has been sent to you with a reset password link.');
             } catch (err) {
@@ -350,7 +350,7 @@ authController.post('/resend-email', async (req, res) => {
                 const subject = 'Email verification - HACK-TRIP'
                 try {
 
-                    const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
+                    await sendMail(req.body.email, confirmUrl, subject)
 
                     res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
                 } catch (err) {
@@ -367,7 +367,7 @@ authController.post('/resend-email', async (req, res) => {
                 const subject = 'Email verification - HACK-TRIP'
                 try {
 
-                    const sendEmail = await sendMail(req.body.email, confirmUrl, subject)
+                    await sendMail(req.body.email, confirmUrl, subject)
 
                     res.status(201).json('An email has been sent to you with a confirmation link, please verify.');
                 } catch (err) {
@@ -435,7 +435,7 @@ authController.post('/new-password', async (req, res) => {
         if (verifiedUser) {
             try {
                 const user = await userRepo.newUserPassword(userId, password);
-                const updateVerify = await verifyTokenRepo.updateVerifyTokenForgotPassword(userId, token)
+                await verifyTokenRepo.updateVerifyTokenForgotPassword(userId, token)
                 res.status(200).json(user);
 
             } catch (err) {
@@ -454,11 +454,11 @@ authController.post('/new-password', async (req, res) => {
 
 authController.put('/admin/edit/:id', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const id = req.params.id;
+    const id = routeParam(req.params.id);
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
 
         try {
 
@@ -492,9 +492,9 @@ authController.put('/admin/edit/:id', authenticateToken, async (req, res) => {
 
 authController.put('/edit/:id', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const id = req.params.id;
+    const id = routeParam(req.params.id);
     try {
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
 
         try {
 
@@ -571,14 +571,14 @@ authController.put('/delete-image/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const existing = await userRepo.findById(req.params.id);
+        await userRepo.findById(routeParam(req.params.id));
         const fileName = req.body.image;
         const filePath = fileName;
 
 
         try {
             deleteFile(filePath);
-            const result = await userRepo.editProfileImage(req.params.id, fileName);
+            const result = await userRepo.editProfileImage(routeParam(req.params.id), fileName);
 
             res.json(result);
 
@@ -599,7 +599,7 @@ authController.delete('/admin/delete/failedlogs/:adminId', authenticateToken, as
 
     try {
 
-        const user = await userRepo.findById(req.params.adminId);
+        const user = await userRepo.findById(routeParam(req.params.adminId));
 
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
@@ -631,7 +631,7 @@ authController.get('/admin/failedlogs/:id', authenticateToken, async (req, res) 
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
         }
@@ -640,7 +640,7 @@ authController.get('/admin/failedlogs/:id', authenticateToken, async (req, res) 
             const allFailedLogs = await userRepo.getAllFailedLogs();
             res.status(200).json(allFailedLogs);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
 
     } catch (err) {
@@ -654,13 +654,13 @@ authController.get('/admin/routenotfoundlogs/:id', authenticateToken, async (req
 
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository<IRouteNotFoundLogs> =
+    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository =
         req.app.get("routeNotFoundLogsRepo");
 
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
         }
@@ -669,7 +669,7 @@ authController.get('/admin/routenotfoundlogs/:id', authenticateToken, async (req
             const allRouteNotFoundLogs = await routeNotFoundLogsRepo.getAllRouteNotFoundLogs();
             res.status(200).json(allRouteNotFoundLogs);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
 
     } catch (err) {
@@ -688,7 +688,7 @@ authController.get('/admin/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
 
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
@@ -698,7 +698,7 @@ authController.get('/admin/:id', authenticateToken, async (req, res) => {
             const users = await userRepo.getAll();
             res.status(200).json(users);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
 
     } catch (err) {
@@ -735,7 +735,7 @@ authController.get('/userId/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const guard = await userRepo.confirmUserId(req.params.id);
+        const guard = await userRepo.confirmUserId(routeParam(req.params.id));
         res.status(200).json(guard);
     } catch (err) {
         console.log(err);
@@ -752,7 +752,7 @@ authController.delete('/admin/:adminId/:id', authenticateToken, async (req, res)
 
     try {
 
-        const user = await userRepo.findById(req.params.adminId);
+        const user = await userRepo.findById(routeParam(req.params.adminId));
 
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
@@ -760,7 +760,7 @@ authController.delete('/admin/:adminId/:id', authenticateToken, async (req, res)
 
         try {
 
-            const result = await userRepo.deletUserById(req.params.id);
+            const result = await userRepo.deletUserById(routeParam(req.params.id));
 
             res.json(result).status(200);
         } catch (err) {

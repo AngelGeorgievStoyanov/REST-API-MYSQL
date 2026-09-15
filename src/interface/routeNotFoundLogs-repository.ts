@@ -1,7 +1,6 @@
 import { IRouteNotFoundLogs } from "../model/routeNotFoudLogs";
-import { Identifiable } from "./user-repository";
 
-export interface IRouteNotFoundLogsRepository<T extends Identifiable> {
+export interface IRouteNotFoundLogsRepository {
   create(
     reqUrl?: string,
     reqMethod?: string,

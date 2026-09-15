@@ -1,10 +1,11 @@
-import * as express from 'express';
+import express from 'express';
 import { ICommentTripRepository } from '../interface/comment-repository';
 import { IUserRepository } from '../interface/user-repository';
 import { Comment } from '../model/comment';
 import { User } from '../model/user';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { authenticateToken } from '../guard/jwt.middleware';
+import { routeParam } from '../utils/routeParam';
 
 
 const commentController = express.Router();
@@ -19,7 +20,7 @@ commentController.get('/reports/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
 
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
@@ -31,7 +32,7 @@ commentController.get('/reports/:id', authenticateToken, async (req, res) => {
 
             res.status(200).json(comments);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
 
     } catch (err) {
@@ -64,7 +65,7 @@ commentController.get('/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const comment = await commentRepo.getCommentById(req.params.id);
+        const comment = await commentRepo.getCommentById(routeParam(req.params.id));
         res.status(200).json(comment);
     } catch (err) {
         console.log(err.message);
@@ -77,8 +78,8 @@ commentController.get('/:id', authenticateToken, async (req, res) => {
 
 commentController.get('/trip/:id/:userId', authenticateToken, async (req, res) => {
 
-    const tripId = req.params.id;
-    const userId = req.params.userId;
+    const tripId = routeParam(req.params.id);
+    const userId = routeParam(req.params.userId);
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
 
     try {
@@ -106,7 +107,7 @@ commentController.put('/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const result = await commentRepo.updateCommentById(req.params.id, req.body);
+        const result = await commentRepo.updateCommentById(routeParam(req.params.id), req.body);
         res.json(result);
     } catch (err) {
         console.log(err.message);
@@ -121,7 +122,7 @@ commentController.delete('/trip/:id/:userId', authenticateToken, async (req, res
     const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
     try {
 
-        const result = await commentRepo.deleteCommentByOwnerId(req.params.id);
+        const result = await commentRepo.deleteCommentByOwnerId(routeParam(req.params.id));
         res.status(200).json(result);
     } catch (err) {
         console.log(err.message);
@@ -136,7 +137,7 @@ commentController.delete('/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const result = await commentRepo.deleteCommentById(req.params.id);
+        const result = await commentRepo.deleteCommentById(routeParam(req.params.id));
 
         res.status(200).json(result);
     } catch (err) {
@@ -153,10 +154,10 @@ commentController.put('/report/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const existing = await commentRepo.getCommentById(req.params.id);
+        await commentRepo.getCommentById(routeParam(req.params.id));
 
         try {
-            const result = await commentRepo.reportCommentByuserId(req.params.id, req.body);
+            await commentRepo.reportCommentByuserId(routeParam(req.params.id), req.body);
 
 
             try {
@@ -184,10 +185,10 @@ commentController.put('/admin/report/:id', authenticateToken, async (req, res) =
 
     try {
 
-        const existing = await commentRepo.getCommentById(req.params.id);
+        await commentRepo.getCommentById(routeParam(req.params.id));
 
         try {
-            const result = await commentRepo.reportCommentByuserId(req.params.id, req.body);
+            await commentRepo.reportCommentByuserId(routeParam(req.params.id), req.body);
 
 
             try {
@@ -219,10 +220,10 @@ commentController.put('/admin/delete-report/:id', authenticateToken, async (req,
 
     try {
 
-        const existing = await commentRepo.getCommentById(req.params.id);
+        await commentRepo.getCommentById(routeParam(req.params.id));
 
         try {
-            const result = await commentRepo.deleteReportCommentByuserId(req.params.id, req.body);
+            const result = await commentRepo.deleteReportCommentByuserId(routeParam(req.params.id), req.body);
 
             res.json(result);
         } catch (err) {
@@ -238,7 +239,7 @@ commentController.put('/admin/delete-report/:id', authenticateToken, async (req,
 
 commentController.get('/image-user/:id', authenticateToken, async (req, res) => {
 
-    const commentId = req.params.id
+    const commentId = routeParam(req.params.id)
 
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
