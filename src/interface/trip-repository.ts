@@ -1,4 +1,3 @@
-import { TripGroup } from "../controllers/tripController";
 import { Identifiable, IdType } from "./user-repository";
 
 

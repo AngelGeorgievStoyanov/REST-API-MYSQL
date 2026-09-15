@@ -1,14 +1,15 @@
-import * as express from 'express';
+import express from 'express';
 import { ITripRepository } from '../interface/trip-repository';
 import { Trip } from '../model/trip';
-import * as multer from 'multer';
-import * as path from 'path';
-import { MulterGoogleCloudStorage } from '@duplexsi/multer-storage-google-cloud';
+import multer from 'multer';
+import path from 'path';
+import { GoogleCloudStorage } from '../storage/googleCloudStorage';
 import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
 import { Storage } from '@google-cloud/storage';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { authenticateToken } from '../guard/jwt.middleware';
+import { routeParam } from '../utils/routeParam';
 
 const tripController = express.Router();
 
@@ -18,7 +19,7 @@ const storageGoogle = new Storage();
 
 
 
-export const storage = new MulterGoogleCloudStorage({
+export const storage = new GoogleCloudStorage({
     bucketName: 'hack-trip',
     keyFilename: path.join(__dirname, '../utils/hack-trip-414441f1b5d4.json'),
     destination: (req, f, cb) => cb(null, Date.now() + Math.random().toString().slice(-3) + `${f.originalname}`),
@@ -37,7 +38,7 @@ tripController.post('/upload', authenticateToken, multer({ storage, limits: { fi
 
 tripController.get('/top/:id', async (req, res) => {
 
-    const userId = req.params.id
+    const userId = routeParam(req.params.id)
 
 
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
@@ -195,7 +196,7 @@ tripController.get('/reports/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const user = await userRepo.findById(req.params.id);
+        const user = await userRepo.findById(routeParam(req.params.id));
 
         if (user.role !== 'admin' && user.role !== 'manager') {
             throw new Error(`Error finding new document in database`)
@@ -211,7 +212,7 @@ tripController.get('/reports/:id', authenticateToken, async (req, res) => {
             }));
             res.status(200).json(trips);
         } catch (err) {
-            throw new Error(err.message);
+            throw new Error(err.message, { cause: err });
         }
     } catch (err) {
         console.log(err.message)
@@ -222,10 +223,10 @@ tripController.get('/reports/:id', authenticateToken, async (req, res) => {
 
 tripController.get('/my-trips/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-    const userId = req.params.id;
+    const userId = routeParam(req.params.id);
 
     try {
-        const trips = await tripRepo.getAllMyTrips(req.params.id);
+        const trips = await tripRepo.getAllMyTrips(routeParam(req.params.id));
         trips.map((trip) => ({
             ...trip,
             _ownerId: trip._ownerId === userId ? trip._ownerId = userId : trip._ownerId = '',
@@ -243,9 +244,9 @@ tripController.get('/my-trips/:id', authenticateToken, async (req, res) => {
 
 tripController.get('/favorites/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-    const userId = req.params.id;
+    const userId = routeParam(req.params.id);
     try {
-        const trips = await tripRepo.getAllMyFavorites(req.params.id);
+        const trips = await tripRepo.getAllMyFavorites(routeParam(req.params.id));
 
         trips.map((trip) => ({
             ...trip,
@@ -264,12 +265,12 @@ tripController.get('/favorites/:id', authenticateToken, async (req, res) => {
 
 tripController.get('/trip-group/:tripGroupId', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
-    const tripGroupId = req.params.tripGroupId;
+    const tripGroupId = routeParam(req.params.tripGroupId);
 
     try {
         const trips = await tripRepo.getTripsByGroupId(tripGroupId);
 
-        const tripGroupsIds = trips.map((trip) => ({ _id: trip._id, tripGroupId: trip.tripGroupId, dayNumber: trip.dayNumber, _ownerId: trip._ownerId }))
+        const tripGroupsIds = trips.map((trip) => ({ _id: trip._id, tripGroupId: trip.tripGroupId, dayNumber: trip.dayNumber }))
 
         res.json(tripGroupsIds);
     } catch (err) {
@@ -288,8 +289,8 @@ tripController.put('/like/:id', authenticateToken, async (req, res) => {
     try {
 
         const userId = req.body.userId;
-        const user = await userRepo.findById(userId)
-        const existing = await tripRepo.getTripById(req.params.id);
+        await userRepo.findById(userId)
+        const existing = await tripRepo.getTripById(routeParam(req.params.id));
 
         if (existing.likes.includes(userId)) {
 
@@ -300,7 +301,7 @@ tripController.put('/like/:id', authenticateToken, async (req, res) => {
         }
 
         try {
-            const result = await tripRepo.updateTripLikeByuserId(req.params.id, existing);
+            const result = await tripRepo.updateTripLikeByuserId(routeParam(req.params.id), existing);
             if (result.likes.includes(userId)) {
                 result.likes = [userId];
             } else {
@@ -324,9 +325,9 @@ tripController.put('/favorites/:id', authenticateToken, async (req, res) => {
     const tripRepo: ITripRepository<Trip> = req.app.get('tripsRepo');
     try {
 
-        const existing = await tripRepo.getTripById(req.params.id);
+        await tripRepo.getTripById(routeParam(req.params.id));
         try {
-            const result = await tripRepo.updateTripFavoritesByuserId(req.params.id, req.body);
+            const result = await tripRepo.updateTripFavoritesByuserId(routeParam(req.params.id), req.body);
             result.likes = [];
             result.favorites = [];
             result._ownerId = '';
@@ -347,16 +348,16 @@ tripController.put('/details/:id/:userId', authenticateToken, async (req, res) =
 
 
     try {
-        const userId = req.params.userId;
+        const userId = routeParam(req.params.userId);
 
-        const trip = await tripRepo.getTripById(req.params.id);
+        const trip = await tripRepo.getTripById(routeParam(req.params.id));
         const user = await userRepo.findById(userId)
         if (userId !== trip._ownerId && (user.role !== 'admin' && user.role !== 'manager')) {
             throw new Error(`Error finding document in database`)
         }
 
         try {
-            const result = await tripRepo.updateTripById(req.params.id, req.body);
+            const result = await tripRepo.updateTripById(routeParam(req.params.id), req.body);
             result.likes = [];
             result.favorites = [];
             res.status(200).json(result);
@@ -376,10 +377,10 @@ tripController.put('/report/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const existing = await tripRepo.getTripById(req.params.id);
+        await tripRepo.getTripById(routeParam(req.params.id));
 
         try {
-            const result = await tripRepo.reportTripByuserId(req.params.id, req.body);
+            const result = await tripRepo.reportTripByuserId(routeParam(req.params.id), req.body);
 
             res.json(result);
         } catch (err) {
@@ -397,10 +398,10 @@ tripController.put('/admin/delete-report/:id', authenticateToken, async (req, re
 
     try {
 
-        const existing = await tripRepo.getTripById(req.params.id);
+        await tripRepo.getTripById(routeParam(req.params.id));
 
         try {
-            const result = await tripRepo.deleteReportTripByuserId(req.params.id, req.body);
+            const result = await tripRepo.deleteReportTripByuserId(routeParam(req.params.id), req.body);
 
             res.json(result);
         } catch (err) {
@@ -420,7 +421,7 @@ tripController.put('/edit-images/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const existing = await tripRepo.getTripById(req.params.id);
+        const existing = await tripRepo.getTripById(routeParam(req.params.id));
         const fileName = req.body[0];
         const filePath = fileName;
 
@@ -434,7 +435,7 @@ tripController.put('/edit-images/:id', authenticateToken, async (req, res) => {
 
         try {
             deleteFile(filePath);
-            const result = await tripRepo.editImagesByTripId(req.params.id, existing);
+            const result = await tripRepo.editImagesByTripId(routeParam(req.params.id), existing);
 
             res.json(result);
 
@@ -458,9 +459,9 @@ tripController.get('/:id/:userId', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
-        const userId = req.params.userId;
+        const userId = routeParam(req.params.userId);
         const user = await userRepo.findById(userId)
-        const trip = await tripRepo.getTripById(req.params.id);
+        const trip = await tripRepo.getTripById(routeParam(req.params.id));
         if (user.role === 'admin' || user.role === 'manager') {
             // you can see trip._ownerId
         } else if (trip._ownerId !== userId) {
@@ -495,17 +496,16 @@ tripController.delete('/:id/:userId', authenticateToken, async (req, res) => {
     const userRepo: IUserRepository<User> = req.app.get('usersRepo');
 
     try {
-        const userId = req.params.userId;
+        const userId = routeParam(req.params.userId);
         const user = await userRepo.findById(userId)
-        const trip = await tripRepo.getTripById(req.params.id);
+        const trip = await tripRepo.getTripById(routeParam(req.params.id));
 
-        if (userId !== trip._ownerId || (user.role !== 'admin' && user.role !== 'manager')) {
-            throw new Error(`Error finding document in database`)
+        if (userId !== trip._ownerId && user.role !== 'admin' && user.role !== 'manager') {
+            throw new Error(`Error finding document in database`);
         }
-
         try {
 
-            const result = await tripRepo.deleteTrypById(req.params.id);
+            const result = await tripRepo.deleteTrypById(routeParam(req.params.id));
 
             if (result.imageFile.length > 0) {
 

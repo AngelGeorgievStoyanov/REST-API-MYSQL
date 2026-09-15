@@ -1,5 +1,3 @@
-import { Identifiable } from "./user-repository";
-
-export interface ICloudImages <T> {
+export interface ICloudImages {
     getAllImagesFromDB(): Promise<string[]>
 }
