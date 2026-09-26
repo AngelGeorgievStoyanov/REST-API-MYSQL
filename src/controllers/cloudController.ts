@@ -1,15 +1,15 @@
 import express from 'express';
-import { Storage } from '@google-cloud/storage';
 import { ICloudImages } from '../interface/cloudService-repository';
 import { IUserRepository } from '../interface/user-repository';
 import { User } from '../model/user';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { authenticateToken } from '../guard/jwt.middleware';
 import { routeParam } from '../utils/routeParam';
+import { gcsClient } from '../clients/googleCloudStorage';
+import { BUCKET_NAME } from '../constants/common';
 
 
 const cloudController = express.Router();
-const storageGoogle = new Storage();
 
 
 cloudController.get('/cloud-images/:userId', authenticateToken, async (req, res) => {
@@ -21,7 +21,7 @@ cloudController.get('/cloud-images/:userId', authenticateToken, async (req, res)
             throw new Error(`Error finding document in database`)
         }
         try {
-            const cloudImageNames = await listCloudImages(storageGoogle);
+            const cloudImageNames = await listCloudImages();
             res.status(200).json(cloudImageNames);
         } catch (err) {
             console.log(err.message);
@@ -72,7 +72,7 @@ cloudController.get('/unique-images/:userId', authenticateToken, async (req, res
         let allCloudImages: any[];
         let allDBImages: string[];
         try {
-            allCloudImages = await listCloudImages(storageGoogle);
+            allCloudImages = await listCloudImages();
             allCloudImages = allCloudImages.map(image => image.name);
 
         } catch (err) {
@@ -102,9 +102,8 @@ cloudController.get('/unique-images/:userId', authenticateToken, async (req, res
 
 cloudController.use(routeNotFoundLogsMiddleware);
 
-export async function listCloudImages(storage: Storage): Promise<any[]> {
-    const bucketName = 'hack-trip';
-    const [files] = await storage.bucket(bucketName).getFiles();
+export async function listCloudImages(): Promise<any[]> {
+    const [files] = await gcsClient.bucket(BUCKET_NAME).getFiles();
 
     const images = files.filter((file) => !file.name.endsWith('/')).map((file) => ({
         name: file.name,

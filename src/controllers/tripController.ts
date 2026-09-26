@@ -2,29 +2,17 @@ import express from 'express';
 import { ITripRepository } from '../interface/trip-repository';
 import { Trip } from '../model/trip';
 import multer from 'multer';
-import path from 'path';
-import { GoogleCloudStorage } from '../storage/googleCloudStorage';
 import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
-import { Storage } from '@google-cloud/storage';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { authenticateToken } from '../guard/jwt.middleware';
 import { routeParam } from '../utils/routeParam';
+import { deleteFile } from '../storage/imageStorage';
+import { IMAGE_SOURCE } from '../constants/imageStorage';
+import { storage } from '../storage/storageConfig';
+import { gcsClient } from '../clients/googleCloudStorage';
 
 const tripController = express.Router();
-
-
-const storageGoogle = new Storage();
-
-
-
-
-export const storage = new GoogleCloudStorage({
-    bucketName: 'hack-trip',
-    keyFilename: path.join(__dirname, '../utils/hack-trip-414441f1b5d4.json'),
-    destination: (req, f, cb) => cb(null, Date.now() + Math.random().toString().slice(-3) + `${f.originalname}`),
-
-});
 
 
 tripController.post('/upload', authenticateToken, multer({ storage, limits: { fieldSize: 50000000 } }).array('file', 12), function (req, res) {
@@ -434,7 +422,7 @@ tripController.put('/edit-images/:id', authenticateToken, async (req, res) => {
         existing.imageFile = editedListImage;
 
         try {
-            deleteFile(filePath);
+            await deleteFile(filePath, IMAGE_SOURCE.TRIP);
             const result = await tripRepo.editImagesByTripId(routeParam(req.params.id), existing);
 
             res.json(result);
@@ -514,7 +502,7 @@ tripController.delete('/:id/:userId', authenticateToken, async (req, res) => {
                     const filePath = x;
                     try {
 
-                        deleteFile(filePath);
+                        deleteFile(filePath, IMAGE_SOURCE.TRIP);
                     } catch (err) {
                         console.log(err);
                     }
@@ -540,20 +528,10 @@ tripController.use(routeNotFoundLogsMiddleware);
 
 
 
-const deleteFile = async (filePath) => {
-    try {
-        await storage.bucket('hack-trip')
-            .file(filePath)
-            .delete();
-        console.log('File deleted from TRIP');
-    } catch (err) {
-        console.log(err.message);
-    }
-}
 
 const listBackground = async function listFiles() {
     try {
-        let [files] = await storageGoogle.bucket('hack-trip-background-images').getFiles();
+        let [files] = await gcsClient.bucket('hack-trip-background-images').getFiles();
         return files.map((x) => { return x.name });
     } catch (err) {
         console.log(err.message);

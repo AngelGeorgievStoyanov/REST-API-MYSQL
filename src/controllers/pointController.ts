@@ -2,12 +2,14 @@ import express from 'express';
 import { IPointTripRepository } from '../interface/point-repository';
 import { Point } from '../model/point';
 import multer from 'multer';
-import { storage } from './tripController';
+import { storage } from '../storage/storageConfig';
 import { User } from '../model/user';
 import { IUserRepository } from '../interface/user-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { authenticateToken } from '../guard/jwt.middleware';
 import { routeParam } from '../utils/routeParam';
+import { IMAGE_SOURCE } from '../constants/imageStorage';
+import { deleteFile } from '../storage/imageStorage';
 
 const pointController = express.Router();
 
@@ -66,7 +68,8 @@ pointController.delete('/trip/:id/:userId', authenticateToken, async (req, res) 
                         const filePath = f;
 
                         try {
-                            deleteFile(filePath);
+                            deleteFile(filePath, IMAGE_SOURCE.POINT);
+
                         } catch (err) {
                             console.log(err);
                         }
@@ -129,7 +132,8 @@ pointController.delete('/:id', authenticateToken, async (req, res) => {
             const filePath = x
             try {
 
-                deleteFile(filePath);
+                deleteFile(filePath, IMAGE_SOURCE.POINT);
+
             } catch (err) {
                 console.log(err);
             }
@@ -153,7 +157,7 @@ pointController.get('/edit/:id', authenticateToken, async (req, res) => {
     const pointRepo: IPointTripRepository<Point> = req.app.get('pointsRepo');
     try {
         const point = await pointRepo.getPointById(routeParam(req.params.id));
-       
+
         res.status(200).json(point);
     } catch (err) {
         console.log(err.message);
@@ -242,7 +246,8 @@ pointController.put('/edit-images/:id', authenticateToken, async (req, res) => {
         existing.imageFile = editedListImage;
 
         try {
-            deleteFile(filePath)
+            await deleteFile(filePath, IMAGE_SOURCE.POINT);
+
             const result = await pointRepo.editImagesByPointId(routeParam(req.params.id), existing);
 
             res.json(result);
@@ -261,15 +266,6 @@ pointController.put('/edit-images/:id', authenticateToken, async (req, res) => {
 pointController.use(routeNotFoundLogsMiddleware);
 
 
-const deleteFile = async (filePath: string) => {
-    try {
-        await storage.bucket('hack-trip')
-            .file(filePath)
-            .delete();
-        console.log('File deleted from POINT');
-    } catch (err) {
-        console.log(err.message);
-    }
-}
+
 
 export default pointController

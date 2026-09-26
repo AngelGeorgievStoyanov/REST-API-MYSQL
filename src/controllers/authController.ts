@@ -4,7 +4,7 @@ import { User } from '../model/user';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { IdType, IUserRepository } from '../interface/user-repository';
-import { storage } from './tripController';
+import { storage } from '../storage/storageConfig';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import os from 'os';
@@ -16,6 +16,8 @@ import { authenticateToken } from '../guard/jwt.middleware';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { routeParam } from '../utils/routeParam';
+import { deleteFile } from '../storage/imageStorage';
+import { IMAGE_SOURCE } from '../constants/imageStorage';
 
 dotenv.config()
 
@@ -465,10 +467,10 @@ authController.put('/admin/edit/:id', authenticateToken, async (req, res) => {
             if (req.body.imageFile === undefined) {
                 req.body.imageFile = user.imageFile;
             } else {
-                if (user.imageFile !== null) {
+                if (user.imageFile !== null && user.imageFile !== undefined) {
                     const filePath = user.imageFile;
                     try {
-                        await deleteFile(filePath);
+                        await deleteFile(filePath, IMAGE_SOURCE.USER);
                     } catch (err) {
                         console.log(err);
                     }
@@ -506,10 +508,11 @@ authController.put('/edit/:id', authenticateToken, async (req, res) => {
                         req.body.imageFile = user.imageFile;
                     } else {
 
-                        if (user.imageFile !== null) {
+                        if (user.imageFile !== null && user.imageFile !== undefined) {
                             const filePath = user.imageFile;
                             try {
-                                deleteFile(filePath);
+                                await deleteFile(filePath, IMAGE_SOURCE.USER);
+
                             } catch (err) {
                                 console.log(err);
                             }
@@ -527,12 +530,13 @@ authController.put('/edit/:id', authenticateToken, async (req, res) => {
                     req.body.imageFile = user.imageFile;
                 } else {
 
-                    if (user.imageFile !== null) {
+                    if (user.imageFile !== null && user.imageFile !== undefined) {
                         const filePath = user.imageFile;
 
                         try {
 
-                            deleteFile(filePath);
+                            await deleteFile(filePath, IMAGE_SOURCE.USER);
+
                         } catch (err) {
                             console.log(err);
                         }
@@ -577,7 +581,8 @@ authController.put('/delete-image/:id', authenticateToken, async (req, res) => {
 
 
         try {
-            deleteFile(filePath);
+            await deleteFile(filePath, IMAGE_SOURCE.USER);
+
             const result = await userRepo.editProfileImage(routeParam(req.params.id), fileName);
 
             res.json(result);
@@ -778,16 +783,7 @@ authController.delete('/admin/:adminId/:id', authenticateToken, async (req, res)
 authController.use(routeNotFoundLogsMiddleware);
 
 
-const deleteFile = async (filePath) => {
-    try {
-        await storage.bucket('hack-trip')
-            .file(filePath)
-            .delete();
-        console.log('File deleted USER');
-    } catch (err) {
-        console.log(err.message);
-    }
-}
+
 
 
 function verifyToken() {
