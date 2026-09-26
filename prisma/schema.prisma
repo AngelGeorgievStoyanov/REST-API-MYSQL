@@ -1,39 +1,53 @@
-// Prisma schema — PHASE 3 (Database Schema Redesign — TARGET architecture)
+// Prisma schema — CURRENT database structure (aligned to the live DB)
 //
-// TARGET schema. This file describes where the database is going, NOT the
-// live database. The live database is UNCHANGED; no migration has been run.
+// This file mirrors the tables, columns, indexes and foreign keys that exist
+// in the live database TODAY. It is NOT a future/target schema and NOT a
+// migration plan: nothing is generated from it, no migration has been run and
+// the database is not modified by it.
 //
-// ID rules (final, confirmed):
-//  - User.id stays UUID (VARCHAR(36)). It is NEVER converted to INT.
-//  - Every other entity id is INT AUTO_INCREMENT.
-//  - Every foreign key referencing User stays UUID (VARCHAR(36)).
-//  - Resource/entity foreign keys (tripId, pointId, commentId, tripGroupId)
-//    are INT.
+// ID policy:
+//  - users.id stays VARCHAR(36) UUID. It is NEVER converted to INT.
+//  - Every other primary key is INT AUTO_INCREMENT.
+//  - Column names never start with `_` (no `_id`, `_ownerId`, `_ownerTripId`).
+//  - Foreign keys to users are VARCHAR(36): ownerId, userId, reqUserId.
+//  - Resource foreign keys are INT: tripId, pointId, tripGroupId, targetTypeId.
 //
-// New normalized tables (Like, Favorite, TripReport, CommentReport, Image,
-// TripGroup) do NOT exist in the live DB yet. Legacy comma-separated columns
-// (trips.likes/favorites/reportTrip/imageFile/coments, points.imageFile,
-// users.imageFile, comments.reportComment) are preserved as-is and will be
-// migrated in the data-migration phase, then dropped.
+// Polymorphic targets (comments / likes / reports):
+//  - They use `targetTypeId` -> target_types.id plus a bare `targetId` that
+//    points at trips.id / points.id / comments.id / images.id depending on
+//    the target type. Prisma cannot express a polymorphic foreign key, so
+//    `targetId` is a plain INT column with NO relation.
+//  - There are no trip_reports / comment_reports tables and no per-resource
+//    report models. `reports` + target_types covers all report targets.
+//  - NOTE: src/migration/* still references the older trip_reports /
+//    comment_reports design; that tooling will be aligned separately.
 //
-// Conventions used below:
-//  - `legacy*` fields (+ @map) preserve a live column that will be migrated
-//    and later removed. Relation/normalized fields use the clean names.
-//  - `legacyId` preserves the old UUID primary key to allow row matching
-//    during UUID → INT migration. Drop after migration.
-//  - New DateTime createdAt/updatedAt columns coexist with the legacy VARCHAR
-//    timeCreated/timeEdited/date strings until data conversion.
-//  - ON DELETE: Cascade down the resource tree
-//    (TripGroup → Trip → Point/Comment/Like/Favorite/TripReport/Image,
-//    Comment → CommentReport); Restrict on User FKs so a user with content
-//    cannot be deleted silently (decision to confirm in migration phase).
-//  - Role/status are native Prisma enums (live values match exactly).
-//    Currency stays String (no giant enum).
-//  - Known migration obligations (documented, NOT executed here):
-//    backfill NULL Trip.ownerId / Trip.dayNumber / Point.tripId;
-//    narrow _ownerId VARCHAR(45) → ownerId VARCHAR(36); translate legacy
-//    VARCHAR tripGroupId values into TripGroup.id rows; dedupe users.email
-//    for the new UNIQUE constraint.
+// Deletion behaviour mirrors the live FK constraints:
+//  - trip_groups -> trips, trips -> points, trips -> images, points -> images:
+//    CASCADE.
+//  - users -> trip_groups / trips / points / comments: RESTRICT.
+//  - users -> likes / favorites: CASCADE.
+//  - users -> images: SET NULL.
+//  - target_types -> comments / likes / reports, and trip_groups -> favorites:
+//    NO ACTION (live default).
+//  - Every FK is ON UPDATE NO ACTION in the live DB (Prisma defaults to
+//    Cascade), so onUpdate: NoAction is declared on every relation.
+//
+// Deliberate notes:
+//  - images has NO exactly-one-parent (CHECK) constraint in the live DB, so
+//    none is declared here.
+//  - verify.userId has an index (ix_verify_user) but NO foreign key
+//    constraint in the live DB, so it is declared as a plain VARCHAR(36)
+//    column, not as a relation.
+//  - role/status are declared as Prisma enums for client type-safety only.
+//    The live MySQL columns are VARCHAR(8)/VARCHAR(12) with defaults
+//    'user'/'ACTIVE'; do not generate DDL from this file.
+//  - createdAt/updatedAt are NULL-able DATETIME(3) with no DB default, so no
+//    @default(now()) is declared. @updatedAt is client-side only (no DDL).
+//  - target_types currently holds: 1 tripGroup, 2 trip, 3 point, 4 image,
+//    5 comment.
+//  - Legacy VARCHAR request/log columns (failedlogs.date, routenotfoundlogs.*)
+//    are kept as-is; they are part of the live structure.
 
 generator client {
   provider = "prisma-client-js"
@@ -56,222 +70,166 @@ enum UserStatus {
   DEACTIVATED
 }
 
+model TargetType {
+  // Polymorphic target lookup table (target_types), seeded with
+  // tripGroup / trip / point / image / comment.
+  id   Int    @id @default(autoincrement())
+  name String @unique(map: "uq_target_types_name") @db.VarChar(30)
+
+  comments Comment[]
+  likes    Like[]
+  reports  Report[]
+
+  @@map("target_types")
+}
+
 model User {
-  // UUID stays UUID — never converted to INT (confirmed rule).
-  id             String  @id @map("_id") @db.VarChar(36)
-  email          String  @unique @db.VarChar(45)
+  // UUID stays UUID — never converted to INT.
+  id             String  @id @db.VarChar(36)
+  email          String  @unique(map: "uq_users_email") @db.VarChar(45)
   firstName      String  @db.VarChar(45)
   lastName       String  @db.VarChar(45)
   hashedPassword String  @db.VarChar(85)
-  // Legacy VARCHAR timestamps: preserved for data migration, drop after.
-  timeCreated    String? @default("CURRENT_TIMESTAMP") @db.VarChar(24)
-  timeEdited     String? @default("CURRENT_TIMESTAMP") @db.VarChar(24)
   lastTimeLogin  String? @db.VarChar(24)
   countOfLogs    BigInt?
-  // Legacy single GCS filename. Will migrate to Image rows, then drop.
-  legacyImageFile String? @map("imageFile") @db.VarChar(2000)
-  // Prisma enums for the type-safe client. No native column type is set on
-  // purpose: the live columns are VARCHAR(8)/VARCHAR(12) and Prisma must
-  // keep them VARCHAR — NOT convert them to MySQL ENUM.
   role           UserRole   @default(user)
   status         UserStatus @default(ACTIVE)
   verifyEmail    Int?       @default(0) @db.TinyInt
-  // Target timestamps. New; populated during data migration.
-  createdAt DateTime? @default(now())
-  updatedAt DateTime? @updatedAt
+  createdAt      DateTime?
+  updatedAt      DateTime?  @updatedAt
 
-  tripGroups     TripGroup[]
-  trips          Trip[]
-  points         Point[]
-  comments       Comment[]
-  verifyTokens   Verify[]
-  likes          Like[]
-  favorites      Favorite[]
-  tripReports    TripReport[]
-  commentReports CommentReport[]
-  images         Image[]
+  tripGroups TripGroup[]
+  trips      Trip[]
+  points     Point[]
+  comments   Comment[]
+  likes      Like[]
+  favorites  Favorite[]
+  reports    Report[]
+  images     Image[]
 
-  @@index([role])
-  @@index([status])
+  @@index([role], map: "ix_users_role")
+  @@index([status], map: "ix_users_status")
   @@map("users")
 }
 
 model TripGroup {
-  // NEW table (does not exist in live DB). One group = one multi-day trip.
-  // No title/cover/description metadata yet — none exists in the business
-  // model (confirmed). Group metadata is derived from the day rows today.
+  // One group = one multi-day trip. Metadata (title, cover, dates) is derived
+  // from its day rows; the live table only holds ownership + timestamps.
   id      Int    @id @default(autoincrement())
   ownerId String @db.VarChar(36)
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_tg_owner")
 
-  createdAt DateTime? @default(now())
+  createdAt DateTime?
   updatedAt DateTime? @updatedAt
 
-  trips Trip[]
+  trips     Trip[]
+  favorites Favorite[]
 
-  @@index([ownerId])
+  @@index([ownerId], map: "ix_tg_owner")
   @@map("trip_groups")
 }
 
 model Trip {
-  // Target PK: INT AUTO_INCREMENT. `legacyId` preserves the live UUID PK
-  // (`_id` VARCHAR(36)) for row matching during UUID → INT migration.
   id           Int     @id @default(autoincrement())
-  legacyId     String? @unique @map("_id") @db.VarChar(36)
   title        String  @db.VarChar(60)
   description  String? @db.VarChar(2000)
   price        Float?
-  // Legacy values are numeric TS enums (0,1,2...) stored as Strings / raw
-  // request values — do NOT map cleanly to string enums. Kept as String.
   transport    String? @db.VarChar(45)
   countPeoples Int
   typeOfPeople String? @db.VarChar(45)
   destination  String? @db.VarChar(60)
-  // Legacy/dead field: written on INSERT, never read by any logic.
-  // Preserved now, candidate for removal after migration.
-  legacyComents String? @map("coments") @db.VarChar(3600)
-  // Legacy comma-separated user UUIDs. Migrate to Like rows, then drop.
-  legacyLikes String? @map("likes") @db.VarChar(3600)
-  ownerId     String  @db.VarChar(36)
-  owner       User    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  // NOTE: `tripId` FK fields on the child models target THIS new INT id.
-  // Physical column is `tripGroupNewId` (NOT `tripGroupId`): the live
-  // VARCHAR column `tripGroupId` is preserved below as legacyTripGroupId for
-  // migration mapping, and Prisma forbids two fields on one column.
-  // Migration adds `tripGroupNewId`, backfills it, drops the legacy column,
-  // then renames `tripGroupNewId` -> `tripGroupId`.
-  tripGroupId Int                  @map("tripGroupNewId")
-  tripGroup   TripGroup            @relation(fields: [tripGroupId], references: [id], onDelete: Cascade)
+  // Live ownerId is NULL-able (the FK itself exists and is RESTRICT).
+  ownerId      String? @db.VarChar(36)
+  owner        User?   @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_trips_owner")
   lat          Float?
   lng          Float?
-  // Legacy VARCHAR timestamps: preserved for data migration, drop after.
-  timeCreated  String? @db.VarChar(24)
-  timeEdited   String? @db.VarChar(24)
-  // Legacy comma-separated reporter user UUIDs. Migrate to TripReport rows.
-  legacyReportTrip String? @map("reportTrip") @db.VarChar(360)
-  // Legacy comma-separated GCS filenames. Migrate to Image rows, drop after.
-  legacyImageFile String? @map("imageFile") @db.VarChar(2000)
-  // Legacy comma-separated user UUIDs. Migrate to Favorite rows, drop after.
-  legacyFavorites String? @map("favorites") @db.VarChar(3600)
   countEdited  Int?    @default(0)
-  // Currency stays String — no 170-value Prisma enum (confirmed).
   currency     String? @default("EUR") @db.VarChar(3)
-  // Live DB has this NULLABLE (DDL said NOT NULL DEFAULT 1) + rows exist
-  // with NULL. Target is Int; backfill required — migration obligation.
-  dayNumber Int?
-  // Legacy VARCHAR group key (live: nullable VARCHAR(255)). Translated into
-  // tripGroupId rows during migration, dropped after.
-  legacyTripGroupId String? @map("tripGroupId") @db.VarChar(255)
-  // Target timestamps. New; populated during data migration.
-  createdAt DateTime? @default(now())
+  dayNumber    Int?
+  tripGroupId  Int?
+  tripGroup    TripGroup? @relation(fields: [tripGroupId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_trips_group")
+
+  createdAt DateTime?
   updatedAt DateTime? @updatedAt
 
-  points      Point[]
-  comments    Comment[]
-  likes       Like[]
-  favorites   Favorite[]
-  tripReports TripReport[]
-  images      Image[]
+  points Point[]
+  images Image[]
 
-  @@unique([tripGroupId, dayNumber])
-  @@index([tripGroupId])
-  @@index([ownerId])
-  @@index([dayNumber])
+  @@unique([tripGroupId, dayNumber], map: "uq_trips_group_day")
+  @@index([dayNumber], map: "ix_trips_day")
+  @@index([tripGroupId], map: "ix_trips_group")
+  @@index([ownerId], map: "ix_trips_owner")
   @@map("trips")
 }
 
 model Point {
-  // Target PK: INT AUTO_INCREMENT. `legacyId` preserves the live UUID PK.
   id          Int     @id @default(autoincrement())
-  legacyId    String? @unique @map("_id") @db.VarChar(36)
   name        String  @db.VarChar(100)
   description String? @db.VarChar(1050)
-  // Target: INT FK to Trip.id. `legacyOwnerTripId` preserves the live
-  // VARCHAR value (trip UUID string) for migration mapping. Backfill
-  // required — live Point rows may reference trips; confirm during migration.
-  tripId            Int?
-  trip              Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  legacyOwnerTripId String? @map("_ownerTripId") @db.VarChar(45)
+  // Live lat/lng are VARCHAR(45), not numeric.
   lat         String? @db.VarChar(45)
   lng         String? @db.VarChar(45)
-  // Live VARCHAR(45), ordered as string, values set by app/reorder logic.
   pointNumber String  @db.VarChar(45)
-  // Legacy comma-separated GCS filenames. Migrate to Image rows, drop after.
-  legacyImageFile String? @map("imageFile") @db.VarChar(2000)
   ownerId     String  @db.VarChar(36)
-  owner       User    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  // Legacy VARCHAR timestamps: preserved for data migration, drop after.
-  timeCreated String? @db.VarChar(24)
-  timeEdited  String? @db.VarChar(24)
+  owner       User    @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_points_owner")
   countEdited Int?    @default(0)
-  // Target timestamps. New; populated during data migration.
-  createdAt DateTime? @default(now())
+  tripId      Int?
+  trip        Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_points_trip")
+
+  createdAt DateTime?
   updatedAt DateTime? @updatedAt
 
   images Image[]
 
-  @@index([tripId])
-  @@index([ownerId])
+  @@index([ownerId], map: "ix_points_owner")
+  @@index([tripId], map: "ix_points_trip")
   @@map("points")
 }
 
 model Comment {
-  // Target PK: INT AUTO_INCREMENT. `legacyId` preserves the live UUID PK.
-  id            Int     @id @default(autoincrement())
-  legacyId      String? @unique @map("_id") @db.VarChar(36)
-  nameAuthor    String  @db.VarChar(45)
-  comment       String  @db.VarChar(1000)
-  // Target: INT FK to Trip.id. `legacyTripId` preserves the live VARCHAR
-  // value (trip UUID string) for migration mapping. Backfill required.
-  tripId       Int?
-  trip         Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  legacyTripId String? @map("_tripId") @db.VarChar(45)
-  ownerId       String  @db.VarChar(36)
-  owner         User    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  // Legacy comma-separated reporter user UUIDs. Migrate to CommentReport.
-  legacyReportComment String? @map("reportComment") @db.VarChar(3602)
-  // Legacy VARCHAR timestamps: preserved for data migration, drop after.
-  timeCreated   String? @db.VarChar(24)
-  timeEdited    String? @db.VarChar(24)
-  countEdited   Int?    @default(0)
-  // Target timestamps. New; populated during data migration.
-  createdAt DateTime? @default(now())
+  id         Int    @id @default(autoincrement())
+  nameAuthor String @db.VarChar(45)
+  comment    String @db.VarChar(1000)
+  ownerId    String @db.VarChar(36)
+  owner      User   @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_comments_owner")
+  // Polymorphic target (tripGroup / trip / point / image / comment) — see
+  // TargetType. `targetId` has no FK by design.
+  targetTypeId Int
+  targetType   TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comments_target_type")
+  targetId     Int
+  countEdited  Int?    @default(0)
+
+  createdAt DateTime?
   updatedAt DateTime? @updatedAt
 
-  commentReports CommentReport[]
-
-  @@index([tripId])
-  @@index([ownerId])
+  @@index([ownerId], map: "ix_comments_owner")
+  @@index([targetTypeId, targetId], map: "ix_comments_target")
   @@map("comments")
 }
 
 model Verify {
-  // Already INT AUTO_INCREMENT in live DB. `userId` stays UUID (confirmed).
-  // Indexed for the per-user token lookups in verifyTokenService.
-  id                            Int     @id @default(autoincrement()) @map("_id")
+  // Email / password-reset tokens. Keeps its INT id.
+  // `userId` is NOT a declared relation: the live table has ix_verify_user but
+  // no foreign key constraint to users.
+  id                            Int     @id @default(autoincrement())
   verifyToken                   String  @db.VarChar(36)
   userId                        String  @db.VarChar(36)
-  user                          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   verifyTokenForgotPassword     String? @db.VarChar(36)
-  // Legacy VARCHAR timestamps: preserved for data migration, drop after.
   timeVerifyToken               String? @db.VarChar(24)
   timeVerifyTokenForgotPassword String? @db.VarChar(24)
   countForgotPassword           Int?    @default(0)
-  // Target timestamps. New; populated during data migration.
-  createdAt DateTime? @default(now())
+
+  createdAt DateTime?
   updatedAt DateTime? @updatedAt
 
-  @@index([userId])
-  @@index([verifyToken])
+  @@index([verifyToken], map: "ix_verify_token")
+  @@index([userId], map: "ix_verify_user")
   @@map("verify")
 }
 
 model FailedLog {
   // Auth-observability row, keyed by email — no User FK is possible.
-  // Target PK: INT. `legacyId` preserves the live UUID PK for migration.
   id          Int     @id @default(autoincrement())
-  legacyId    String? @unique @map("_id") @db.VarChar(36)
-  // Legacy VARCHAR date string: preserved for data migration, drop after.
   date        String? @db.VarChar(45)
   email       String  @db.VarChar(45)
   ip          String  @db.VarChar(45)
@@ -283,20 +241,16 @@ model FailedLog {
   latitude    Float?
   longitude   Float?
   state       String? @db.VarChar(45)
-  // Target timestamp. New; populated during data migration.
-  createdAt DateTime? @default(now())
+  createdAt   DateTime?
 
-  @@index([email])
+  @@index([email], map: "ix_failed_email")
   @@map("failedlogs")
 }
 
 model RouteNotFoundLog {
   // Request-observability row. `reqUserId` may reference a deleted/unknown
-  // user, so NO hard FK (confirmed) — plain nullable UUID string.
-  // Target PK: INT. `legacyId` preserves the live UUID PK for migration.
+  // user, so there is NO hard FK — plain nullable UUID string.
   id           Int     @id @default(autoincrement())
-  legacyId     String? @unique @map("_id") @db.VarChar(36)
-  // Legacy VARCHAR date string: preserved for data migration, drop after.
   date         String? @db.VarChar(45)
   reqUrl       String? @db.VarChar(145)
   reqMethod    String? @db.VarChar(15)
@@ -307,103 +261,81 @@ model RouteNotFoundLog {
   reqIp        String? @db.VarChar(1000)
   reqUserId    String? @db.VarChar(36)
   reqUserEmail String? @db.VarChar(245)
-  // Target timestamp. New; populated during data migration.
-  createdAt DateTime? @default(now())
+  createdAt    DateTime?
 
-  @@index([reqUserId])
+  @@index([reqUserId], map: "ix_rnf_user")
   @@map("routenotfoundlogs")
 }
 
 model Like {
-  // NEW table (replaces trips.likes comma-separated user UUIDs, incl. the
-  // `LENGTH(likes)` ordering in getTop). One user x one trip, max one like.
-  id     Int    @id @default(autoincrement())
-  userId String @db.VarChar(36)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tripId Int
-  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  // One (user, target) pair, max one like — polymorphic via targetTypeId.
+  id           Int        @id @default(autoincrement())
+  userId       String     @db.VarChar(36)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_likes_user")
+  targetTypeId Int
+  targetType   TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_likes_target_type")
+  targetId     Int
+  createdAt    DateTime?
 
-  createdAt DateTime? @default(now())
-
-  @@unique([userId, tripId])
-  @@index([userId])
-  @@index([tripId])
+  @@unique([userId, targetTypeId, targetId], map: "uq_likes_user_target")
+  @@index([targetTypeId, targetId], map: "ix_likes_target")
+  @@index([userId], map: "ix_likes_u")
   @@map("likes")
 }
 
 model Favorite {
-  // NEW table (replaces trips.favorites comma-separated user UUIDs, incl.
-  // the fragile `favorites LIKE '%uuid%'` lookup). One user x one trip.
-  id     Int    @id @default(autoincrement())
-  userId String @db.VarChar(36)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tripId Int
-  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  // Favorites are attached to a trip group, not to a single day row.
+  id          Int       @id @default(autoincrement())
+  userId      String    @db.VarChar(36)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_fav_user")
+  tripGroupId Int
+  tripGroup   TripGroup @relation(fields: [tripGroupId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_fav_trip_group")
+  createdAt   DateTime?
 
-  createdAt DateTime? @default(now())
-
-  @@unique([userId, tripId])
-  @@index([userId])
-  @@index([tripId])
+  @@unique([userId, tripGroupId], map: "uq_fav_user_group")
+  @@index([tripGroupId], map: "ix_fav_tg")
+  @@index([userId], map: "ix_fav_u")
   @@map("favorites")
 }
 
-model TripReport {
-  // NEW table (replaces trips.reportTrip comma-separated reporter UUIDs).
-  // UNIQUE per (userId, tripId) matches the toggle/clear report flow.
-  id     Int    @id @default(autoincrement())
-  userId String @db.VarChar(36)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tripId Int
-  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+model Report {
+  // One generic report table for every target type (tripGroup / trip / point /
+  // image / comment) — NOT trip_reports / comment_reports.
+  id           Int        @id @default(autoincrement())
+  userId       String     @db.VarChar(36)
+  user         User       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_user")
+  targetTypeId Int
+  targetType   TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_target_type")
+  targetId     Int
+  reason       String?    @db.VarChar(1000)
+  createdAt    DateTime?
 
-  createdAt DateTime? @default(now())
-
-  @@unique([userId, tripId])
-  @@index([userId])
-  @@index([tripId])
-  @@map("trip_reports")
-}
-
-model CommentReport {
-  // NEW table (replaces comments.reportComment comma-separated UUIDs).
-  // UNIQUE per (userId, commentId) matches the toggle/clear report flow.
-  id        Int     @id @default(autoincrement())
-  userId    String  @db.VarChar(36)
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  commentId Int
-  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime? @default(now())
-
-  @@unique([userId, commentId])
-  @@index([userId])
-  @@index([commentId])
-  @@map("comment_reports")
+  @@unique([userId, targetTypeId, targetId], map: "uq_reports_user_target")
+  @@index([targetId], map: "ix_reports_target")
+  @@index([targetTypeId], map: "ix_reports_target_type")
+  @@index([userId], map: "ix_reports_user")
+  @@map("reports")
 }
 
 model Image {
-  // NEW table (replaces comma-separated GCS filenames in trips.imageFile /
-  // points.imageFile and the single users.imageFile string). Storage concept
-  // preserved: flat single-bucket GCS layout, generated unique filename in
-  // `filePath` (+ `_thumb.webp` thumbnail sidecar, see imageStorage.ts).
-  // Exactly one parent is set per row today; a CHECK constraint for that
-  // belongs to the migration phase.
-  id      Int     @id @default(autoincrement())
-  ownerId String? @db.VarChar(36)
-  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  tripId  Int?
-  trip    Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  pointId Int?
-  point   Point?  @relation(fields: [pointId], references: [id], onDelete: Cascade)
+  // Flat single-bucket GCS layout: generated unique filename in `filePath`
+  // (+ `_thumb.webp` sidecar, see src/constants/imageStorage.ts).
+  // ownerId / tripId / pointId are all optional and there is NO live
+  // exactly-one-parent (CHECK) constraint.
+  id       Int     @id @default(autoincrement())
+  ownerId  String? @db.VarChar(36)
+  owner    User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_img_owner")
+  tripId   Int?
+  trip     Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_img_trip")
+  pointId  Int?
+  point    Point?  @relation(fields: [pointId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_img_point")
+  filePath String  @db.VarChar(1000)
 
-  filePath String @db.VarChar(1000)
-
-  createdAt DateTime? @default(now())
+  createdAt DateTime?
   updatedAt DateTime? @updatedAt
 
-  @@index([ownerId])
-  @@index([tripId])
-  @@index([pointId])
+  @@index([ownerId], map: "ix_img_o")
+  @@index([pointId], map: "ix_img_p")
+  @@index([tripId], map: "ix_img_t")
   @@map("images")
 }
