@@ -85,12 +85,12 @@ model TargetType {
 
 model User {
   // UUID stays UUID — never converted to INT.
-  id             String  @id @db.VarChar(36)
-  email          String  @unique(map: "uq_users_email") @db.VarChar(45)
-  firstName      String  @db.VarChar(45)
-  lastName       String  @db.VarChar(45)
-  hashedPassword String  @db.VarChar(85)
-  lastTimeLogin  String? @db.VarChar(24)
+  id             String     @id @db.VarChar(36)
+  email          String     @unique(map: "uq_users_email") @db.VarChar(45)
+  firstName      String     @db.VarChar(45)
+  lastName       String     @db.VarChar(45)
+  hashedPassword String     @db.VarChar(85)
+  lastTimeLogin  String?    @db.VarChar(24)
   countOfLogs    BigInt?
   role           UserRole   @default(user)
   status         UserStatus @default(ACTIVE)
@@ -130,21 +130,21 @@ model TripGroup {
 }
 
 model Trip {
-  id           Int     @id @default(autoincrement())
-  title        String  @db.VarChar(60)
-  description  String? @db.VarChar(2000)
+  id           Int        @id @default(autoincrement())
+  title        String     @db.VarChar(60)
+  description  String?    @db.VarChar(2000)
   price        Float?
-  transport    String? @db.VarChar(45)
+  transport    String?    @db.VarChar(45)
   countPeoples Int
-  typeOfPeople String? @db.VarChar(45)
-  destination  String? @db.VarChar(60)
+  typeOfPeople String?    @db.VarChar(45)
+  destination  String?    @db.VarChar(60)
   // Live ownerId is NULL-able (the FK itself exists and is RESTRICT).
-  ownerId      String? @db.VarChar(36)
-  owner        User?   @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_trips_owner")
+  ownerId      String?    @db.VarChar(36)
+  owner        User?      @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_trips_owner")
   lat          Float?
   lng          Float?
-  countEdited  Int?    @default(0)
-  currency     String? @default("EUR") @db.VarChar(3)
+  countEdited  Int?       @default(0)
+  currency     String?    @default("EUR") @db.VarChar(3)
   dayNumber    Int?
   tripGroupId  Int?
   tripGroup    TripGroup? @relation(fields: [tripGroupId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_trips_group")
@@ -187,17 +187,17 @@ model Point {
 }
 
 model Comment {
-  id         Int    @id @default(autoincrement())
-  nameAuthor String @db.VarChar(45)
-  comment    String @db.VarChar(1000)
-  ownerId    String @db.VarChar(36)
-  owner      User   @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_comments_owner")
+  id           Int        @id @default(autoincrement())
+  nameAuthor   String     @db.VarChar(45)
+  comment      String     @db.VarChar(1000)
+  ownerId      String     @db.VarChar(36)
+  owner        User       @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_comments_owner")
   // Polymorphic target (tripGroup / trip / point / image / comment) — see
   // TargetType. `targetId` has no FK by design.
   targetTypeId Int
   targetType   TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comments_target_type")
   targetId     Int
-  countEdited  Int?    @default(0)
+  countEdited  Int?       @default(0)
 
   createdAt DateTime?
   updatedAt DateTime? @updatedAt
@@ -229,18 +229,18 @@ model Verify {
 
 model FailedLog {
   // Auth-observability row, keyed by email — no User FK is possible.
-  id          Int     @id @default(autoincrement())
-  date        String? @db.VarChar(45)
-  email       String  @db.VarChar(45)
-  ip          String  @db.VarChar(45)
-  userAgent   String  @db.VarChar(145)
-  countryCode String? @map("country_code") @db.VarChar(45)
-  countryName String? @map("country_name") @db.VarChar(145)
-  city        String? @db.VarChar(145)
-  postal      String? @db.VarChar(145)
+  id          Int       @id @default(autoincrement())
+  date        String?   @db.VarChar(45)
+  email       String    @db.VarChar(45)
+  ip          String    @db.VarChar(45)
+  userAgent   String    @db.VarChar(145)
+  countryCode String?   @map("country_code") @db.VarChar(45)
+  countryName String?   @map("country_name") @db.VarChar(145)
+  city        String?   @db.VarChar(145)
+  postal      String?   @db.VarChar(145)
   latitude    Float?
   longitude   Float?
-  state       String? @db.VarChar(45)
+  state       String?   @db.VarChar(45)
   createdAt   DateTime?
 
   @@index([email], map: "ix_failed_email")
@@ -250,17 +250,17 @@ model FailedLog {
 model RouteNotFoundLog {
   // Request-observability row. `reqUserId` may reference a deleted/unknown
   // user, so there is NO hard FK — plain nullable UUID string.
-  id           Int     @id @default(autoincrement())
-  date         String? @db.VarChar(45)
-  reqUrl       String? @db.VarChar(145)
-  reqMethod    String? @db.VarChar(15)
-  reqHeaders   String? @db.VarChar(1000)
-  reqQuery     String? @db.VarChar(145)
-  reqBody      String? @db.VarChar(1000)
-  reqParams    String? @db.VarChar(145)
-  reqIp        String? @db.VarChar(1000)
-  reqUserId    String? @db.VarChar(36)
-  reqUserEmail String? @db.VarChar(245)
+  id           Int       @id @default(autoincrement())
+  date         String?   @db.VarChar(45)
+  reqUrl       String?   @db.VarChar(145)
+  reqMethod    String?   @db.VarChar(15)
+  reqHeaders   String?   @db.VarChar(1000)
+  reqQuery     String?   @db.VarChar(145)
+  reqBody      String?   @db.VarChar(1000)
+  reqParams    String?   @db.VarChar(145)
+  reqIp        String?   @db.VarChar(1000)
+  reqUserId    String?   @db.VarChar(36)
+  reqUserEmail String?   @db.VarChar(245)
   createdAt    DateTime?
 
   @@index([reqUserId], map: "ix_rnf_user")
@@ -338,4 +338,96 @@ model Image {
   @@index([pointId], map: "ix_img_p")
   @@index([tripId], map: "ix_img_t")
   @@map("images")
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic selects + service configuration — STRUCTURE ONLY (no API/FE wiring).
+//
+// `target_types` above is the same idea for polymorphic targets; these models
+// move the remaining hardcoded FE strings/values into rows:
+//   select_types.key   -> transport / group_type / currency
+//   select_options     -> stable `key` for the stored value, `value` for the
+//                         text the FE renders (`key` is unique per type only,
+//                         because `another_type` exists in two types)
+//   service_types.key  -> google_maps / mui / ui / visual / routing
+//   service_configs    -> typed technical configuration per service
+// ---------------------------------------------------------------------------
+
+enum ServiceConfigType {
+  string
+  number
+  boolean
+  json
+}
+
+model SelectType {
+  // One row per select category; data references the stable key.
+  id       Int     @id @default(autoincrement())
+  key      String  @unique(map: "uq_select_types_key") @db.VarChar(60)
+  name     String  @db.VarChar(120)
+  isActive Boolean @default(true)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  options SelectOption[]
+
+  @@map("select_types")
+}
+
+model SelectOption {
+  id           Int        @id @default(autoincrement())
+  selectTypeId Int
+  selectType   SelectType @relation(fields: [selectTypeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_select_options_type")
+  // Stable machine key (car / family_with_children / EUR), unique per type.
+  key          String     @db.VarChar(60)
+  // Displayed text (Car / Family with children / Euro).
+  value        String     @db.VarChar(255)
+  sortOrder    Int        @default(0)
+  isActive     Boolean    @default(true)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  // uq_select_options_type_key doubles as the FK index (leftmost prefix),
+  // so no separate index on selectTypeId is needed.
+  @@unique([selectTypeId, key], map: "uq_select_options_type_key")
+  @@unique([selectTypeId, sortOrder], map: "uq_select_options_type_sort")
+  @@map("select_options")
+}
+
+model ServiceType {
+  // Technical configuration categories — deliberately separate from the
+  // business selects above. No roles/admin settings here.
+  id       Int     @id @default(autoincrement())
+  key      String  @unique(map: "uq_service_types_key") @db.VarChar(60)
+  name     String  @db.VarChar(120)
+  isActive Boolean @default(true)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  configs ServiceConfig[]
+
+  @@map("service_types")
+}
+
+model ServiceConfig {
+  id            Int               @id @default(autoincrement())
+  serviceTypeId Int
+  serviceType   ServiceType       @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_configs_type")
+  key           String            @db.VarChar(60)
+  value         String            @db.VarChar(1000)
+  // string | number | boolean | json — a Prisma enum, so the generated client
+  // is type-safe. No @db native type: Prisma does not allow one on enums, and
+  // this file still must not be used to rewrite existing tables.
+  type          ServiceConfigType @default(string)
+  isActive      Boolean           @default(true)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  // uq_service_configs_type_key doubles as the FK index (leftmost prefix).
+  @@unique([serviceTypeId, key], map: "uq_service_configs_type_key")
+  @@map("service_configs")
 }
