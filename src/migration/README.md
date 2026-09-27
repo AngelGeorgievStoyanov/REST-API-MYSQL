@@ -38,8 +38,8 @@ Exit codes: `0` completed, `1` unexpected error, `2` preflight failure.
 
 1. Preflight: connectivity, legacy tables/columns, target DDL state,
    production gate + backup reference.
-2. `ddl` phase (idempotent, additive only): creates `trip_groups`, `likes`,
-   `favorites`, `trip_reports`, `comment_reports`, `images`, control tables
+2. `ddl` phase (idempotent, additive only): creates `target_types`,
+   `trip_groups`, `likes`, `favorites`, `reports`, `images`, control tables
    (`migration_runs`, `migration_state`, `migration_quarantine`) and
    transitional columns (`legacyId`, `tripGroupNewId`, child `tripId`,
    new `createdAt`/`updatedAt`). Never drops/renames/deletes.

@@ -3,7 +3,7 @@
  * Adds new tables + transitional columns. Never drops/renames/updates data.
  */
 import { PrismaClient } from '@prisma/client';
-import { columnExists, dbCollation, esc, qi, qtable, tableExists } from './db';
+import { TARGET_TYPES, columnExists, dbCollation, esc, qi, qtable, tableExists } from './db';
 import { ensureControlTables } from './state';
 
 async function addColumn(
@@ -40,10 +40,15 @@ async function ensureUniqueKey(
   return true;
 }
 
-export interface DdlReport { createdTables: string[]; addedColumns: string[]; skipped: string[]; }
+export interface DdlReport {
+  createdTables: string[];
+  addedColumns: string[];
+  seededTargetTypes: string[];
+  skipped: string[];
+}
 
 export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: boolean): Promise<DdlReport> {
-  const report: DdlReport = { createdTables: [], addedColumns: [], skipped: [] };
+  const report: DdlReport = { createdTables: [], addedColumns: [], seededTargetTypes: [], skipped: [] };
   const co = await dbCollation(prisma, db);
   // NOTE: live legacy tables were created WITHOUT explicit charset/collation
   // on VARCHAR columns, so they inherit utf8mb4/utf8mb4_0900_ai_ci. New
@@ -53,11 +58,16 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
   const vc = (len: number, nullable: boolean): string =>
     `VARCHAR(${len}) CHARACTER SET utf8mb4 COLLATE ${co}${nullable ? ' NULL DEFAULT NULL' : ' NOT NULL'}`;
   const tables: Array<{ name: string; ddl: () => string }> = [
+    // Polymorphic target lookup table: 1 tripGroup, 2 trip, 3 point, 4 image,
+    // 5 comment. Seeded below (idempotent) with exactly those rows.
+    { name: 'target_types', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`name\` ${vc(30, false)}, UNIQUE KEY \`uq_target_types_name\` (\`name\`)) ENGINE=InnoDB` },
     { name: 'trip_groups', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`ownerId\` ${vc(36, false)}, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, \`updatedAt\` DATETIME(3) NULL DEFAULT NULL, KEY \`ix_tg_owner\` (\`ownerId\`)) ENGINE=InnoDB` },
-    { name: 'likes', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tripId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_likes_ut\` (\`userId\`, \`tripId\`), KEY \`ix_likes_u\` (\`userId\`), KEY \`ix_likes_t\` (\`tripId\`)) ENGINE=InnoDB` },
-    { name: 'favorites', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tripId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_fav_ut\` (\`userId\`, \`tripId\`), KEY \`ix_fav_u\` (\`userId\`), KEY \`ix_fav_t\` (\`tripId\`)) ENGINE=InnoDB` },
-    { name: 'trip_reports', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tripId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_tr_ut\` (\`userId\`, \`tripId\`), KEY \`ix_tr_u\` (\`userId\`), KEY \`ix_tr_t\` (\`tripId\`)) ENGINE=InnoDB` },
-    { name: 'comment_reports', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`commentId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_cr_uc\` (\`userId\`, \`commentId\`), KEY \`ix_cr_u\` (\`userId\`), KEY \`ix_cr_c\` (\`commentId\`)) ENGINE=InnoDB` },
+    // Final likes/favorites/reports shapes (polymorphic targets + group-scoped
+    // favorites). There is NO likes.tripId / favorites.tripId / trip_reports /
+    // comment_reports in the final schema.
+    { name: 'likes', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`targetTypeId\` INT NOT NULL, \`targetId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_likes_user_target\` (\`userId\`, \`targetTypeId\`, \`targetId\`), KEY \`ix_likes_u\` (\`userId\`), KEY \`ix_likes_target\` (\`targetTypeId\`, \`targetId\`)) ENGINE=InnoDB` },
+    { name: 'favorites', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tripGroupId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_fav_user_group\` (\`userId\`, \`tripGroupId\`), KEY \`ix_fav_u\` (\`userId\`), KEY \`ix_fav_tg\` (\`tripGroupId\`)) ENGINE=InnoDB` },
+    { name: 'reports', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`targetTypeId\` INT NOT NULL, \`targetId\` INT NOT NULL, \`reason\` ${vc(1000, true)}, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_reports_user_target\` (\`userId\`, \`targetTypeId\`, \`targetId\`), KEY \`ix_reports_user\` (\`userId\`), KEY \`ix_reports_target\` (\`targetId\`), KEY \`ix_reports_target_type\` (\`targetTypeId\`)) ENGINE=InnoDB` },
     { name: 'images', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`ownerId\` ${vc(36, true)}, \`tripId\` INT NULL DEFAULT NULL, \`pointId\` INT NULL DEFAULT NULL, \`filePath\` ${vc(1000, false)}, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, \`updatedAt\` DATETIME(3) NULL DEFAULT NULL, KEY \`ix_img_o\` (\`ownerId\`), KEY \`ix_img_t\` (\`tripId\`), KEY \`ix_img_p\` (\`pointId\`)) ENGINE=InnoDB` },
   ];
   for (const t of tables) {
@@ -65,6 +75,25 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
     else {
       if (!dryRun) await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS ${qtable(db, t.name)} ${t.ddl()}`);
       report.createdTables.push(t.name);
+    }
+  }
+  // Seed the polymorphic lookup table with its five fixed rows. Explicit ids
+  // on purpose: likes/reports/Comments.targetTypeId values are seed ids, so
+  // the ids themselves are part of the final contract (never auto-allocated).
+  if (!(await tableExists(prisma, db, 'target_types'))) {
+    report.skipped.push('target_types seed (table not created in this dry-run)');
+  } else {
+    for (const [id, name] of TARGET_TYPES) {
+      if (dryRun) {
+        report.skipped.push(`target_types seed ${id}=${name} (dry-run: not written)`);
+        continue;
+      }
+      const res = (await prisma.$executeRawUnsafe(
+        `INSERT IGNORE INTO ${qtable(db, 'target_types')} (${qi('id')}, ${qi('name')}) VALUES (${id}, '${esc(name)}')`,
+      )) as unknown as { affectedRows?: number };
+      const created = Number(res?.affectedRows ?? 0) === 1;
+      if (created) report.seededTargetTypes.push(`${id}=${name}`);
+      else report.skipped.push(`target_types ${id}=${name} already present`);
     }
   }
   const columns: Array<{ table: string; column: string; definition: () => string }> = [
@@ -89,7 +118,12 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
     { table: 'points', column: 'createdAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'points', column: 'updatedAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'comments', column: 'legacyId', definition: () => `${vc(36, true)}, ADD UNIQUE KEY \`uq_comments_legacyId\` (\`legacyId\`)` },
-    { table: 'comments', column: 'tripId', definition: () => 'INT NULL DEFAULT NULL' },
+    // Comments are polymorphic in the final schema: targetTypeId + a bare
+    // targetId (no comments.tripId exists in the final DB). Both are NULL-able
+    // while they are backfilled and are narrowed to NOT NULL by the activate
+    // step once the readiness report is clean.
+    { table: 'comments', column: 'targetTypeId', definition: () => 'INT NULL DEFAULT NULL' },
+    { table: 'comments', column: 'targetId', definition: () => 'INT NULL DEFAULT NULL' },
     { table: 'comments', column: 'createdAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'comments', column: 'updatedAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'users', column: 'createdAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },

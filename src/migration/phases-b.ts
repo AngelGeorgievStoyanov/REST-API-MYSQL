@@ -20,12 +20,14 @@ import {
 } from './db';
 import { isStateUnavailable, lookupState, lookupStateOrPending, quarantineDryAware, recordState } from './state';
 import { Counters } from './types';
+import { TARGET_TYPE, userExistsById } from './db';
 
+/**
+ * Shape-aware user lookup. `users._id` in the legacy source; `users.id` once
+ * the finalize step renamed the column, so the name is resolved at runtime.
+ */
 async function userExists(exec: DbExecutor, db: string, id: string): Promise<boolean> {
-  const rows = (await exec.$queryRawUnsafe(
-    `SELECT 1 AS ok FROM ${qtable(db, 'users')} WHERE ${qi('_id')} = '${esc(id)}' LIMIT 1`,
-  )) as Array<{ ok: number }>;
-  return rows.length > 0;
+  return userExistsById(exec, db, id);
 }
 
 async function runBody(
@@ -180,14 +182,16 @@ async function phaseChild(
   entity: 'Point' | 'Comment',
   table: 'points' | 'comments',
   legacyParent: '_ownerTripId' | '_tripId',
+  parentIntCol: 'tripId' | 'targetId' = 'tripId',
+  parentTypeId: number | null = null,
 ): Promise<Counters> {
   const keyCol = (await legacyKeyColumn(prisma, db, table)) || '_id';
   const ownerCol = (await ownerColumn(prisma, db, table)) || '_ownerId';
-  const parentCol = (await parentPointerColumn(prisma, db, table, legacyParent)) || legacyParent;
+  const parentCol = (await parentPointerColumn(prisma, db, table, legacyParent, parentIntCol)) || legacyParent;
   const swapped = keyCol !== '_id';
-  const tripIdPresent = (
+  const parentIntPresent = (
     (await prisma.$queryRawUnsafe(
-      `SELECT 1 AS ok FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = 'tripId' LIMIT 1`,
+      `SELECT 1 AS ok FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(parentIntCol)}' LIMIT 1`,
     )) as Array<{ ok: number }>
   ).length > 0;
   const rows = (await prisma.$queryRawUnsafe(`SELECT * FROM ${qtable(db, table)}`)) as Array<Record<string, unknown>>;
@@ -207,8 +211,9 @@ async function phaseChild(
         continue;
       }
       const rawParent = cell(r, parentCol);
-      // Post-activate the UUID pointer is gone and tripId is the INT.
-      const parentIsInt = parentCol === 'tripId' && rawParent !== '' && Number.isInteger(Number(rawParent));
+      // Post-activate the UUID pointer is gone and the final INT pointer holds
+      // the resolved parent id.
+      const parentIsInt = parentCol === parentIntCol && rawParent !== '' && Number.isInteger(Number(rawParent));
       if (!parentIsInt && !isUuid(rawParent)) {
         if (await quarantineDryAware(exec, db, dryRun, runId, entity, legacy, 'INVALID_TRIP', `${entity} parent trip pointer is not a canonical trip UUID.`, { trip: rawParent })) c.quarantined++;
         continue;
@@ -253,19 +258,25 @@ async function phaseChild(
       const updated = timestampForWrite(r['timeEdited']) || missingPointStamp;
       // Dry-run only reports the row that the live UPDATE below would write.
       if (dryRun) { c.migrated++; continue; }
-      if (!tripIdPresent) {
-        throw new Error(`${table}.tripId column missing; re-run the ddl phase before migrating ${entity}.`);
+      if (!parentIntPresent) {
+        throw new Error(`${table}.${parentIntCol} column missing; re-run the ddl phase before migrating ${entity}.`);
       }
       // Parent INT may still be the pre-pkswap 0 placeholder. Write legacyId
-      // anyway so pkswap can assign this row's own INT id. Leave tripId NULL
-      // only in that case; backfill sets it once the Trip mapping is real.
-      // When the Trip INT already exists, tripId is written in this same
-      // statement — never counted as migrated without the write.
-      const tripAssign = tripPending ? '' : `${qi('tripId')} = ${tid}, `;
+      // anyway so pkswap can assign this row's own INT id. Leave the parent
+      // pointer NULL only in that case; backfill sets it once the parent
+      // mapping is real. When the parent INT already exists, it is written in
+      // this same statement — never counted as migrated without the write.
+      // Comments carry their polymorphic target type (2 = trip) in the same
+      // write; points have no target type (Trip.points is a direct FK).
+      const parentAssign = tripPending
+        ? ''
+        : (parentTypeId === null
+          ? `${qi(parentIntCol)} = ${tid}, `
+          : `${qi('targetTypeId')} = ${parentTypeId}, ${qi(parentIntCol)} = ${tid}, `);
       const where = swapped ? `${qi('legacyId')} = '${esc(legacy)}'` : `${qi('_id')} = '${esc(legacy)}'`;
       await exec.$executeRawUnsafe(
         `UPDATE ${qtable(db, table)} SET ${qi('legacyId')} = '${esc(legacy)}', ` +
-        `${tripAssign}` +
+        `${parentAssign}` +
         `${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'}, ${qi('updatedAt')} = ${updated ? `'${updated}'` : 'NULL'} ` +
         `WHERE ${where}`,
       );
@@ -279,5 +290,7 @@ async function phaseChild(
 export const phasePoints = (p: PrismaClient, db: string, r: number, d: boolean) =>
   phaseChild(p, db, r, d, 'Point', 'points', '_ownerTripId');
 
+// Comments are polymorphic in the final schema: the legacy trip pointer lands
+// in `targetId` with `targetTypeId = 2` (trip). There is no comments.tripId.
 export const phaseComments = (p: PrismaClient, db: string, r: number, d: boolean) =>
-  phaseChild(p, db, r, d, 'Comment', 'comments', '_tripId');
+  phaseChild(p, db, r, d, 'Comment', 'comments', '_tripId', 'targetId', TARGET_TYPE.trip);

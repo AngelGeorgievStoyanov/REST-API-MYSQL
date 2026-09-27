@@ -52,8 +52,31 @@ export function qtable(db: string, table: string): string {
   return qi(db) + '.' + qi(table);
 }
 
+/**
+ * Seed ids of the polymorphic `target_types` lookup table. The final schema
+ * stores ONE generic likes/reports/Comments target column pair
+ * (`targetTypeId` + bare `targetId`) instead of per-resource tables, and the
+ * live target database holds exactly these five rows.
+ */
+export const TARGET_TYPE = {
+  tripGroup: 1,
+  trip: 2,
+  point: 3,
+  image: 4,
+  comment: 5,
+} as const;
+
+/** Ordered seed content of `target_types` (id, name) — final schema order. */
+export const TARGET_TYPES: ReadonlyArray<readonly [number, string]> = [
+  [TARGET_TYPE.tripGroup, 'tripGroup'],
+  [TARGET_TYPE.trip, 'trip'],
+  [TARGET_TYPE.point, 'point'],
+  [TARGET_TYPE.image, 'image'],
+  [TARGET_TYPE.comment, 'comment'],
+];
+
 export async function columnExists(
-  prisma: PrismaClient,
+  prisma: DbExecutor,
   db: string,
   table: string,
   column: string,
@@ -65,7 +88,7 @@ export async function columnExists(
 }
 
 export async function tableExists(
-  prisma: PrismaClient,
+  prisma: DbExecutor,
   db: string,
   table: string,
 ): Promise<boolean> {
@@ -76,7 +99,7 @@ export async function tableExists(
 }
 
 export async function columnType(
-  prisma: PrismaClient,
+  prisma: DbExecutor,
   db: string,
   table: string,
   column: string,
@@ -85,6 +108,19 @@ export async function columnType(
     `SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}'`,
   )) as Array<{ t: string }>;
   return rows.length > 0 ? String(rows[0].t) : '';
+}
+
+export async function columnNullable(
+  prisma: DbExecutor,
+  db: string,
+  table: string,
+  column: string,
+): Promise<boolean | null> {
+  const rows = (await prisma.$queryRawUnsafe(
+    `SELECT IS_NULLABLE AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}'`,
+  )) as Array<{ n: string }>;
+  if (rows.length === 0) return null;
+  return String(rows[0].n).toUpperCase() === 'YES';
 }
 
 /**
@@ -112,6 +148,41 @@ export async function ownerColumn(
 }
 
 /**
+ * Live primary-key column name of `users`.
+ *
+ * The legacy source declares `users._id VARCHAR(36)`; the final schema has
+ * `users.id` (no column name may start with `_`), so the activate/finalize
+ * step renames it. Every phase that reads or joins a user must resolve the
+ * name at runtime instead of hardcoding `_id`, otherwise a rerun after the
+ * rename fails with "Unknown column '_id'". Returns '' when neither exists.
+ */
+export async function userKeyColumn(
+  exec: DbExecutor,
+  db: string,
+): Promise<string> {
+  const rows = (await exec.$queryRawUnsafe(
+    `SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = 'users' AND COLUMN_NAME IN ('id', '_id')`,
+  )) as Array<{ c: string }>;
+  const names = new Set(rows.map((r) => String(r.c)));
+  if (names.has('id')) return 'id';
+  if (names.has('_id')) return '_id';
+  return '';
+}
+
+/** True when a surviving user row has this UUID (shape-aware user key). */
+export async function userExistsById(
+  exec: DbExecutor,
+  db: string,
+  id: string,
+): Promise<boolean> {
+  const col = (await userKeyColumn(exec, db)) || '_id';
+  const rows = (await exec.$queryRawUnsafe(
+    `SELECT 1 AS ok FROM ${qtable(db, 'users')} WHERE ${qi(col)} = '${esc(id)}' LIMIT 1`,
+  )) as Array<{ ok: number }>;
+  return rows.length > 0;
+}
+
+/**
  * Live column that still holds the legacy UUID of a resource row.
  * Pre-pkswap that is `_id`; after the swap `_id` is dropped and the UUID
  * lives in `legacyId`. Returns '' when neither exists.
@@ -132,8 +203,11 @@ export async function legacyKeyColumn(
 
 /**
  * Legacy parent pointer on a child table. Activate drops `_ownerTripId` /
- * `_tripId` once the INT `tripId` FK is enforced, so post-activate reads must
- * fall back to `tripId` (callers treat a numeric value as "already an INT").
+ * `_tripId` once the final INT pointer is enforced, so post-activate reads
+ * must fall back to the final INT column (callers treat a numeric value as
+ * "already an INT"):
+ *  - points   -> tripId      (final Points.tripId)
+ *  - comments -> targetId    (final Comment.targetId + targetTypeId = 2)
  * Returns '' when none of the candidates exist.
  */
 export async function parentPointerColumn(
@@ -141,13 +215,14 @@ export async function parentPointerColumn(
   db: string,
   table: string,
   legacyName: '_ownerTripId' | '_tripId',
+  intName: string = 'tripId',
 ): Promise<string> {
   const rows = (await exec.$queryRawUnsafe(
-    `SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME IN ('${legacyName}', 'tripId')`,
+    `SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME IN ('${legacyName}', '${esc(intName)}')`,
   )) as Array<{ c: string }>;
   const names = new Set(rows.map((r) => String(r.c)));
   if (names.has(legacyName)) return legacyName;
-  if (names.has('tripId')) return 'tripId';
+  if (names.has(intName)) return intName;
   return '';
 }
 

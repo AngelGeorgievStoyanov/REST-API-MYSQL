@@ -4,7 +4,7 @@
  * (it is a GCS sidecar of the stored base filename).
  */
 import { PrismaClient } from '@prisma/client';
-import { DbExecutor, esc, inTx, qi, qtable, splitList } from './db';
+import { DbExecutor, columnExists, esc, inTx, qi, qtable, splitList, userExistsById, userKeyColumn } from './db';
 import { isStateUnavailable, lookupState, lookupStateOrPending, quarantineDryAware, recordState } from './state';
 import { Counters } from './types';
 
@@ -20,10 +20,15 @@ async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: bo
     ).length > 0;
   const tripsIdExpr = (await hasUuid('trips')) ? qi('_id') : qi('legacyId');
   const pointsIdExpr = (await hasUuid('points')) ? qi('_id') : qi('legacyId');
+  // The legacy image columns are dropped at the end of a completed migration:
+  // a rerun then has nothing left to migrate (never crash on a finished DB).
+  const tripsImageCol = await columnExists(exec, db, 'trips', 'imageFile');
+  const pointsImageCol = await columnExists(exec, db, 'points', 'imageFile');
+  const usersImageCol = await columnExists(exec, db, 'users', 'imageFile');
   {
-    const tripRows = (await exec.$queryRawUnsafe(
+    const tripRows = tripsImageCol ? ((await exec.$queryRawUnsafe(
       `SELECT ${tripsIdExpr} AS legacy, ${qi('imageFile')} AS raw FROM ${qtable(db, 'trips')}`,
-    )) as Array<{ legacy: unknown; raw: unknown }>;
+    )) as Array<{ legacy: unknown; raw: unknown }>) : [];
     for (const r of tripRows) {
       const legacy = String(r.legacy ?? '');
       let tid: number | null = null;
@@ -61,9 +66,9 @@ async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: bo
     }
   }
   {
-    const pointRows = (await exec.$queryRawUnsafe(
+    const pointRows = pointsImageCol ? ((await exec.$queryRawUnsafe(
       `SELECT ${pointsIdExpr} AS legacy, ${qi('imageFile')} AS raw FROM ${qtable(db, 'points')}`,
-    )) as Array<{ legacy: unknown; raw: unknown }>;
+    )) as Array<{ legacy: unknown; raw: unknown }>) : [];
     for (const r of pointRows) {
       const legacy = String(r.legacy ?? '');
       let pid: number | null = null;
@@ -101,15 +106,16 @@ async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: bo
     }
   }
   {
-    const userRows = (await exec.$queryRawUnsafe(
-      `SELECT ${qi('_id')} AS legacy, ${qi('imageFile')} AS raw FROM ${qtable(db, 'users')}`,
-    )) as Array<{ legacy: unknown; raw: unknown }>;
+    // User avatars: the legacy users.imageFile column is the owner-scoped image
+    // source. The user key column is resolved at runtime (`_id` in the legacy
+    // source, `id` once the finalize step renamed it).
+    const userKeyCol = (await userKeyColumn(exec, db)) || '_id';
+    const userRows = usersImageCol ? ((await exec.$queryRawUnsafe(
+      `SELECT ${qi(userKeyCol)} AS legacy, ${qi('imageFile')} AS raw FROM ${qtable(db, 'users')}`,
+    )) as Array<{ legacy: unknown; raw: unknown }>) : [];
     for (const r of userRows) {
       const legacy = String(r.legacy ?? '');
-      const ok = (await exec.$queryRawUnsafe(
-        `SELECT 1 AS ok FROM ${qtable(db, 'users')} WHERE ${qi('_id')} = '${esc(legacy)}' LIMIT 1`,
-      )) as Array<{ ok: number }>;
-      if (ok.length === 0) continue;
+      if (!(await userExistsById(exec, db, legacy))) continue;
       for (const f of splitList(r.raw)) {
         const key = 'user:' + legacy + ':' + f;
         const already = await lookupStateOrPending(exec, db, dryRun, 'Image', key);

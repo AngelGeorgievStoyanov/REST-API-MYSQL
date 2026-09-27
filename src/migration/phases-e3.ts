@@ -10,15 +10,6 @@ import { esc, qi, qtable, toCount } from './db';
 import { isStateUnavailable, lookupState, recordState } from './state';
 import { Counters } from './types';
 
-void tableHasColumn;
-
-async function tableHasColumn(_prisma: PrismaClient, _db: string, _table: string, _column: string): Promise<boolean> {
-  void _prisma; void _db; void _table; void _column;
-  // Probe helper retained for future shape checks; current groupfinalize
-  // uses colType() probes instead. Kept (not deleted) to avoid churn.
-  return false;
-}
-
 export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
   const done = await lookupState(prisma, db, dryRun, 'TripGroup:finalized', 'done').catch((e: unknown) => {

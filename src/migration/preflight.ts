@@ -5,6 +5,11 @@
  * legacy source tables, missing migration DDL prerequisites, or production
  * target without backup + dual confirmation. Dry-run mode can still report
  * what WOULD happen after these checks pass.
+ *
+ * A legacy source column that the data phases READ may legitimately be gone
+ * because the migration already retired it — that case is downgraded to a
+ * warning when the corresponding final object exists, so `--verify` still works
+ * on a finished database. Everything else stays fatal.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -14,7 +19,7 @@ import {
   isLocalhostTarget,
   MIGRATION_VERSION,
 } from './config';
-import { columnExists, tableExists, dbName, qtable } from './db';
+import { columnExists, columnType, dbName, qtable, tableExists } from './db';
 
 export interface PreflightResult {
   ok: boolean;
@@ -34,46 +39,68 @@ const LEGACY_TABLES = [
   'routenotfoundlogs',
 ];
 
-const TARGET_TABLES = ['trip_groups', 'likes', 'favorites', 'trip_reports', 'comment_reports', 'images'];
+/** Target objects the migration creates. Missing ones are fine when the ddl
+ *  phase is part of the requested run. */
+const TARGET_TABLES = ['target_types', 'trip_groups', 'likes', 'favorites', 'reports', 'images'];
 
-async function sourceColumnReport(prisma: PrismaClient, db: string): Promise<string[]> {
+
+interface SourceRequirement {
+  table: string;
+  column: string;
+  /** True when the final shape that replaced this source column is present. */
+  migratedWhen: () => Promise<boolean>;
+  /** What the column feeds, used in the warning text. */
+  feeds: string;
+}
+
+async function sourceColumnReport(
+  prisma: PrismaClient,
+  db: string,
+): Promise<{ fatal: string[]; warnings: string[] }> {
   const fatal: string[] = [];
-  const need: Array<[string, string]> = [
-    ['users', '_id'],
-    ['users', 'email'],
-    ['users', 'role'],
-    ['users', 'status'],
-    ['trips', '_id'],
-    ['trips', '_ownerId'],
-    ['trips', 'tripGroupId'],
-    ['trips', 'dayNumber'],
-    ['trips', 'likes'],
-    ['trips', 'favorites'],
-    ['trips', 'reportTrip'],
-    ['trips', 'imageFile'],
-    ['points', '_id'],
-    ['points', '_ownerId'],
-    ['points', '_ownerTripId'],
-    ['points', 'imageFile'],
-    ['comments', '_id'],
-    ['comments', '_ownerId'],
-    ['comments', '_tripId'],
-    ['comments', 'reportComment'],
-    ['verify', '_id'],
-    ['verify', 'userId'],
-    ['failedlogs', '_id'],
-    ['routenotfoundlogs', '_id'],
+  const warnings: string[] = [];
+  const hasId = (table: string): Promise<boolean> => columnExists(prisma, db, table, 'id');
+  const tableFilled = (table: string): Promise<boolean> => tableExists(prisma, db, table);
+  const requirements: SourceRequirement[] = [
+    // user identity: `_id` -> final `id`
+    { table: 'users', column: '_id', feeds: 'users.id', migratedWhen: () => hasId('users') },
+    { table: 'users', column: 'email', feeds: 'users.email', migratedWhen: async () => false },
+    { table: 'users', column: 'role', feeds: 'users.role', migratedWhen: async () => false },
+    { table: 'users', column: 'status', feeds: 'users.status', migratedWhen: async () => false },
+    // trips
+    { table: 'trips', column: '_id', feeds: 'trips.id', migratedWhen: () => hasId('trips') },
+    { table: 'trips', column: '_ownerId', feeds: 'trips.ownerId', migratedWhen: () => columnExists(prisma, db, 'trips', 'ownerId') },
+    { table: 'trips', column: 'tripGroupId', feeds: 'trips.tripGroupId', migratedWhen: async () => false },
+    { table: 'trips', column: 'dayNumber', feeds: 'trips.dayNumber', migratedWhen: async () => false },
+    { table: 'trips', column: 'likes', feeds: 'likes(targetTypeId=2)', migratedWhen: () => tableFilled('likes') },
+    { table: 'trips', column: 'favorites', feeds: 'favorites', migratedWhen: () => tableFilled('favorites') },
+    { table: 'trips', column: 'reportTrip', feeds: 'reports(targetTypeId=2)', migratedWhen: () => tableFilled('reports') },
+    { table: 'trips', column: 'imageFile', feeds: 'images', migratedWhen: () => tableFilled('images') },
+    // points
+    { table: 'points', column: '_id', feeds: 'points.id', migratedWhen: () => hasId('points') },
+    { table: 'points', column: '_ownerId', feeds: 'points.ownerId', migratedWhen: () => columnExists(prisma, db, 'points', 'ownerId') },
+    { table: 'points', column: '_ownerTripId', feeds: 'points.tripId', migratedWhen: () => columnExists(prisma, db, 'points', 'tripId') },
+    { table: 'points', column: 'imageFile', feeds: 'images', migratedWhen: () => tableFilled('images') },
+    // comments
+    { table: 'comments', column: '_id', feeds: 'comments.id', migratedWhen: () => hasId('comments') },
+    { table: 'comments', column: '_ownerId', feeds: 'comments.ownerId', migratedWhen: () => columnExists(prisma, db, 'comments', 'ownerId') },
+    { table: 'comments', column: '_tripId', feeds: 'comments.targetId (targetTypeId=2)', migratedWhen: () => columnExists(prisma, db, 'comments', 'targetId') },
+    { table: 'comments', column: 'reportComment', feeds: 'reports(targetTypeId=5)', migratedWhen: () => tableFilled('reports') },
+    // verify / logs
+    { table: 'verify', column: '_id', feeds: 'verify.id', migratedWhen: () => hasId('verify') },
+    { table: 'verify', column: 'userId', feeds: 'verify.userId', migratedWhen: async () => false },
+    { table: 'failedlogs', column: '_id', feeds: 'failedlogs.id', migratedWhen: () => hasId('failedlogs') },
+    { table: 'routenotfoundlogs', column: '_id', feeds: 'routenotfoundlogs.id', migratedWhen: () => hasId('routenotfoundlogs') },
   ];
-  for (const [table, column] of need) {
-    if (await columnExists(prisma, db, table, column)) continue;
-    // pkswap drops the UUID `_id` after copying it to `legacyId`. A resumed
-    // run (dry or live) must accept that shape; users._id is never swapped.
-    if (column === '_id' && table !== 'users' && table !== 'verify') {
-      if (await columnExists(prisma, db, table, 'legacyId')) continue;
+  for (const req of requirements) {
+    if (await columnExists(prisma, db, req.table, req.column)) continue;
+    if (await req.migratedWhen()) {
+      warnings.push(`source column already retired: ${db}.${req.table}.${req.column} (already migrated into ${req.feeds})`);
+      continue;
     }
-    fatal.push(`source schema differs: missing ${db}.${table}.${column}`);
+    fatal.push(`source schema differs: missing ${db}.${req.table}.${req.column}`);
   }
-  return fatal;
+  return { fatal, warnings };
 }
 
 export async function preflight(prisma: PrismaClient, opts?: { allowMissingTargets?: boolean }): Promise<PreflightResult> {
@@ -100,26 +127,37 @@ export async function preflight(prisma: PrismaClient, opts?: { allowMissingTarge
   for (const t of LEGACY_TABLES) {
     if (!(await tableExists(prisma, db, t))) fatal.push(`missing legacy table ${db}.${t}`);
   }
-  fatal.push(...(await sourceColumnReport(prisma, db)));
+  const source = await sourceColumnReport(prisma, db);
+  fatal.push(...source.fatal);
+  warnings.push(...source.warnings);
 
+  // Target objects: missing ones are created by the ddl phase. The trips group
+  // column must exist in SOME shape (legacy VARCHAR, transitional
+  // tripGroupNewId, or the finalized INT tripGroupId).
   const missingTargets: string[] = [];
   for (const t of TARGET_TABLES) {
     if (!(await tableExists(prisma, db, t))) missingTargets.push(t);
   }
-  const tripsNewIdMissing = !(await columnExists(prisma, db, 'trips', 'tripGroupNewId'));
-  if (missingTargets.length > 0 || tripsNewIdMissing) {
+  const groupType = await columnType(prisma, db, 'trips', 'tripGroupId');
+  const groupFinalized = groupType.toLowerCase().includes('int');
+  const newIdPresent = await columnExists(prisma, db, 'trips', 'tripGroupNewId');
+  const groupColumnPresent = groupType !== '' || newIdPresent;
+
+  if (missingTargets.length > 0 || !groupColumnPresent || !groupFinalized) {
     if (opts?.allowMissingTargets) {
       for (const t of missingTargets) warnings.push(`target table missing (will be created by ddl phase): ${t}`);
-      if (tripsNewIdMissing) warnings.push('trips.tripGroupNewId missing (will be created by ddl phase)');
-    } else if (missingTargets.length > 0) {
-      fatal.push(
-        `target schemaDDL not applied (missing: ${missingTargets.join(', ')}). ` +
-          `Apply the migration DDL phase or synced schema before data migration.`,
-      );
+      if (!groupColumnPresent) warnings.push('trips trip-group column missing (ddl phase will add tripGroupNewId)');
+      else if (!groupFinalized) warnings.push('trips.tripGroupId not finalized to INT yet (groupfinalize phase pending)');
+    } else {
+      if (missingTargets.length > 0) {
+        fatal.push(
+          `target schema DDL not applied (missing: ${missingTargets.join(', ')}). ` +
+            'Apply the migration DDL phase or a synced schema before data migration.',
+        );
+      }
+      if (!groupColumnPresent) fatal.push('missing trips.tripGroupId/tripGroupNewId — run the ddl phase before data migration.');
+      else if (!groupFinalized) fatal.push('trips.tripGroupId is not INT yet — run the groupfinalize phase before activation.');
     }
-  }
-  if (tripsNewIdMissing && !opts?.allowMissingTargets) {
-    fatal.push('missing trips.tripGroupNewId — run the ddl phase before data migration.');
   }
 
   const isProduction = !isLocalhostTarget(env.databaseUrl);
@@ -141,3 +179,4 @@ export function productionGateError(): string[] {
 }
 
 export { dbName, qtable };
+

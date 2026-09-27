@@ -11,7 +11,7 @@
  */
 
 import { MIGRATION_NAME, MIGRATION_VERSION } from './config';
-import { DbExecutor, esc, qi, qtable } from './db';
+import { DbExecutor, esc, legacyGroupColumn, legacyKeyColumn, qi, qtable } from './db';
 
 export const RUN_TABLE = 'migration_runs';
 export const STATE_TABLE = 'migration_state';
@@ -86,9 +86,19 @@ export async function finishRun(
   error: string,
 ): Promise<void> {
   const safe = esc(error.slice(0, 1900));
-  await exec.$executeRawUnsafe(
-    `UPDATE ${qtable(db, RUN_TABLE)} SET ${qi('status')} = '${status}', ${qi('completed_at')} = CURRENT_TIMESTAMP(3), ${qi('error')} = '${safe}' WHERE ${qi('id')} = ${runId}`,
-  );
+  try {
+    await exec.$executeRawUnsafe(
+      `UPDATE ${qtable(db, RUN_TABLE)} SET ${qi('status')} = '${status}', ${qi('completed_at')} = CURRENT_TIMESTAMP(3), ${qi('error')} = '${safe}' WHERE ${qi('id')} = ${runId}`,
+    );
+  } catch (e) {
+    // The activate phase drops the migration control tables from the final
+    // database by design, so the run record can legitimately be gone here.
+    if (String((e as Error).message).includes("doesn't exist")) {
+      console.log(`[state] ${RUN_TABLE} was finalized away; run ${runId} (${status}) is not persisted (by design).`);
+      return;
+    }
+    throw e;
+  }
 }
 
 /** Dry-run before ddl: migration_state does not exist yet, so no mapping can be read. */
@@ -200,6 +210,70 @@ export async function resolvePlaceholder(
   }
   const v = idRows[0].n;
   return typeof v === 'bigint' ? Number(v) : Number(v);
+}
+
+/**
+ * Resolution outcome for a legacy source row's final polymorphic/FK target.
+ *   target  -> the final INT id exists, migrate the tokens
+ *   pending -> the INT id is not assigned yet (state table absent in a dry-run,
+ *              or a placeholder row that the PK swap will promote). Skip, never
+ *              quarantine: reruns converge.
+ *   unmapped-> the mapping does not exist (parent row missing/quarantined or
+ *              group never seen). Quarantine the tokens, never guess.
+ */
+export type TargetResolution =
+  | { kind: 'target'; id: number }
+  | { kind: 'pending' }
+  | { kind: 'unmapped' };
+
+/**
+ * Final INT trip_groups.id of the group a legacy trip belongs to.
+ *
+ * Favorites attach to the trip GROUP (`favorites.tripGroupId`), never to a
+ * single day row (`trips.id`), so the legacy trip UUID must be resolved to its
+ * final group id. Works in every shape the trips table can be in:
+ *   - legacy VARCHAR tripGroupId    -> migration_state('TripGroup', uuid)
+ *   - transitional tripGroupNewId   -> read off the trip row (INT)
+ *   - finalized INT tripGroupId     -> read off the trip row (INT)
+ * Nothing is ever invented: an unresolvable group is reported as `unmapped`.
+ */
+export async function resolveTripGroupIntForTrip(
+  exec: DbExecutor,
+  db: string,
+  dryRun: boolean,
+  legacyTrip: string,
+): Promise<TargetResolution> {
+  const keyCol = await legacyKeyColumn(exec, db, 'trips');
+  if (keyCol === '') return { kind: 'unmapped' };
+  const groupCol = await legacyGroupColumn(exec, db);
+  let raw: unknown;
+  try {
+    const groupExpr = groupCol === '' ? 'NULL' : qi(groupCol);
+    const rows = (await exec.$queryRawUnsafe(
+      `SELECT ${groupExpr} AS g FROM ${qtable(db, 'trips')} WHERE ${qi(keyCol)} = '${esc(legacyTrip)}' LIMIT 1`,
+    )) as Array<{ g: unknown }>;
+    if (rows.length === 0) return { kind: 'unmapped' };
+    raw = rows[0].g;
+  } catch (e) {
+    // Dry-run before the ddl phase: the transitional columns/tables do not
+    // exist yet. That is "not assigned yet", never a data defect.
+    if (dryRun && (e as Error).message.includes('Unknown column')) return { kind: 'pending' };
+    throw e;
+  }
+  const g = raw === null || raw === undefined ? '' : String(raw).trim();
+  if (g === '') return { kind: 'unmapped' };
+  // Already an INT: the group pointer has been finalized/backfilled.
+  if (/^[0-9]+$/.test(g)) return { kind: 'target', id: Number(g) };
+  try {
+    const gid = await lookupState(exec, db, dryRun, 'TripGroup', g);
+    // A 0 placeholder marks a group that was seen but could not be migrated
+    // (no surviving owner); such a group can never hold a favorite.
+    if (gid === null || gid === 0) return { kind: 'unmapped' };
+    return { kind: 'target', id: gid };
+  } catch (e) {
+    if (isStateUnavailable(e)) return { kind: 'pending' };
+    throw e;
+  }
 }
 
 export async function quarantineDryAware(

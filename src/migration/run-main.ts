@@ -11,8 +11,8 @@ import { ensureControlTables, finishRun, startRun } from './state';
 import { runDdlPhase } from './ddl';
 import { phaseTripGroups, phaseUsers } from './phases-a';
 import { phaseComments, phasePoints, phaseTrips } from './phases-b';
-import { phaseFavorites, phaseLikes, phaseTripReports } from './phases-c1';
-import { phaseCommentReports } from './phases-c2';
+import { phaseFavorites, phaseLikes } from './phases-c1';
+import { phaseReports } from './phases-c2';
 import { phaseImages } from './phases-c3';
 import { phaseVerify } from './phases-d1';
 import { phaseLogs } from './phases-d2';
@@ -35,7 +35,7 @@ async function runPhase(
     case 'ddl': {
       const ddl = await runDdlPhase(prisma, db, dryRun);
       report['ddl'] = ddl;
-      console.log(`[ddl] tables=${ddl.createdTables.length} columns=${ddl.addedColumns.length} skipped=${ddl.skipped.length}`);
+      console.log(`[ddl] tables=${ddl.createdTables.length} columns=${ddl.addedColumns.length} target_types_seeded=${ddl.seededTargetTypes.length} skipped=${ddl.skipped.length}`);
       break;
     }
     case 'users': report['users'] = await phaseUsers(prisma, db, runId, dryRun); break;
@@ -45,8 +45,7 @@ async function runPhase(
     case 'comments': report['comments'] = await phaseComments(prisma, db, runId, dryRun); break;
     case 'likes': report['likes'] = await phaseLikes(prisma, db, runId, dryRun); break;
     case 'favorites': report['favorites'] = await phaseFavorites(prisma, db, runId, dryRun); break;
-    case 'tripReports': report['tripReports'] = await phaseTripReports(prisma, db, runId, dryRun); break;
-    case 'commentReports': report['commentReports'] = await phaseCommentReports(prisma, db, runId, dryRun); break;
+    case 'reports': report['reports'] = await phaseReports(prisma, db, runId, dryRun); break;
     case 'images': report['images'] = await phaseImages(prisma, db, runId, dryRun); break;
     case 'verify': report['verify'] = await phaseVerify(prisma, db, runId, dryRun); break;
     case 'logs': report['logs'] = await phaseLogs(prisma, db, runId, dryRun); break;

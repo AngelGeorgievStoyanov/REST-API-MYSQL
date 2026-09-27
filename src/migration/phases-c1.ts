@@ -1,105 +1,52 @@
 /**
- * PHASE 4 — per-phase migration, part C1 (likes/favorites/tripReports).
- * Split/trim/validate; quarantine unknown/malformed/duplicates.
+ * PHASE 4 — per-phase migration, part C1 (likes, favorites).
+ *
+ * Final shapes (prisma/schema.prisma + live target):
+ *   likes(userId, targetTypeId, targetId) — a like is a (user, polymorphic
+ *     target) pair. Every legacy token in `trips.likes` is a trip like, so it
+ *     becomes targetTypeId = 2 (trip) + targetId = the final INT trips.id.
+ *     There is NO likes.tripId in the final DB.
+ *   favorites(userId, tripGroupId) — favorites attach to the trip GROUP, not a
+ *     single day row. The legacy token lives on a trip row, so the legacy trip
+ *     UUID is resolved to its legacy group UUID and then to the final INT
+ *     `trip_groups.id` (never `trips.id`).
+ *
+ * Token handling is shared with the reports phase (see ./targets.ts): split on
+ * commas/whitespace, quarantine anything that is not a canonical UUID or has no
+ * surviving user, never split or invent a token.
  */
 import { PrismaClient } from '@prisma/client';
-import { DbExecutor, esc, inTx, isUuid, qi, qtable, splitList } from './db';
-import { isStateUnavailable, lookupState, lookupStateOrPending, quarantineDryAware, recordState } from './state';
+import { TARGET_TYPE } from './db';
+import { migrateUserTokenList, tripGroupParentResolver, tripParentResolver } from './targets';
 import { Counters } from './types';
 
-async function userExists(exec: DbExecutor, db: string, id: string): Promise<boolean> {
-  const rows = (await exec.$queryRawUnsafe(
-    `SELECT 1 AS ok FROM ${qtable(db, 'users')} WHERE ${qi('_id')} = '${esc(id)}' LIMIT 1`,
-  )) as Array<{ ok: number }>;
-  return rows.length > 0;
-}
-
-async function runBody(
-  prisma: PrismaClient,
-  db: string,
-  runId: number,
-  dryRun: boolean,
-  entity: 'Like' | 'Favorite' | 'TripReport',
-  apply: (exec: DbExecutor) => Promise<Counters>,
-): Promise<Counters> {
-  if (dryRun) return apply(prisma);
-  let out: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
-  await inTx(prisma, async (tx) => {
-    out = await apply(tx);
+export const phaseLikes = (prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> =>
+  migrateUserTokenList(prisma, db, runId, dryRun, {
+    entity: 'Like',
+    targetTable: 'likes',
+    sourceTable: 'trips',
+    sourceColumn: 'likes',
+    targetColumn: 'targetId',
+    targetTypeId: TARGET_TYPE.trip,
+    // The already-verified key shape for likes: `<user>|||<trips.id>`.
+    stateKey: (token, tripId) => `${token}|||${tripId}`,
+    malformedCode: 'MALFORMED_LIKE',
+    orphanCode: 'ORPHAN_TRIP',
+    parentLabel: 'Parent trip',
+    resolve: tripParentResolver(db, dryRun),
   });
-  return out;
-}
 
-async function normalizePair(
-  prisma: PrismaClient, db: string, runId: number, dryRun: boolean,
-  entity: 'Like' | 'Favorite' | 'TripReport', table: string, sourceColumn: string,
-): Promise<Counters> {
-  // Post-groupfinalize the trips table has NO `_id` column (dropped at
-  // pkswap). Resolve the trip's legacy UUID via legacyId when `_id` is
-  // gone; pre-swap (or rerun before swap) `_id` still exists. Probe once.
-  const tripsHasUuid = (
-    (await prisma.$queryRawUnsafe(
-      `SELECT 1 AS ok FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = 'trips' AND COLUMN_NAME = '_id' LIMIT 1`,
-    )) as Array<{ ok: number }>
-  ).length > 0;
-  const idExpr = tripsHasUuid ? qi('_id') : qi('legacyId');
-  const rows = (await prisma.$queryRawUnsafe(
-    `SELECT ${idExpr} AS legacyTrip, ${qi(sourceColumn)} AS raw FROM ${qtable(db, 'trips')}`,
-  )) as Array<{ legacyTrip: unknown; raw: unknown }>;
-  return runBody(prisma, db, runId, dryRun, entity, async (exec) => {
-    const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
-    for (const r of rows) {
-      const legacyTrip = String(r.legacyTrip ?? '');
-      let tid: number | null = null;
-      let pending = false;
-      try {
-        tid = await lookupState(exec, db, dryRun, 'Trip', legacyTrip);
-      } catch (e) {
-        if (!isStateUnavailable(e)) throw e;
-        pending = true;
-      }
-      // Pre-PK-swap: tid===0 means the trip row was processed but has no INT
-      // id yet. A missing migration_state table is the same pending case.
-      // ORPHAN_TRIP is only a missing Trip row when the state table exists.
-      if (pending || tid === 0) {
-        const toks = splitList(r.raw);
-        if (toks.length > 0) c.skipped += toks.length;
-        continue;
-      }
-      if (tid === null) {
-        const toks = splitList(r.raw);
-        if (await quarantineDryAware(exec, db, dryRun, runId, entity, legacyTrip, 'ORPHAN_TRIP', `Parent trip not migrated; ${toks.length} token(s) held.`, { tokens: toks })) {
-          if (toks.length > 0) c.quarantined++;
-        }
-        continue;
-      }
-      const seen = new Set<string>();
-      for (const tok of splitList(r.raw)) {
-        if (seen.has(tok)) { if (await quarantineDryAware(exec, db, dryRun, runId, entity, legacyTrip, 'DUPLICATE', 'Duplicate user token inside one legacy row.', { user: tok })) c.quarantined++; continue; }
-        seen.add(tok);
-        if (!isUuid(tok)) { await quarantineDryAware(exec, db, dryRun, runId, entity, legacyTrip, 'MALFORMED_LIKE', 'Token is not a canonical UUID; never split by guessing.', { token: tok }); c.quarantined++; continue; }
-        if (!(await userExists(exec, db, tok))) { if (await quarantineDryAware(exec, db, dryRun, runId, entity, legacyTrip, 'UNKNOWN_USER', 'UUID has no surviving user.', { user: tok })) c.quarantined++; continue; }
-        const key = tok + '|||' + tid;
-        const already = await lookupStateOrPending(exec, db, dryRun, entity, key);
-        if (already !== null) { c.skipped++; continue; }
-        if (dryRun) { c.migrated++; continue; }
-        await exec.$executeRawUnsafe(
-          `INSERT IGNORE INTO ${qtable(db, table)} (${qi('userId')}, ${qi('tripId')}) VALUES ('${esc(tok)}', ${tid})`,
-        );
-        const idRows = (await exec.$queryRawUnsafe(
-          `SELECT ${qi('id')} AS id FROM ${qtable(db, table)} WHERE ${qi('userId')} = '${esc(tok)}' AND ${qi('tripId')} = ${tid} LIMIT 1`,
-        )) as Array<{ id: number | bigint }>;
-        await recordState(exec, db, entity, key, Number(idRows[0].id), runId);
-        c.migrated++;
-      }
-    }
-    return c;
+export const phaseFavorites = (prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> =>
+  migrateUserTokenList(prisma, db, runId, dryRun, {
+    entity: 'Favorite',
+    targetTable: 'favorites',
+    sourceTable: 'trips',
+    sourceColumn: 'favorites',
+    targetColumn: 'tripGroupId',
+    targetTypeId: null,
+    stateKey: (token, groupId) => `${token}|||${groupId}`,
+    malformedCode: 'MALFORMED_TOKEN',
+    orphanCode: 'ORPHAN_TRIP_GROUP',
+    parentLabel: 'Parent trip group',
+    resolve: tripGroupParentResolver(db, dryRun),
   });
-}
-
-export const phaseLikes = (p: PrismaClient, db: string, r: number, d: boolean) =>
-  normalizePair(p, db, r, d, 'Like', 'likes', 'likes');
-export const phaseFavorites = (p: PrismaClient, db: string, r: number, d: boolean) =>
-  normalizePair(p, db, r, d, 'Favorite', 'favorites', 'favorites');
-export const phaseTripReports = (p: PrismaClient, db: string, r: number, d: boolean) =>
-  normalizePair(p, db, r, d, 'TripReport', 'trip_reports', 'reportTrip');

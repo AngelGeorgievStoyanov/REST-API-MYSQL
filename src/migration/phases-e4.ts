@@ -6,8 +6,8 @@
  * Fully idempotent: second execution changes nothing.
  */
 import { PrismaClient } from '@prisma/client';
-import { phaseFavorites, phaseLikes, phaseTripReports } from './phases-c1';
-import { phaseCommentReports } from './phases-c2';
+import { phaseFavorites, phaseLikes } from './phases-c1';
+import { phaseReports } from './phases-c2';
 import { phaseImages } from './phases-c3';
 import { Counters } from './types';
 
@@ -16,8 +16,7 @@ export async function phaseReplay(prisma: PrismaClient, db: string, runId: numbe
   const parts = [
     await phaseLikes(prisma, db, runId, dryRun),
     await phaseFavorites(prisma, db, runId, dryRun),
-    await phaseTripReports(prisma, db, runId, dryRun),
-    await phaseCommentReports(prisma, db, runId, dryRun),
+    await phaseReports(prisma, db, runId, dryRun),
     await phaseImages(prisma, db, runId, dryRun),
   ];
   for (const p of parts) {

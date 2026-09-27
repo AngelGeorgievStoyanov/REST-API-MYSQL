@@ -3,7 +3,7 @@
  * Idempotent via migration_state; dirty rows go to quarantine, never deleted.
  */
 import { PrismaClient } from '@prisma/client';
-import { DbExecutor, esc, inTx, isUuid, ownerColumn, qi, qtable, timestampForWrite } from './db';
+import { DbExecutor, columnExists, esc, inTx, isUuid, legacyGroupColumn, ownerColumn, qi, qtable, timestampForWrite, toCount, userKeyColumn } from './db';
 import { lookupStateOrPending, quarantineDryAware, recordState } from './state';
 import { Counters } from './types';
 
@@ -27,8 +27,18 @@ async function runBody(
 }
 
 export async function phaseUsers(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
+  // `users._id` in the legacy source, `users.id` after the finalize rename.
+  const keyCol = (await userKeyColumn(prisma, db)) || '_id';
+  // The legacy `timeCreated`/`timeEdited` columns are retired by the activate
+  // step; a rerun of a finished migration has nothing left to migrate.
+  if (!(await columnExists(prisma, db, 'users', 'timeCreated'))) {
+    const n = toCount((await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'users')}`,
+    )) as Array<Record<string, unknown>>);
+    return { migrated: 0, skipped: n, quarantined: 0 };
+  }
   const rows = (await prisma.$queryRawUnsafe(
-    `SELECT ${qi('_id')}, ${qi('email')}, ${qi('role')}, ${qi('status')}, ${qi('timeCreated')}, ${qi('timeEdited')} FROM ${qtable(db, 'users')}`,
+    `SELECT ${qi(keyCol)}, ${qi('email')}, ${qi('role')}, ${qi('status')}, ${qi('timeCreated')}, ${qi('timeEdited')} FROM ${qtable(db, 'users')}`,
   )) as Array<Record<string, unknown>>;
   const validRoles = new Set(['user', 'admin', 'manager']);
   const validStatus = new Set(['ACTIVE', 'SUSPENDED', 'DEACTIVATED']);
@@ -36,8 +46,8 @@ export async function phaseUsers(prisma: PrismaClient, db: string, runId: number
     const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
     const seenEmail = new Set<string>();
     for (const r of rows) {
-      const id = String(r['_id'] ?? '');
-      if (!isUuid(id)) { if (await quarantineDryAware(exec, db, dryRun, runId, 'User', id, 'INVALID_UUID', 'User _id is not a canonical UUID.', r)) c.quarantined++; continue; }
+      const id = String(r[keyCol] ?? '');
+      if (!isUuid(id)) { if (await quarantineDryAware(exec, db, dryRun, runId, 'User', id, 'INVALID_UUID', 'User key is not a canonical UUID.', r)) c.quarantined++; continue; }
       const email = String(r['email'] ?? '').toLowerCase();
       if (seenEmail.has(email)) { if (await quarantineDryAware(exec, db, dryRun, runId, 'User', id, 'DUPLICATE', 'Duplicate user email blocks users.email UNIQUE.', r)) c.quarantined++; continue; }
       seenEmail.add(email);
@@ -49,7 +59,7 @@ export async function phaseUsers(prisma: PrismaClient, db: string, runId: number
       const updated = timestampForWrite(r['timeEdited']);
       if (!dryRun) {
         await exec.$executeRawUnsafe(
-          `UPDATE ${qtable(db, 'users')} SET ${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'}, ${qi('updatedAt')} = ${updated ? `'${updated}'` : 'NULL'} WHERE ${qi('_id')} = '${esc(id)}'`,
+          `UPDATE ${qtable(db, 'users')} SET ${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'}, ${qi('updatedAt')} = ${updated ? `'${updated}'` : 'NULL'} WHERE ${qi(keyCol)} = '${esc(id)}'`,
         );
       }
       c.migrated++;
@@ -59,11 +69,26 @@ export async function phaseUsers(prisma: PrismaClient, db: string, runId: number
 }
 
 export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
+  // The trip GROUP key only exists as the legacy VARCHAR `tripGroupId`. After
+  // groupfinalize that column is the final INT and every group is already
+  // mapped, so a rerun must not mistake INT group ids for legacy keys.
+  const groupCol = await legacyGroupColumn(prisma, db);
+  if (groupCol !== 'tripGroupId') {
+    const n = toCount((await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'trip_groups')}`,
+    )) as Array<Record<string, unknown>>);
+    return { migrated: 0, skipped: n, quarantined: 0 };
+  }
+  // Deterministic derivation: legacy group UUID ascending. The final
+  // `trip_groups.id` assignment is therefore stable across runs/databases
+  // (the live target was derived in exactly this order).
   const rows = (await prisma.$queryRawUnsafe(
-    `SELECT DISTINCT ${qi('tripGroupId')} AS g FROM ${qtable(db, 'trips')}`,
+    `SELECT DISTINCT ${qi('tripGroupId')} AS g FROM ${qtable(db, 'trips')} ORDER BY ${qi('tripGroupId')} ASC`,
   )) as Array<{ g: unknown }>;
   // `_ownerId` pre-activate, `ownerId` after the rename — resolve once.
   const tripsOwnerCol = (await ownerColumn(prisma, db, 'trips')) || '_ownerId';
+  // `users._id` in the legacy source, `users.id` after the finalize rename.
+  const userKeyCol = (await userKeyColumn(prisma, db)) || '_id';
   return runBody(prisma, db, runId, dryRun, 'TripGroup', async (exec) => {
     const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
     for (const r of rows) {
@@ -81,7 +106,7 @@ export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: n
       const ownerList = owners.map((o) => (o.o === null || o.o === undefined ? '' : String(o.o)));
       const good = ownerList.filter((o) => isUuid(o));
       const users = good.length > 0 ? (await exec.$queryRawUnsafe(
-        `SELECT ${qi('_id')} AS id FROM ${qtable(db, 'users')} WHERE ${qi('_id')} IN (${good.map((o) => `'${esc(o)}'`).join(',')})`,
+        `SELECT ${qi(userKeyCol)} AS id FROM ${qtable(db, 'users')} WHERE ${qi(userKeyCol)} IN (${good.map((o) => `'${esc(o)}'`).join(',')})`,
       )) as Array<{ id: unknown }> : [];
       const valid = new Set(users.map((u) => String(u.id)));
       const usable = good.filter((o) => valid.has(o));

@@ -10,6 +10,9 @@
     "build": "tsc",
     "bild": "tsc",
     "dev": "nodemon",
+    "migration:phase4": "ts-node src/migration/run-main.ts",
+    "migration:phase4:dry-run": "ts-node src/migration/run-main.ts --dry-run",
+    "migration:phase4:verify": "ts-node src/migration/run-main.ts --verify",
     "lint": "eslint ."
   },
   "author": "Angel Stoyanov",

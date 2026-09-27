@@ -5,7 +5,7 @@
  * Idempotent: only NULL tripId rows are touched; reruns converge.
  */
 import { PrismaClient } from '@prisma/client';
-import { DbExecutor, esc, inTx, legacyGroupColumn, legacyKeyColumn, parentPointerColumn, qi, qtable } from './db';
+import { DbExecutor, TARGET_TYPE, esc, inTx, legacyGroupColumn, legacyKeyColumn, parentPointerColumn, qi, qtable } from './db';
 import { isStateUnavailable, lookupState, quarantineDryAware } from './state';
 import { Counters } from './types';
 
@@ -13,18 +13,20 @@ async function backfillChild(
   exec: DbExecutor, db: string, runId: number, dryRun: boolean,
   entity: 'Point' | 'Comment', childTable: 'points' | 'comments',
   legacyParentCol: '_ownerTripId' | '_tripId',
+  parentIntCol: 'tripId' | 'targetId' = 'tripId',
+  parentTypeId: number | null = null,
 ): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
-  // Activate drops the UUID parent pointer. After that the INT tripId is the
+  // Activate drops the UUID parent pointer. After that the INT pointer is the
   // only parent reference, so there is nothing left to backfill.
-  const parentCol = await parentPointerColumn(exec, db, childTable, legacyParentCol);
-  if (parentCol === '' || parentCol === 'tripId') return c;
+  const parentCol = await parentPointerColumn(exec, db, childTable, legacyParentCol, parentIntCol);
+  if (parentCol === '' || parentCol === parentIntCol) return c;
   const keyCol = (await legacyKeyColumn(exec, db, childTable)) || '_id';
   const tripKeyCol = (await legacyKeyColumn(exec, db, 'trips')) || '_id';
   let rows: Array<{ legacy: unknown; parent: unknown }>;
   try {
     rows = (await exec.$queryRawUnsafe(
-      `SELECT ${qi(keyCol)} AS legacy, ${qi(parentCol)} AS parent FROM ${qtable(db, childTable)} WHERE ${qi('tripId')} IS NULL`,
+      `SELECT ${qi(keyCol)} AS legacy, ${qi(parentCol)} AS parent FROM ${qtable(db, childTable)} WHERE ${qi(parentIntCol)} IS NULL`,
     )) as Array<{ legacy: unknown; parent: unknown }>;
   } catch (e) {
     // Dry-run before ddl: transitional columns do not exist yet. Fall back
@@ -68,8 +70,10 @@ async function backfillChild(
     const where = keyCol === 'legacyId'
       ? `${qi('legacyId')} = '${esc(legacy)}'`
       : `${qi(keyCol)} = '${esc(legacy)}'`;
+    // Comments also carry their polymorphic target type (2 = trip).
+    const typeAssign = parentTypeId === null ? '' : `${qi('targetTypeId')} = ${parentTypeId}, `;
     await exec.$executeRawUnsafe(
-      `UPDATE ${qtable(db, childTable)} SET ${qi('legacyId')} = '${esc(legacy)}', ${qi('tripId')} = ${tid} WHERE ${where}`,
+      `UPDATE ${qtable(db, childTable)} SET ${qi('legacyId')} = '${esc(legacy)}', ${typeAssign}${qi(parentIntCol)} = ${tid} WHERE ${where}`,
     );
     c.migrated++;
   }
@@ -79,10 +83,10 @@ async function backfillChild(
 export async function phaseBackfill(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   if (dryRun) {
     const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
-    const p = await backfillChild(prisma, db, runId, true, 'Point', 'points', '_ownerTripId');
-    const m = await backfillChild(prisma, db, runId, true, 'Comment', 'comments', '_tripId');
-    c.migrated = p.migrated + m.migrated;
-    c.quarantined = p.quarantined + m.quarantined;
+    const c2 = await backfillChild(prisma, db, runId, true, 'Point', 'points', '_ownerTripId');
+    const m = await backfillChild(prisma, db, runId, true, 'Comment', 'comments', '_tripId', 'targetId', TARGET_TYPE.trip);
+    c.migrated = c2.migrated + m.migrated;
+    c.quarantined = c2.quarantined + m.quarantined;
     return c;
   }
   // NOTE: on the dirty test snapshot every point/comment is quarantined
@@ -92,7 +96,7 @@ export async function phaseBackfill(prisma: PrismaClient, db: string, runId: num
   let out: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
   await inTx(prisma, async (tx) => {
     const p = await backfillChild(tx, db, runId, false, 'Point', 'points', '_ownerTripId');
-    const m = await backfillChild(tx, db, runId, false, 'Comment', 'comments', '_tripId');
+    const m = await backfillChild(tx, db, runId, false, 'Comment', 'comments', '_tripId', 'targetId', TARGET_TYPE.trip);
     out = { migrated: p.migrated + m.migrated, skipped: p.skipped + m.skipped, quarantined: p.quarantined + m.quarantined };
   });
   // TripGroup INT backfill: trips that PASSED validation (legacyId set) but
