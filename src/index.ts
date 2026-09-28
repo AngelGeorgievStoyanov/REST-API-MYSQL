@@ -15,6 +15,9 @@ import dotenv from 'dotenv';
 import cloudController from './controllers/cloudController';
 import { CloudRepository } from './services/cloudService';
 import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
+import configController from './controllers/configController';
+import { ConfigRepository } from './services/configRepository';
+import { ConfigService, getConfigCacheTtlSeconds } from './services/configService';
 
 dotenv.config()
 
@@ -44,6 +47,7 @@ app.use('/data/trips', tripController);
 app.use('/data/points', pointController);
 app.use('/data/comments', commentController);
 app.use('/data/cloud', cloudController);
+app.use('/config', configController);
 
 
 app.get('/', (req: express.Request, res: express.Response) => {
@@ -67,9 +71,22 @@ app.get('/', (req: express.Request, res: express.Response) => {
     app.set("imagesRepo", new CloudRepository(pool));
     app.set("routeNotFoundLogsRepo", new RouteNotFoudLogsRepository(pool));
 
+    const configTtlSeconds = getConfigCacheTtlSeconds();
+    const configService = new ConfigService(new ConfigRepository(pool), configTtlSeconds);
+    app.set("configService", configService);
+    configService.startPeriodicRefresh();
+    configService.initialLoad()
+        .then(() => console.log(`[config] initial load ok (ttl=${configTtlSeconds}s)`))
+        .catch((err) => {
+            // Not fatal: the app has no runtime dependency on config yet, but this must not be silent.
+            console.log(`[config] initial load failed, /config endpoints will retry on demand: ${err?.message}`);
+        });
+
     const server = app.listen(port, () => {
         console.log(`Connected succesfully on port ${port}`)
     });
+
+    server.on('close', () => configService.stopPeriodicRefresh());
 
     server.on('error', err => {
         console.log('Server error:', err);
