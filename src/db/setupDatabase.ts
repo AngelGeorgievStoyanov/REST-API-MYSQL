@@ -1,4 +1,5 @@
 import mysql from 'mysql';
+import { getDbConnectionOptions } from './mysqlPool';
 import {
     comments,
     createuser,
@@ -15,13 +16,7 @@ import {
 } from './createMySQL';
 
 export async function setupDatabase(): Promise<void> {
-    const pool = mysql.createPool({
-        connectionLimit: 10,
-        host: process.env.MYSQL_HOST,
-        port: Number(process.env.MYSQOL_PORT),
-        user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASSWORD,
-    });
+    const pool = mysql.createPool(getDbConnectionOptions());
 
     await new Promise<void>((resolve, reject) => {
         pool.getConnection(async (err, connection) => {

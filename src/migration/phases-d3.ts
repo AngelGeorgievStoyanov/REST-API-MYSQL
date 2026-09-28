@@ -1,26 +1,14 @@
 /**
- * PHASE 4 — part D3 (final-structure readiness report).
- * FK/UNIQUE activation is the NEXT step (activate phase); this report lists the
- * exact blockers per statement so nothing is enabled while the data cannot
- * satisfy the final constraints. Every check is read-only.
- *
- * The checks cover the FINAL structure only:
- *   - mandatory user references (RESTRICT/CASCADE/SET NULL FKs)
- *   - trips.tripGroupId must be the finalized INT (groupfinalize applied)
- *   - points.tripId / comments.targetTypeId+targetId resolvable
- *   - likes/favorites/reports targets resolvable + user references valid
- *   - target_types seeded with its five fixed rows
- *   - UNIQUE users.email and UNIQUE trips(tripGroupId, dayNumber)
- *   - VARCHAR(36) owner columns can hold their values (no narrowing failure)
- * There is deliberately NO check for a verify.userId FK: the final database has
- * none, and `reports.targetId` / `comments.targetId` are polymorphic (no FK).
+ * Read-only readiness report before FK/UNIQUE activation: lists the exact
+ * blockers per statement so constraints are never enabled while data cannot
+ * satisfy them. Checks cover the FINAL structure only (no verify.userId FK —
+ * the final database has none; polymorphic target columns carry no FK).
  */
 import { PrismaClient } from '@prisma/client';
 import { columnExists, columnType, qi, qtable, toCount, userKeyColumn } from './db';
 
 export interface ConstraintCheck { statement: string; ok: boolean; detail: string; }
 
-/** Checks of the form { stmt, n } plus pending-ddl states for missing objects. */
 type CheckInput = { stmt: string; n: number } | { stmt: string; pending: string };
 
 function pushCheck(checks: ConstraintCheck[], input: CheckInput): void {
@@ -46,8 +34,7 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     try {
       return await count(sql);
     } catch (e) {
-      // This function only ever reads: a missing table/column must degrade to
-      // a `pending` check (never a crash), in dry-run AND in live runs.
+      // Read-only: a missing table/column degrades to `pending`, never a crash.
       if (isMissingObject(e)) return null;
       throw e;
     }
@@ -71,7 +58,6 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     );
   const inputs: CheckInput[] = [];
 
-  // --- mandatory user references (final FK set) -----------------------------
   const ownerTables: Array<[string, string]> = [];
   for (const table of ['trips', 'points', 'comments']) {
     const col = await columnExists(prisma, db, table, 'ownerId')
@@ -85,8 +71,8 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     inputs.push(n === null
       ? { stmt: `FK ${table}.${col} -> users.id`, pending: `${table} table missing (ddl phase not applied yet)` }
       : { stmt: `FK ${table}.${col} -> users.id`, n });
-    // The owner column is narrowed to VARCHAR(36) before the FK is added; a
-    // longer value would make that ALTER fail, so it is a hard blocker.
+    // Owner column is narrowed to VARCHAR(36) before the FK is added: a
+    // longer value would make that ALTER fail — a hard blocker.
     if (n !== null) {
       const tooLong = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, table)} WHERE LENGTH(${qi(col)}) > 36`);
       if (tooLong !== null) inputs.push({ stmt: `${table}.${col} fits VARCHAR(36)`, n: tooLong });
@@ -97,7 +83,6 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     ? { stmt: 'FK trip_groups.ownerId -> users.id', pending: 'trip_groups table missing (ddl phase not applied yet)' }
     : { stmt: 'FK trip_groups.ownerId -> users.id', n: tgOwner });
 
-  // --- final polymorphism / group references -------------------------------
   const groupType = await columnType(prisma, db, 'trips', 'tripGroupId');
   if (groupType === '') {
     inputs.push({ stmt: 'FK trips.tripGroupId -> trip_groups.id', pending: 'trips.tripGroupId missing (ddl phase not applied yet)' });
@@ -143,7 +128,6 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
 
 
 
-  // likes / favorites / reports: final tables + their user references.
   const userRefs: Array<[string, string, string]> = [
     ['likes', 'userId', 'FK likes.userId -> users.id'],
     ['favorites', 'userId', 'FK favorites.userId -> users.id'],

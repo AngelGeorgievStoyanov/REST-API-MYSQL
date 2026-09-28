@@ -1,50 +1,14 @@
-/**
- * Test-database clone / reset utility (standalone).
- *
- * Copies the CURRENT source database (`hack-trip`) — structure AND data — into
- * the disposable test database named by MIGRATION_TEST_DB, dropping and
- * recreating the target first. It exists so migration tests can be repeated
- * from a clean copy as often as needed.
- *
- * Deliberately independent of the Phase 4 migration tooling and of
- * `prisma/migrations` / `prisma/schema.prisma`: it only speaks raw SQL over the
- * same MySQL connection settings the application already uses
- * (MYSQL_HOST / MYSQL_USER / MYSQL_PASSWORD / MYSQL_PORT, falling back to the
- * historical `MYSQOL_PORT` spelling found in .env).
- *
- * Source safety: the source database is only ever READ (SHOW CREATE TABLE,
- * SELECT, information_schema). The only DROP/CREATE statements ever produced
- * name the target database, and the CLI refuses to run when the target resolves
- * to the source (compared ignoring case and `-` / `_`), when it is a system
- * schema, or when a non-localhost server is used without an explicit opt-in.
- *
- * Usage:
- *   npm run db:clone-test              reset target DB to a clean copy (writes)
- *   npm run db:clone-test:dry-run      read-only plan: prints the SQL, runs nothing
- *   npm run db:clone-test -- --confirm required with CLONE_ALLOW_NON_LOCAL=true
- *                                      when MYSQL_HOST is not localhost
- *   npm run db:clone-test -- --help    CLI reference
- *
- * Exit codes: 0 done (warnings possible), 1 unexpected error / verification
- * mismatch, 2 guard or preflight refusal.
- */
-
 import dotenv = require('dotenv');
 import mysql = require('mysql');
 
 dotenv.config();
 
-/** Source database is fixed by contract; it is never written by this script. */
 export const DEFAULT_SOURCE_DB = 'hack_trip';
-/** Target (test) database name — comes from .env, no hardcoded fallback. */
 export const TARGET_DB_ENV = 'MIGRATION_TEST_DB';
-/** Optional override for the source database name (defaults to hack-trip). */
 export const SOURCE_DB_ENV = 'CLONE_SOURCE_DB';
-/** Required (together with --confirm) when MYSQL_HOST is not a loopback host. */
 export const ALLOW_NON_LOCAL_ENV = 'CLONE_ALLOW_NON_LOCAL';
 
 const SYSTEM_SCHEMAS = ['information_schema', 'mysql', 'performance_schema', 'sys'];
-/** MySQL identifier charset used for database names (hyphen allowed by MySQL). */
 const IDENTIFIER_RE = /^[A-Za-z0-9_$-]{1,64}$/;
 const DEFAULT_PORT = 3306;
 
@@ -53,11 +17,8 @@ export interface CloneConfig {
   port: number;
   user: string;
   password: string;
-  /** Read-only source database name. */
   sourceDb: string;
-  /** Disposable target database name (dropped + recreated). */
   targetDb: string;
-  /** Explicit opt-in for non-localhost servers. */
   allowNonLocal: boolean;
 }
 
@@ -67,10 +28,8 @@ export interface CliOptions {
   help: boolean;
 }
 
-/** Minimal env surface used for configuration (defaults to process.env). */
 export type EnvSource = Record<string, string | undefined>;
 
-/** Refusal raised by the safety guards — always exits with code 2. */
 export class CloneGuardError extends Error {
   constructor(message: string) {
     super(message);
@@ -125,10 +84,7 @@ export function normalizeDbName(name: string): string {
   return name.trim().toLowerCase().replace(/[-_]/g, '');
 }
 
-/**
- * Fail-closed target validation. Runs before any connection is opened, so an
- * unsafe target can never reach a DROP statement.
- */
+/** Validated before any connection opens, so an unsafe target never reaches DROP. */
 export function assertSafeTarget(sourceDb: string, targetDb: string): void {
   const source = sourceDb.trim();
   const target = targetDb.trim();
@@ -156,7 +112,7 @@ export function assertSafeTarget(sourceDb: string, targetDb: string): void {
 
 export function getConfig(env: EnvSource = process.env): CloneConfig {
   const host = (env.MYSQL_HOST || 'localhost').trim();
-  // `MYSQOL_PORT` is the (typo) name the rest of the project reads from .env.
+  // MYSQOL_PORT is the historical .env spelling.
   const rawPort = (env.MYSQL_PORT || env.MYSQOL_PORT || '').trim();
   const port = rawPort === '' ? DEFAULT_PORT : Number(rawPort);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -179,10 +135,6 @@ export function getConfig(env: EnvSource = process.env): CloneConfig {
     allowNonLocal: (env[ALLOW_NON_LOCAL_ENV] || '').toLowerCase() === 'true',
   };
 }
-
-/* ------------------------------------------------------------------ *
- * SQL helpers
- * ------------------------------------------------------------------ */
 
 type Row = Record<string, unknown>;
 
@@ -231,7 +183,6 @@ export function close(conn: mysql.Connection): Promise<void> {
   return new Promise<void>((resolve) => conn.end(() => resolve()));
 }
 
-/** Promise wrapper around the callback-based `mysql` query API. */
 export function q<T>(conn: mysql.Connection, sql: string, params: unknown[] = []): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     conn.query(sql, params, (err, results) => {
@@ -240,10 +191,6 @@ export function q<T>(conn: mysql.Connection, sql: string, params: unknown[] = []
     });
   });
 }
-
-/* ------------------------------------------------------------------ *
- * Read-only introspection (source + target existence)
- * ------------------------------------------------------------------ */
 
 export interface SchemaInfo {
   charset: string;
@@ -356,10 +303,6 @@ export async function rowCount(conn: mysql.Connection, db: string, table: string
   return num(rows[0]?.c);
 }
 
-/* ------------------------------------------------------------------ *
- * Structure metadata used for ordering and verification
- * ------------------------------------------------------------------ */
-
 export interface StructureStats {
   tables: number;
   views: number;
@@ -435,10 +378,8 @@ export async function foreignKeyDeps(
 }
 
 /**
- * Parents-before-children order (stable). Cyclic FK graphs are appended at the
- * end; the session runs with FOREIGN_KEY_CHECKS=0, which allows creating a
- * table whose referenced table does not exist yet (the same mechanism mysqldump
- * relies on), and a retry pass covers anything unexpected.
+ * Parents first; cyclic FK graphs go last (the session runs with
+ * FOREIGN_KEY_CHECKS=0, so a missing reference cannot fail creation).
  */
 export function orderTables(tables: string[], deps: Map<string, string[]>): string[] {
   const remaining = new Set(tables);
@@ -458,10 +399,6 @@ export function orderTables(tables: string[], deps: Map<string, string[]>): stri
   return ordered;
 }
 
-/* ------------------------------------------------------------------ *
- * Statement builders (target-qualified; the source is never written)
- * ------------------------------------------------------------------ */
-
 export function dropDatabaseStatement(db: string): string {
   return `DROP DATABASE IF EXISTS ${qi(db)}`;
 }
@@ -470,7 +407,6 @@ export function createDatabaseStatement(db: string, info: SchemaInfo): string {
   return `CREATE DATABASE ${qi(db)} CHARACTER SET ${info.charset} COLLATE ${info.collation}`;
 }
 
-/** Rebuild the table from SHOW CREATE TABLE, re-pointed at the target DB. */
 export async function createTableStatement(
   conn: mysql.Connection,
   cfg: CloneConfig,
@@ -536,11 +472,8 @@ export async function sessionSqlMode(conn: mysql.Connection): Promise<string> {
   return str(rows[0]?.m);
 }
 
-/**
- * Add NO_AUTO_VALUE_ON_ZERO for the data copy (exactly what mysqldump does) so
- * a legacy `0` stored in an AUTO_INCREMENT column is copied verbatim instead of
- * being replaced by a freshly generated id.
- */
+/** Adds NO_AUTO_VALUE_ON_ZERO (as mysqldump does) so a stored AUTO_INCREMENT
+ *  key of 0 is copied verbatim instead of being replaced by a new id. */
 export function withNoAutoValueOnZero(mode: string): string {
   const parts = mode
     .split(',')
@@ -550,12 +483,7 @@ export function withNoAutoValueOnZero(mode: string): string {
   return parts.join(',');
 }
 
-/* ------------------------------------------------------------------ *
- * Dry run — print the exact statements a live run would execute
- * ------------------------------------------------------------------ */
-
 export interface ClonePlan {
-  /** Dependency-ordered source tables. */
   tables: string[];
   views: string[];
   triggers: string[];
@@ -570,7 +498,6 @@ function indent(text: string, prefix: string): string {
     .join('\n');
 }
 
-/** Minimal plan printed when the source cannot be introspected. */
 function printBaseDryRun(cfg: CloneConfig, targetExists: boolean): void {
   console.log('PLAN (statements a live run would execute):');
   console.log(`  SET SESSION FOREIGN_KEY_CHECKS = 0;`);
@@ -623,10 +550,6 @@ async function printDryRun(
     `PLAN-TOTAL source rows=${totalRows} tables=${plan.tables.length} views=${plan.views.length} triggers=${plan.triggers.length}`,
   );
 }
-
-/* ------------------------------------------------------------------ *
- * Live run — DROP + CREATE target, copy structure, copy data
- * ------------------------------------------------------------------ */
 
 async function createTargetTables(
   conn: mysql.Connection,
@@ -757,10 +680,6 @@ export async function executeClone(
   console.log('Point DATABASE_URL at the target database before running migration tests.');
 }
 
-/* ------------------------------------------------------------------ *
- * Verification — structure parity + data parity
- * ------------------------------------------------------------------ */
-
 export async function verifyClone(
   conn: mysql.Connection,
   cfg: CloneConfig,
@@ -803,10 +722,6 @@ export async function verifyClone(
   console.log(`  [${rowsOk ? 'OK' : 'MISMATCH'}] total rows: source=${sourceRows} target=${targetRows}`);
   return mismatches;
 }
-
-/* ------------------------------------------------------------------ *
- * Entry point
- * ------------------------------------------------------------------ */
 
 async function main(): Promise<void> {
   let opts: CliOptions;

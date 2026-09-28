@@ -1,8 +1,7 @@
 /**
- * PHASE 4 — finalization E2: child FK backfill from migration_state.
- * Runs AFTER pkswap. Backfills points.tripId, comments.tripId from the real
- * Trip INT ids. Unresolvable parents quarantine (never guessed).
- * Idempotent: only NULL tripId rows are touched; reruns converge.
+ * Child FK backfill from migration_state after pkswap: points.tripId and
+ * comments.targetId from the real Trip INT ids. Unresolvable parents
+ * quarantine; only NULL-pointer rows are touched, so reruns converge.
  */
 import { PrismaClient } from '@prisma/client';
 import { DbExecutor, TARGET_TYPE, esc, inTx, legacyGroupColumn, legacyKeyColumn, parentPointerColumn, qi, qtable } from './db';
@@ -17,8 +16,8 @@ async function backfillChild(
   parentTypeId: number | null = null,
 ): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
-  // Activate drops the UUID parent pointer. After that the INT pointer is the
-  // only parent reference, so there is nothing left to backfill.
+  // Activate drops the UUID parent pointer: afterwards the INT pointer is
+  // the only reference, so there is nothing left to backfill.
   const parentCol = await parentPointerColumn(exec, db, childTable, legacyParentCol, parentIntCol);
   if (parentCol === '' || parentCol === parentIntCol) return c;
   const keyCol = (await legacyKeyColumn(exec, db, childTable)) || '_id';
@@ -29,8 +28,8 @@ async function backfillChild(
       `SELECT ${qi(keyCol)} AS legacy, ${qi(parentCol)} AS parent FROM ${qtable(db, childTable)} WHERE ${qi(parentIntCol)} IS NULL`,
     )) as Array<{ legacy: unknown; parent: unknown }>;
   } catch (e) {
-    // Dry-run before ddl: transitional columns do not exist yet. Fall back
-    // to the live UUID PK so the report still counts pending backfills.
+    // Dry-run before ddl: transitional columns missing — fall back to the
+    // UUID PK so the report still counts pending backfills.
     if (!String((e as Error).message).includes('Unknown column')) throw e;
     rows = (await exec.$queryRawUnsafe(
       `SELECT ${qi('_id')} AS legacy, ${qi(parentCol)} AS parent FROM ${qtable(db, childTable)}`,
@@ -38,8 +37,8 @@ async function backfillChild(
   }
   for (const r of rows) {
     const legacy = String(r.legacy ?? '');
-    // Quarantined child rows (legacyId NULL) never reach here: the query
-    // above filters them out. Only validated rows are backfilled.
+    // Quarantined child rows (legacyId NULL) never reach here; only
+    // validated rows are backfilled.
     const parent = r.parent === null || r.parent === undefined ? '' : String(r.parent);
     let tid: number | null = null;
     let pending = false;
@@ -57,8 +56,8 @@ async function backfillChild(
       if (parentRows.length > 0 && tid === 0) {
         pending = true;
       } else if (dryRun && parent.trim() === '') {
-        // Pre-ddl dry-run has no tripId filter, so every child row is in
-        // scope. An empty parent pointer is not an orphan trip UUID.
+        // Pre-ddl dry-run has no tripId filter: every child row is in scope,
+        // so an empty parent pointer is pending, not an orphan trip UUID.
         pending = true;
       } else {
         await quarantineDryAware(exec, db, dryRun, runId, entity, legacy, 'ORPHAN_TRIP', 'Parent trip has no INT id mapping; held for review.', { trip: parent });
@@ -89,24 +88,19 @@ export async function phaseBackfill(prisma: PrismaClient, db: string, runId: num
     c.quarantined = c2.quarantined + m.quarantined;
     return c;
   }
-  // NOTE: on the dirty test snapshot every point/comment is quarantined
-  // (orphan owners), so there is legitimately nothing to backfill. The
-  // child-FK columns stay NULL and groupfinalize/replay handle the rest.
-  // This phase therefore succeeds with zeros — it must NOT fail the run.
+  // A fully-quarantined snapshot legitimately has nothing to backfill:
+  // this phase succeeds with zeros, it must not fail the run.
   let out: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
   await inTx(prisma, async (tx) => {
     const p = await backfillChild(tx, db, runId, false, 'Point', 'points', '_ownerTripId');
     const m = await backfillChild(tx, db, runId, false, 'Comment', 'comments', '_tripId', 'targetId', TARGET_TYPE.trip);
     out = { migrated: p.migrated + m.migrated, skipped: p.skipped + m.skipped, quarantined: p.quarantined + m.quarantined };
   });
-  // TripGroup INT backfill: trips that PASSED validation (legacyId set) but
-  // were parked with tripGroupNewId=NULL because their TripGroup row does
-  // not exist yet (orphan-owner groups are quarantined at the group level
-  // and never get rows). Resolve via migration_state; trips whose group is
-  // still missing stay parked (NULL) and are reported — they do NOT block
-  // groupfinalize, because groupfinalize only finalizes trips WITH a group
-  // INT and leaves parked trips for quarantine review. Never guessed.
-  // After groupfinalize tripGroupNewId is gone. Skip rather than query it.
+  // TripGroup INT backfill: validated trips (legacyId set) parked with
+  // tripGroupNewId=NULL because their group row does not exist yet. Resolve
+  // via migration_state; still-missing groups stay parked (reported), never
+  // guessed — groupfinalize only finalizes trips WITH a group INT. After
+  // groupfinalize tripGroupNewId is gone, so skip instead of querying it.
   const groupCol = await legacyGroupColumn(prisma, db);
   const stillTransitional = (
     (await prisma.$queryRawUnsafe(

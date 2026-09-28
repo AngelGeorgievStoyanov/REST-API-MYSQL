@@ -5,7 +5,7 @@ import authController from './controllers/authController';
 import tripController from './controllers/tripController';
 import pointController from './controllers/pointController';
 import commentController from './controllers/commentController';
-import mysql from 'mysql';
+import { initMySqlPool } from './db/mysqlPool';
 import { UserRepository } from './services/userService';
 import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
@@ -53,13 +53,7 @@ app.get('/', (req: express.Request, res: express.Response) => {
 
 
 (() => {
-    const pool = mysql.createPool({
-        connectionLimit: 10,
-        host: process.env.MYSQL_HOST,
-        port: Number(process.env.MYSQOL_PORT),
-        user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASSWORD,
-    });
+    const pool = initMySqlPool();
     app.use((req, res, next) => {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         next();

@@ -1,24 +1,8 @@
 /**
- * PHASE 4 — finalization E5: structural finalization + FK/index activation.
- *
- * This is the step that makes the migrated database EQUAL the final structure:
- *
- * 1. runs the final-structure readiness report first and STOPS without touching
- *    anything when any check is blocked (no partial activation);
- * 2. seeds `target_types` (idempotent) if the ddl phase was skipped;
- * 3. renames the legacy key columns to their final names
- *    (`users._id` -> `users.id`, `verify._id` -> `verify.id`,
- *     `_ownerId` -> `ownerId`) and narrows the owner columns to VARCHAR(36);
- * 4. narrows `comments.targetTypeId` / `comments.targetId` to NOT NULL;
- * 5. adds the exact final FK set (16 constraints, incl. `fk_img_owner` with
- *    ON DELETE SET NULL) and the exact final indexes/UNIQUE keys;
- * 6. drops every legacy-only column that the final schema does not have;
- * 7. drops the migration control tables (`migration_runs`, `migration_state`,
- *    `migration_quarantine`) last, so the final database contains no migration
- *    machinery at all.
- *
- * Every step is idempotent and shape-probed, so a rerun after a successful
- * finalization is a no-op.
+ * Structural finalization + FK/index activation: runs the readiness report
+ * first (stops if any check is blocked), renames legacy keys, applies the
+ * exact final FK/index set, drops legacy-only columns and finally the
+ * migration control tables. Idempotent and shape-probed: reruns are no-ops.
  */
 import { PrismaClient } from '@prisma/client';
 import { TARGET_TYPES, columnExists, columnNullable, esc, qi, qtable, tableExists, userKeyColumn } from './db';
@@ -42,10 +26,8 @@ async function indexExists(prisma: PrismaClient, db: string, table: string, name
 
 
 /** The exact final FK set: [name, table, column, refTable, refColumn, onDelete].
- *  An empty refColumn means "the live `users` key column" (`id` after the
- *  rename above, `_id` on a half-finalized database).
- *  ON UPDATE is left at the MySQL default (NO ACTION) in every case, which is
- *  what the live target stores. */
+ *  Empty refColumn = the live `users` key column. ON UPDATE stays at the MySQL
+ *  default (NO ACTION), like the live target. */
 export const FKS: Array<[string, string, string, string, string, 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'NO ACTION']> = [
   ['fk_tg_owner', 'trip_groups', 'ownerId', 'users', '', 'RESTRICT'],
   ['fk_trips_owner', 'trips', 'ownerId', 'users', '', 'RESTRICT'],
@@ -65,7 +47,6 @@ export const FKS: Array<[string, string, string, string, string, 'CASCADE' | 'RE
   ['fk_img_point', 'images', 'pointId', 'points', 'id', 'CASCADE'],
 ];
 
-/** Final indexes/UNIQUE keys: [name, table, columns, unique]. */
 const INDEXES: Array<[string, string, string[], boolean]> = [
   ['uq_users_email', 'users', ['email'], true],
   ['ix_users_role', 'users', ['role'], false],
@@ -98,10 +79,8 @@ const INDEXES: Array<[string, string, string[], boolean]> = [
   ['ix_rnf_user', 'routenotfoundlogs', ['reqUserId'], false],
 ];
 
-/** Legacy-only columns the final schema does not have. Dropped last.
- *  NOTE: `failedlogs.date` / `routenotfoundlogs.date` are DELIBERATELY absent:
- *  prisma/schema.prisma keeps them (FailedLog.date / RouteNotFoundLog.date
- *  VARCHAR(45)) — they are part of the final structure, not legacy debris. */
+/** Legacy-only columns the final schema does not have. `failedlogs.date` /
+ *  `routenotfoundlogs.date` are deliberately absent: the final schema keeps them. */
 export const LEGACY_DROPS: Array<[string, string]> = [
   ['trips', 'coments'],
   ['trips', 'likes'],
@@ -129,7 +108,6 @@ export const LEGACY_DROPS: Array<[string, string]> = [
   ['routenotfoundlogs', 'legacyId'],
 ];
 
-/** Temporary migration machinery: never part of the application database. */
 const CONTROL_TABLES = ['migration_runs', 'migration_state', 'migration_quarantine'];
 
 export async function phaseActivate(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
@@ -137,20 +115,17 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
   const report = await phaseConstraints(prisma, db);
   const blocked = report.checks.filter((k) => !k.ok);
   if (dryRun) {
-    // Read-only: report what WOULD be done. Checks that only say the
-    // INT column/table is not created yet are pending DDL, not quarantines.
+    // Read-only: report what WOULD be done; a missing INT column/table is
+    // pending DDL, not a quarantine.
     const realBlocked = blocked.filter((k) => !k.detail.startsWith('pending'));
     c.migrated = FKS.length + INDEXES.length + LEGACY_DROPS.length + CONTROL_TABLES.length;
     c.skipped = blocked.length - realBlocked.length;
     c.quarantined = realBlocked.length;
     return c;
   }
-  // DIRTY-DATA RULE: the activate phase refuses while readiness checks are
-  // blocked — BUT the run must still COMPLETE (not fail): parked quarantined
-  // rows are the expected outcome on dirty data, and the verify report records
-  // exactly what is/isn't enforced. The refusal is recorded as quarantine
-  // evidence (one row per blocked check) and the run completes; a later run on
-  // clean data activates for real.
+  // Dirty-data rule: readiness blockers refuse activation but the run must
+  // still COMPLETE — each blocked check is recorded as quarantine evidence
+  // and a later run on clean data activates for real.
   if (blocked.length > 0) {
     for (const b of blocked) {
       await quarantineDryAware(prisma, db, false, runId, 'Constraint', b.statement, 'BLOCKED', `Constraint not activated: ${b.detail}.`, {});
@@ -169,8 +144,7 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
   }
 
 
-  // 3. Rename the legacy key columns to their final names. The final schema
-  //    has no column starting with `_`: users.id, verify.id, ownerId.
+  // 3. Rename legacy keys to their final names; no final column starts with `_`.
   const usersKey = await userKeyColumn(prisma, db);
   if (usersKey === '_id') {
     await prisma.$executeRawUnsafe(
@@ -190,10 +164,9 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
   } else {
     c.skipped++;
   }
-  // Owner columns: `_ownerId VARCHAR(45)` -> `ownerId VARCHAR(36)`. A FK to
-  // users.id VARCHAR(36) requires identical type/collation, so this must happen
-  // before the FKs. NOT NULL is preserved only where the live column already
-  // was NOT NULL; trips._ownerId is nullable, so it stays nullable.
+  // `_ownerId VARCHAR(45)` -> `ownerId VARCHAR(36)` before the FKs: an FK to
+  // users.id VARCHAR(36) needs identical type/collation. NOT NULL only where
+  // the live column was NOT NULL (trips._ownerId stays nullable).
   for (const table of ['trips', 'points', 'comments']) {
     const nullable = table === 'trips' ? 'NULL DEFAULT NULL' : 'NOT NULL';
     if (!(await columnExists(prisma, db, table, '_ownerId'))) {
@@ -206,8 +179,8 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     c.migrated++;
   }
 
-  // 4. Comments are polymorphic in the final schema: targetTypeId + targetId
-  //    are NOT NULL there, so they are narrowed once the data is complete.
+  // 4. Polymorphic comments: targetTypeId/targetId narrowed to NOT NULL once
+  //    the data is complete.
   for (const column of ['targetTypeId', 'targetId']) {
     if ((await columnNullable(prisma, db, 'comments', column)) === true) {
       await prisma.$executeRawUnsafe(
@@ -219,9 +192,8 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     }
   }
 
-  // 5a. Final indexes/UNIQUE keys FIRST: MySQL reuses a suitable existing index
-  //     for a FK, so adding them here keeps the live target's index set exactly
-  //     (no auto-created `fk_*` indexes).
+  // 5a. Final indexes FIRST: MySQL reuses a suitable index for a FK, so no
+  //     auto-created `fk_*` indexes appear (index set matches the live target).
   for (const [name, table, columns, unique] of INDEXES) {
     if (await indexExists(prisma, db, table, name)) {
       c.skipped++;
@@ -233,7 +205,7 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     c.migrated++;
   }
 
-  // 5b. The exact final FK set. Referenced user column is resolved at runtime.
+  // 5b. Exact final FK set; referenced users column resolved at runtime.
   //     ON UPDATE stays at the MySQL default (NO ACTION), like the live target.
   const usersKeyNow = (await userKeyColumn(prisma, db)) || '_id';
   for (const [name, table, column, refTable, refColumn, action] of FKS) {
@@ -248,10 +220,8 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     c.migrated++;
   }
 
-  // 6. Retire every legacy-only column. Every consumer phase has already run
-  //    (siblings and children are migrated, so nothing is lost): the legacy
-  //    UUID bridge (`legacyId`), the VARCHAR pointers and the deprecated
-  //    blob-of-tokens columns must not survive into the final database.
+  // 6. Retire every legacy-only column; all consumer phases already ran, so
+  //    nothing is lost (UUID bridge, VARCHAR pointers, blob-of-tokens).
   for (const [table, column] of LEGACY_DROPS) {
     if (!(await columnExists(prisma, db, table, column))) {
       c.skipped++;
@@ -261,9 +231,8 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     c.migrated++;
   }
 
-  // 7. Remove the temporary migration machinery itself. The mapping/quarantine
-  //    evidence is reported by this run before the tables disappear; the final
-  //    application database must not contain migration tables.
+  // 7. Drop the migration machinery itself; this run reports the evidence
+  //    before the tables disappear.
   const dropped: string[] = [];
   for (const table of CONTROL_TABLES) {
     if (!(await tableExists(prisma, db, table))) {

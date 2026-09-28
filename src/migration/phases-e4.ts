@@ -1,9 +1,7 @@
 /**
- * PHASE 4 — finalization E4: PENDING_INT_ID replay.
- * Reprocesses child rows parked while parent INT ids were missing, now that
- * pkswap assigned real ids. Delegates to the canonical phase handlers,
- * which resolve parents via migration_state and skip existing rows.
- * Fully idempotent: second execution changes nothing.
+ * PENDING_INT_ID replay: reprocesses child rows parked while parent INT ids
+ * were missing, now that pkswap assigned them. Idempotent via the canonical
+ * phase handlers (existing rows are skipped).
  */
 import { PrismaClient } from '@prisma/client';
 import { phaseFavorites, phaseLikes } from './phases-c1';

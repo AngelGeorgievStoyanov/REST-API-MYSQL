@@ -1,20 +1,7 @@
-/**
- * PHASE 4 — low-level DB helpers for the migration runner.
- *
- * All helpers use Prisma `$queryRawUnsafe`/`$executeRawUnsafe` against the
- * SAME database named in DATABASE_URL. Writes are raw SQL only; the Phase 3
- * Prisma models describe the target and are NOT used for migration writes,
- * because the live schema does not match them yet.
- */
-
 import { PrismaClient } from '@prisma/client';
 import { databaseNameFromUrl } from './config';
 
-/**
- * Minimal executor surface used by all migration code. Both PrismaClient
- * (dry-run / reads / DDL) and an interactive-transaction client satisfy it,
- * so phase bodies can run inside a real transaction without rewrites.
- */
+/** Surface shared by PrismaClient and its interactive-transaction client. */
 export type DbExecutor = {
   $queryRawUnsafe: PrismaClient['$queryRawUnsafe'];
   $executeRawUnsafe: PrismaClient['$executeRawUnsafe'];
@@ -38,11 +25,8 @@ export function qi(name: string): string {
 }
 
 /**
- * Escape a VALUE for inline single-quoted SQL literals. Doubles
- * single-quotes AND backslashes: MySQL string literals treat `\` as an
- * escape character (unless NO_BACKSLASH_ESCAPES), so a raw backslash in a
- * filename/JSON payload would otherwise corrupt the stored value and break
- * resume lookups (e.g. Image state keys contain filenames).
+ * Escape a VALUE for inline SQL literals: doubles quotes AND backslashes
+ * (MySQL string literals treat `\` as escape unless NO_BACKSLASH_ESCAPES).
  */
 export function esc(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "''");
@@ -52,12 +36,7 @@ export function qtable(db: string, table: string): string {
   return qi(db) + '.' + qi(table);
 }
 
-/**
- * Seed ids of the polymorphic `target_types` lookup table. The final schema
- * stores ONE generic likes/reports/Comments target column pair
- * (`targetTypeId` + bare `targetId`) instead of per-resource tables, and the
- * live target database holds exactly these five rows.
- */
+/** Seed ids of the polymorphic `target_types` lookup table (five rows). */
 export const TARGET_TYPE = {
   tripGroup: 1,
   trip: 2,
@@ -66,7 +45,6 @@ export const TARGET_TYPE = {
   comment: 5,
 } as const;
 
-/** Ordered seed content of `target_types` (id, name) — final schema order. */
 export const TARGET_TYPES: ReadonlyArray<readonly [number, string]> = [
   [TARGET_TYPE.tripGroup, 'tripGroup'],
   [TARGET_TYPE.trip, 'trip'],
@@ -124,13 +102,9 @@ export async function columnNullable(
 }
 
 /**
- * Resolve the live owner-FK column name for a legacy table.
- *
- * The activate phase renames `_ownerId` -> `ownerId` (target schema:
- * Trip/Point/Comment.ownerId, VARCHAR(36)). Every phase that reads or joins
- * on the owner must resolve the name at runtime instead of hardcoding it,
- * otherwise a rerun AFTER the rename fails with "Unknown column '_ownerId'".
- * Returns '' when neither column exists (table not inspected yet).
+ * Live owner-FK column: `ownerId` after the activate rename, `_ownerId`
+ * before. Resolved at runtime so reruns work in either shape; '' when the
+ * table has neither.
  */
 export async function ownerColumn(
   exec: DbExecutor,
@@ -148,13 +122,8 @@ export async function ownerColumn(
 }
 
 /**
- * Live primary-key column name of `users`.
- *
- * The legacy source declares `users._id VARCHAR(36)`; the final schema has
- * `users.id` (no column name may start with `_`), so the activate/finalize
- * step renames it. Every phase that reads or joins a user must resolve the
- * name at runtime instead of hardcoding `_id`, otherwise a rerun after the
- * rename fails with "Unknown column '_id'". Returns '' when neither exists.
+ * Live users key column: `users.id` after the activate rename, `users._id`
+ * before. Resolved at runtime; '' when neither exists.
  */
 export async function userKeyColumn(
   exec: DbExecutor,
@@ -169,7 +138,7 @@ export async function userKeyColumn(
   return '';
 }
 
-/** True when a surviving user row has this UUID (shape-aware user key). */
+/** True when a surviving user row has this UUID. */
 export async function userExistsById(
   exec: DbExecutor,
   db: string,
@@ -183,9 +152,8 @@ export async function userExistsById(
 }
 
 /**
- * Live column that still holds the legacy UUID of a resource row.
- * Pre-pkswap that is `_id`; after the swap `_id` is dropped and the UUID
- * lives in `legacyId`. Returns '' when neither exists.
+ * Column still holding the legacy UUID of a row: `_id` pre-pkswap,
+ * `legacyId` after the swap. '' when neither exists.
  */
 export async function legacyKeyColumn(
   exec: DbExecutor,
@@ -202,13 +170,10 @@ export async function legacyKeyColumn(
 }
 
 /**
- * Legacy parent pointer on a child table. Activate drops `_ownerTripId` /
- * `_tripId` once the final INT pointer is enforced, so post-activate reads
- * must fall back to the final INT column (callers treat a numeric value as
- * "already an INT"):
- *  - points   -> tripId      (final Points.tripId)
- *  - comments -> targetId    (final Comment.targetId + targetTypeId = 2)
- * Returns '' when none of the candidates exist.
+ * Legacy parent pointer on a child table; after activate falls back to the
+ * final INT column (numeric value = already final):
+ *   points -> tripId, comments -> targetId (targetTypeId = 2).
+ * '' when no candidate exists.
  */
 export async function parentPointerColumn(
   exec: DbExecutor,
@@ -227,11 +192,9 @@ export async function parentPointerColumn(
 }
 
 /**
- * Legacy trip-group key on trips. Groupfinalize drops the VARCHAR
- * `tripGroupId` and renames `tripGroupNewId` onto it (INT). Returns
- * 'tripGroupId' while the VARCHAR is still there, 'tripGroupNewId' on a
- * half-renamed table, and '' once only the finalized INT remains (callers
- * must then read the group UUID from migration_state, never invent one).
+ * Trip-group column on trips: VARCHAR `tripGroupId` while legacy,
+ * `tripGroupNewId` on a half-renamed table, '' once only the final INT
+ * remains (callers then read the group UUID from migration_state).
  */
 export async function legacyGroupColumn(exec: DbExecutor, db: string): Promise<string> {
   const rows = (await exec.$queryRawUnsafe(
@@ -258,9 +221,8 @@ export function toBigintString(v: unknown): string {
 }
 
 /**
- * Strict UUID check. Only canonical 8-4-4-4-12 UUIDs count as users.
- * The known malformed like token is a 73-char concatenation of two UUIDs
- * and MUST be quarantined, never split by guessing.
+ * Canonical 8-4-4-4-12 only; the known 73-char concatenated token must be
+ * quarantined, never split by guessing.
  */
 export function isUuid(value: unknown): boolean {
   if (value === null || value === undefined) return false;
@@ -268,7 +230,6 @@ export function isUuid(value: unknown): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }
 
-/** Current code joins/splits on commas and whitespace. */
 export function splitList(raw: unknown): string[] {
   if (raw === null || raw === undefined) return [];
   const s = String(raw);
@@ -298,10 +259,8 @@ export function dbName(): string {
 }
 
 /**
- * Live DB default collation (legacy tables use it, e.g. utf8mb4_0900_ai_ci).
- * New tables/columns must declare it explicitly or cross-table string
- * comparisons fail with ER 1267 (illegal mix of collations). Read from the
- * live DB, never hardcoded.
+ * Live default collation, read not hardcoded: cross-table string comparisons
+ * fail with ER 1267 when objects declare a different one.
  */
 export async function dbCollation(exec: DbExecutor, db: string): Promise<string> {
   const rows = (await exec.$queryRawUnsafe(

@@ -1,23 +1,7 @@
 /**
- * PHASE 4 — reconciliation + final-structure report (read-only; safe for --verify).
- *
- * Two report sections:
- *  - `lines`: source vs mapped vs quarantined per entity. `source` counts what
- *    the data phases actually read — live row counts for the in-place entities
- *    and the legacy blob-of-tokens columns (split with the SAME splitter the
- *    phases use) for likes / favorites / reports / images. When the activate
- *    step has already retired a legacy column, the final table count is used
- *    instead, so a finished database reports real numbers instead of zeros.
- *  - `finalization`: structural checks against prisma/schema.prisma — INT PKs,
- *    removed transitional columns, the finalized INT group key,
- *    UNIQUE(tripGroupId, dayNumber), the exact final FK set (FKS of
- *    ./phases-e5), polymorphic targetTypeId/targetId resolution, the
- *    target_types seed and the migration control tables.
- *
- * Everything here is read-only and every probe degrades instead of throwing:
- * legacy token columns and the migration control tables are gone AFTER a
- * completed migration and not created yet BEFORE the ddl phase. Preflight
- * stays the gate for "is this database runnable at all".
+ * Reconciliation (`lines`) + final-structure report (`finalization`).
+ * Read-only; probes degrade instead of throwing (objects may be missing
+ * before ddl and after activate). Preflight gates runnability.
  */
 import { PrismaClient } from '@prisma/client';
 import {
@@ -91,9 +75,8 @@ export async function verifyMigration(
 ): Promise<{ lines: VerifyLine[]; finalization: FinalCheck[] }> {
   void runId;
   void opts;
-  // A missing object is the NORMAL state at both ends of the lifecycle (not
-  // created yet before ddl, retired by activate after a completed migration),
-  // so only that case degrades; every other error still fails the report.
+  // Missing objects are normal at both ends of the lifecycle (pre-ddl,
+  // post-activate); only that case degrades, other errors still fail the report.
   const safeRows = async <T>(sql: string): Promise<T[] | null> => {
     try {
       return (await prisma.$queryRawUnsafe(sql)) as T[];
@@ -120,12 +103,8 @@ export async function verifyMigration(
   const rowCount = async (table: string): Promise<number | null> =>
     (await tableExists(prisma, db, table)) ? await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, table)}`) : null;
 
-  /**
-   * Tokens held in legacy blob-of-tokens columns (`trips.likes` style), split
-   * with the exact splitter the data phases use, so source == migrated +
-   * skipped + quarantined by construction. Returns null when NONE of the
-   * columns still exists: not created yet (pre-ddl) or retired by activate.
-   */
+  /** Split legacy blob-of-tokens columns with the phases' splitter; null when
+   *  none of the columns exists (pre-ddl or retired by activate). */
   const tokenSource = async (sources: Array<[string, string]>): Promise<number | null> => {
     let readable = false;
     let total = 0;
@@ -140,11 +119,8 @@ export async function verifyMigration(
     return readable ? total : null;
   };
 
-  /**
-   * Legacy group keys live in the VARCHAR `trips.tripGroupId`; groupfinalize
-   * drops that column, so a finished database has no legacy group list left to
-   * count and the `trip_groups` rows become the source of truth (null here).
-   */
+  /** Distinct legacy VARCHAR group keys; null once groupfinalize drops the
+   *  column (trip_groups rows become the source of truth). */
   const tripGroupSource = async (): Promise<number | null> => {
     if ((await legacyGroupColumn(prisma, db)) !== 'tripGroupId') return null;
     return safeCount(
@@ -153,7 +129,6 @@ export async function verifyMigration(
     );
   };
 
-  // --- reconciliation: source vs mapped vs quarantined ----------------------
   const specs: Array<{ entity: string; source: () => Promise<number | null> }> = [
     { entity: 'TripGroup', source: tripGroupSource },
     { entity: 'Trip', source: () => rowCount('trips') },
@@ -173,8 +148,7 @@ export async function verifyMigration(
     const source = legacy ?? (finalTable ? ((await rowCount(finalTable)) ?? 0) : 0);
     lines.push({ entity: s.entity, source, mapped: await mappedOf(s.entity), quarantined: await quarantinedOf(s.entity) });
   }
-  // In-place entities: the source rows ARE the target rows (nothing moves),
-  // so `mapped` is the row marker the phase writes (`createdAt` backfilled).
+  // In-place entities: source rows ARE the target rows; mapped = createdAt backfilled.
   for (const [entity, table] of [['User', 'users'], ['Verify', 'verify']] as const) {
     lines.push({
       entity,
@@ -184,15 +158,13 @@ export async function verifyMigration(
     });
   }
 
-  // --- finalization checks --------------------------------------------------
   const finalization: FinalCheck[] = [];
   const push = (check: string, ok: boolean, detail: string): void => {
     finalization.push({ check, ok, detail });
   };
 
-  // Every UUID-keyed resource table ends with an INT AUTO_INCREMENT `id` PK and
-  // NO `_id`. `legacyId` (the UUID bridge) is UNIQUE while it exists and is
-  // retired by the activate step — the final schema keeps no bridge at all.
+  // Final shape: INT AUTO_INCREMENT `id` PK, no `_id`; `legacyId` is UNIQUE
+  // while present and retired by activate.
   for (const t of ['trips', 'points', 'comments', 'failedlogs', 'routenotfoundlogs']) {
     const idType = await columnType(prisma, db, t, 'id');
     const idKey = await columnKey(prisma, db, t, 'id');
@@ -212,9 +184,8 @@ export async function verifyMigration(
     }
   }
 
-  // Transitional columns must be GONE from the final schema: `_id` by the PK
-  // swap, `_ownerTripId`/`_tripId` by activate, `tripGroupNewId` by
-  // groupfinalize (activate retries it, see phases-e5 LEGACY_DROPS).
+  // Transitional columns must be gone in the final schema: `_id` (pkswap),
+  // `_ownerTripId`/`_tripId` (activate), `tripGroupNewId` (groupfinalize).
   const transitional: Array<[string, string]> = [
     ['trips', '_id'],
     ['points', '_id'],
@@ -234,8 +205,7 @@ export async function verifyMigration(
     );
   }
 
-  // The user key stays a UUID forever: `users._id` before the activate rename,
-  // `users.id` after it — resolved here instead of assumed.
+  // The user key is `users._id` before the activate rename and `users.id` after.
   const userKey = (await userKeyColumn(prisma, db)) || '_id';
   const userType = await columnType(prisma, db, 'users', userKey);
   push(
@@ -251,9 +221,8 @@ export async function verifyMigration(
     push('migration_state legacy mapping is one-to-one', dupState === 0, dupState === 0 ? 'no duplicate (entity, legacy_key)' : `${dupState} duplicate mapping(s)`);
     const orphanState = await countOf(`SELECT COUNT(*) AS c FROM ${qtable(db, STATE_TABLE)} WHERE ${qi('new_id')} IS NULL`);
     push('migration_state has no orphan (NULL new_id) mappings', orphanState === 0, orphanState === 0 ? 'all mappings resolve' : `${orphanState} NULL mapping(s)`);
-    // Data phases park a 0 placeholder ("validated, INT id pending"); pkswap
-    // promotes every retained row, so a surviving 0 after the swap is an
-    // interrupted mapping. Before the swap the placeholder is expected.
+    // Data phases park a 0 placeholder (validated, INT pending); after pkswap
+    // a surviving 0 means an interrupted mapping, before it it is expected.
     const swapped = (await legacyKeyColumn(prisma, db, 'trips')) === 'legacyId';
     if (!swapped) {
       push('no 0-placeholder mappings remain', false, 'pending — pkswap phase not applied yet (trips._id still present)');
@@ -277,9 +246,8 @@ export async function verifyMigration(
     groupFinalized ? groupType : groupType === '' ? 'trips.tripGroupId missing (ddl phase pending)' : `${groupType} (groupfinalize not applied yet)`,
   );
 
-  // MySQL UNIQUE never conflicts on NULL and parked (quarantined) trips hold
-  // NULL by design, so only fully populated pairs are in scope — exactly what
-  // the index itself enforces.
+  // MySQL UNIQUE never conflicts on NULL and parked trips hold NULL by design:
+  // only fully populated pairs are in scope, exactly like the index itself.
   const dupGroupDay =
     groupType === ''
       ? null
@@ -317,9 +285,8 @@ export async function verifyMigration(
     )) ?? 0;
   const structureFinal = groupFinalized && fkCount > 0;
 
-  // Control tables live while the migration runs and are dropped LAST by the
-  // activate step, so "all present" and "all gone on a final structure" are
-  // both legitimate; anything in between is a broken tooling state.
+  // All present and all gone are both legitimate (activate drops the tables
+  // last); anything in between is a broken tooling state.
   const missingControl: string[] = [];
   for (const t of [RUN_TABLE, STATE_TABLE, QUARANTINE_TABLE]) {
     if (!(await tableExists(prisma, db, t))) missingControl.push(t);
@@ -337,12 +304,11 @@ export async function verifyMigration(
     );
   }
 
-  // Exact final FK set (FKS of ./phases-e5). Reference integrity is proven on
-  // the DATA before the constraint exists, so activation is never blind.
+  // Exact final FK set (phases-e5); integrity is proven on the data before
+  // the constraint exists, so activation is never blind.
   const usersRef = (await userKeyColumn(prisma, db)) || '_id';
   for (const [, table, column, refTable, refColumn] of FKS) {
-    // `_ownerId` is renamed to `ownerId` by the activate step: resolve the
-    // child column instead of assuming either form.
+    // `_ownerId` becomes `ownerId` after activate: resolve, don't assume.
     const child = column === 'ownerId' ? (await ownerColumn(prisma, db, table)) || 'ownerId' : column;
     const ref = refColumn === '' ? usersRef : refColumn;
     const check = `FK ${table}.${child} -> ${refTable}.${ref} valid`;
@@ -352,9 +318,8 @@ export async function verifyMigration(
       push(check, false, `pending — ${childReady ? `${refTable}.${ref}` : `${table}.${child}`} not created yet (ddl phase not applied)`);
       continue;
     }
-    // trips.tripGroupId still holds the legacy VARCHAR UUIDs until
-    // groupfinalize: joining those against INT trip_groups.id would only
-    // produce noise, so this check waits for the finalized shape.
+    // Legacy VARCHAR group keys until groupfinalize: joining them against
+    // INT trip_groups.id would only produce noise, so wait for the final shape.
     if (table === 'trips' && column === 'tripGroupId' && !groupFinalized) {
       push(check, false, `pending — trips.tripGroupId is ${groupType} (groupfinalize not applied yet)`);
       continue;
@@ -366,9 +331,8 @@ export async function verifyMigration(
     push(check, orphans === 0, orphans === 0 ? 'no orphan references' : `${orphans} orphan reference(s)`);
   }
 
-  // Polymorphic target pointers carry NO FK in the final schema (Prisma cannot
-  // express one), so their integrity is proven per target type instead:
-  // comments / likes / reports all store targetTypeId + a bare targetId.
+  // Polymorphic pointers carry no FK in the final schema; integrity is proven
+  // per target type (targetTypeId + bare targetId) instead.
   const polymorphicBroken = async (table: string): Promise<number | null> => {
     if ((await columnType(prisma, db, table, 'targetTypeId')) === '') return null;
     if ((await columnType(prisma, db, table, 'targetId')) === '') return null;

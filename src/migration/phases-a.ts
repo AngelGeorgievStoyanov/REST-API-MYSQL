@@ -1,7 +1,3 @@
-/**
- * PHASE 4 — per-phase data migration, part A (users, tripGroups).
- * Idempotent via migration_state; dirty rows go to quarantine, never deleted.
- */
 import { PrismaClient } from '@prisma/client';
 import { DbExecutor, columnExists, esc, inTx, isUuid, legacyGroupColumn, ownerColumn, qi, qtable, timestampForWrite, toCount, userKeyColumn } from './db';
 import { lookupStateOrPending, quarantineDryAware, recordState } from './state';
@@ -16,7 +12,7 @@ async function runBody(
   apply: (exec: DbExecutor) => Promise<Counters>,
 ): Promise<Counters> {
   if (dryRun) {
-    // Read-only rehearsal: same validation, never writes.
+    // Read-only rehearsal: same validation, no writes.
     return apply(prisma);
   }
   let out: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
@@ -29,8 +25,7 @@ async function runBody(
 export async function phaseUsers(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   // `users._id` in the legacy source, `users.id` after the finalize rename.
   const keyCol = (await userKeyColumn(prisma, db)) || '_id';
-  // The legacy `timeCreated`/`timeEdited` columns are retired by the activate
-  // step; a rerun of a finished migration has nothing left to migrate.
+  // timeCreated/timeEdited are retired by activate: nothing left to migrate on a rerun.
   if (!(await columnExists(prisma, db, 'users', 'timeCreated'))) {
     const n = toCount((await prisma.$queryRawUnsafe(
       `SELECT COUNT(*) AS c FROM ${qtable(db, 'users')}`,
@@ -79,9 +74,8 @@ export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: n
     )) as Array<Record<string, unknown>>);
     return { migrated: 0, skipped: n, quarantined: 0 };
   }
-  // Deterministic derivation: legacy group UUID ascending. The final
-  // `trip_groups.id` assignment is therefore stable across runs/databases
-  // (the live target was derived in exactly this order).
+  // Deterministic order: legacy UUID ascending, so the final
+  // `trip_groups.id` assignment matches the live target on every rerun.
   const rows = (await prisma.$queryRawUnsafe(
     `SELECT DISTINCT ${qi('tripGroupId')} AS g FROM ${qtable(db, 'trips')} ORDER BY ${qi('tripGroupId')} ASC`,
   )) as Array<{ g: unknown }>;
@@ -97,8 +91,7 @@ export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: n
         if (await quarantineDryAware(exec, db, dryRun, runId, 'TripGroup', '(empty)', 'INVALID_GROUP', 'NULL/empty legacy tripGroupId cannot become a group.', { group: r.g })) c.quarantined++; continue;
       }
       const existing = await lookupStateOrPending(exec, db, dryRun, 'TripGroup', g);
-      // Resume path: a rolled-back insert may have left a 0 placeholder.
-      // Treat it as unmapped (fall through and allocate below).
+      // Resume path: a rolled-back insert may have left a 0 placeholder — treat as unmapped.
       if (existing !== null && existing !== 0) { c.skipped++; continue; }
       const owners = (await exec.$queryRawUnsafe(
         `SELECT DISTINCT ${qi(tripsOwnerCol)} AS o FROM ${qtable(db, 'trips')} WHERE ${qi('tripGroupId')} = '${esc(g)}'`,
@@ -111,9 +104,8 @@ export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: n
       const valid = new Set(users.map((u) => String(u.id)));
       const usable = good.filter((o) => valid.has(o));
       if (usable.length === 0) {
-        // No surviving owner: record a 0 placeholder so downstream phases
-        // can distinguish "group seen but unmigratable" (0) from "group
-        // never seen" (null). The placeholder never becomes a real id.
+        // 0 placeholder = "seen but unmigratable", distinct from never seen
+        // (null); it never becomes a real id.
         if (!dryRun) await recordState(exec, db, 'TripGroup', g, 0, runId);
         await quarantineDryAware(exec, db, dryRun, runId, 'TripGroup', g, 'ORPHAN_USER', 'No surviving user owner; owner must not be invented.', { owners: ownerList }); c.quarantined++; continue;
       }

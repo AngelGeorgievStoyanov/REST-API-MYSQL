@@ -1,7 +1,3 @@
-/**
- * PHASE 4 — migration runner entrypoint (ts-node, operational process).
- * Exit codes: 0 completed, 1 unexpected error, 2 preflight failure.
- */
 import dotenv = require('dotenv');
 import { PrismaClient } from '@prisma/client';
 import { CliOptions, PhaseName, PHASES, getEnv, helpText, parseArgs } from './config';
@@ -78,8 +74,7 @@ async function main(): Promise<void> {
   if (!env.databaseUrl) { console.error('PREFLIGHT_FAIL DATABASE_URL is not set.'); process.exitCode = 2; return; }
   const prisma = new PrismaClient();
   try {
-    // Allow missing target DDL when the requested run includes the ddl
-    // phase (fresh DB) or is a dry-run (report covers ddl too).
+    // Fresh-DB runs (ddl phase) and dry-runs may not have the target DDL yet.
     const wantsDdl = !opts.phase || opts.phase === 'ddl';
     const pf = await preflight(prisma, { allowMissingTargets: opts.dryRun || wantsDdl });
     for (const w of pf.warnings) console.log('PREFLIGHT_WARN ' + w);
@@ -111,8 +106,7 @@ async function main(): Promise<void> {
     }
     if (pf.isProduction) console.log(`PRODUCTION_CONFIRMED backup=${env.backupRef}`);
     else console.log(`TARGET localhost database=${db} (test/dev)`);
-    // Control tables must exist before startRun (live mode); ddl also
-    // ensures them, but an explicit --phase run may skip ddl.
+    // --phase runs may skip ddl, so ensure the control tables here.
     if (!opts.dryRun) await ensureControlTables(prisma, db);
     const runId = opts.dryRun ? 0 : await startRun(prisma, db, false);
     if (opts.dryRun) console.log('DRY-RUN active: validation + mapping report only, no writes.');

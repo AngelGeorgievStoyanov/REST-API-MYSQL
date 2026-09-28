@@ -1,15 +1,3 @@
-/**
- * PHASE 4 — migration run / quarantine / state persistence.
- *
- * Tables (created by the ddl phase if missing, never dropped here):
- * - migration_runs(id, migration_name, version, started_at, completed_at,
- *   status, error, dry_run)
- * - migration_state(entity, legacy_key, new_id, run_id, created_at)
- *   UNIQUE(entity, legacy_key) — the resume/mapping source of truth.
- * - migration_quarantine(id, run_id, entity, legacy_id, reason_code, reason,
- *   payload, created_at) — dirty source rows are recorded, never deleted.
- */
-
 import { MIGRATION_NAME, MIGRATION_VERSION } from './config';
 import { DbExecutor, esc, legacyGroupColumn, legacyKeyColumn, qi, qtable } from './db';
 
@@ -55,9 +43,8 @@ export async function ensureControlTables(
       `${qi('payload')} JSON NULL DEFAULT NULL, ` +
       `${qi('created_at')} DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), ` +
       `KEY ${qi('ix_quarantine_entity')} (${qi('entity')}), ` +
-      // Rerun dedupe: the same source record + reason is recorded ONCE
-      // globally (no run_id in the key), so reruns never duplicate
-      // quarantine evidence. run_id keeps the FIRST run that saw it.
+      // Rerun dedupe: the UNIQUE key excludes run_id, so evidence is recorded
+      // once globally; run_id keeps the FIRST run that saw it.
       `UNIQUE KEY ${qi('uq_quarantine_entity_key_reason')} (${qi('entity')}, ${qi('legacy_id')}, ${qi('reason_code')})` +
       `) ENGINE=InnoDB`,
   );
@@ -91,8 +78,7 @@ export async function finishRun(
       `UPDATE ${qtable(db, RUN_TABLE)} SET ${qi('status')} = '${status}', ${qi('completed_at')} = CURRENT_TIMESTAMP(3), ${qi('error')} = '${safe}' WHERE ${qi('id')} = ${runId}`,
     );
   } catch (e) {
-    // The activate phase drops the migration control tables from the final
-    // database by design, so the run record can legitimately be gone here.
+    // activate drops the control tables, so the run record may legitimately be gone.
     if (String((e as Error).message).includes("doesn't exist")) {
       console.log(`[state] ${RUN_TABLE} was finalized away; run ${runId} (${status}) is not persisted (by design).`);
       return;
@@ -114,10 +100,9 @@ export function isStateUnavailable(e: unknown): boolean {
 }
 
 /**
- * Resume/idempotency lookup. A missing migration_state table during dry-run
- * means "nothing recorded yet" (null), not a data error. Callers that must
- * distinguish a missing row from a missing table use lookupState, which throws
- * StateUnavailableError in that dry-run case.
+ * Dry-run without a migration_state table = "nothing recorded yet" (null).
+ * Callers needing the difference from a missing row use lookupState, which
+ * throws StateUnavailableError in that case.
  */
 export async function lookupStateOrPending(
   exec: DbExecutor,
@@ -150,8 +135,7 @@ export async function lookupState(
     const v = rows[0].n;
     return typeof v === 'bigint' ? Number(v) : Number(v);
   } catch (e) {
-    // Dry-run before the ddl phase: control tables do not exist yet.
-    // Callers must NOT treat this as "row missing" (that is a real null).
+    // Dry-run before ddl: control tables absent — NOT the same as "row missing" (a real null).
     if (dryRun && (e as Error).message.includes("doesn't exist")) throw new StateUnavailableError();
     throw e;
   }
@@ -166,11 +150,9 @@ export async function recordState(
   runId: number,
 ): Promise<number> {
   const safe = esc(legacyKey);
-  // INSERT ... ON DUPLICATE KEY UPDATE keeps the FIRST mapping stable
-  // across reruns and returns the canonical new_id either way, so child
-  // phases resolve the same parent INT id on resume.
-  // NOTE: first-wins means a 0 placeholder is NEVER overwritten here —
-  // use resolvePlaceholder() below to promote 0 -> real id.
+  // ON DUPLICATE KEY keeps the FIRST mapping stable across reruns and returns
+  // the canonical new_id either way. A 0 placeholder is never overwritten here —
+  // use resolvePlaceholder() to promote 0 -> real id.
   const rows = (await exec.$queryRawUnsafe(
     `INSERT INTO ${qtable(db, STATE_TABLE)} (${qi('entity')}, ${qi('legacy_key')}, ${qi('new_id')}, ${qi('run_id')}) VALUES ('${entity}', '${safe}', ${newId}, ${runId}) ` +
       `ON DUPLICATE KEY UPDATE ${qi('new_id')} = LAST_INSERT_ID(${qi('new_id')}), ${qi('run_id')} = ${runId}`,
@@ -184,10 +166,9 @@ export async function recordState(
 }
 
 /**
- * Promote a 0 placeholder (parked row: validated but INT id pending) to a
- * real INT id. Only touches rows whose current new_id = 0, so a real mapping
- * can never be overwritten and reruns converge. Returns the canonical id:
- * the newly promoted one, or the already-real one when no placeholder exists.
+ * Promotes a 0 placeholder (parked row: validated, INT id pending) to a real
+ * id; only touches rows with new_id = 0, so real mappings are never
+ * overwritten. Returns the canonical id (promoted or already real).
  */
 export async function resolvePlaceholder(
   exec: DbExecutor,
@@ -213,13 +194,10 @@ export async function resolvePlaceholder(
 }
 
 /**
- * Resolution outcome for a legacy source row's final polymorphic/FK target.
- *   target  -> the final INT id exists, migrate the tokens
- *   pending -> the INT id is not assigned yet (state table absent in a dry-run,
- *              or a placeholder row that the PK swap will promote). Skip, never
- *              quarantine: reruns converge.
- *   unmapped-> the mapping does not exist (parent row missing/quarantined or
- *              group never seen). Quarantine the tokens, never guess.
+ * target  -> final INT id exists, migrate the tokens.
+ * pending -> id not assigned yet (dry-run without state, or a 0 placeholder
+ *            the PK swap will promote). Skip; reruns converge.
+ * unmapped-> no mapping (parent missing/quarantined). Quarantine, never guess.
  */
 export type TargetResolution =
   | { kind: 'target'; id: number }
@@ -227,15 +205,10 @@ export type TargetResolution =
   | { kind: 'unmapped' };
 
 /**
- * Final INT trip_groups.id of the group a legacy trip belongs to.
- *
- * Favorites attach to the trip GROUP (`favorites.tripGroupId`), never to a
- * single day row (`trips.id`), so the legacy trip UUID must be resolved to its
- * final group id. Works in every shape the trips table can be in:
- *   - legacy VARCHAR tripGroupId    -> migration_state('TripGroup', uuid)
- *   - transitional tripGroupNewId   -> read off the trip row (INT)
- *   - finalized INT tripGroupId     -> read off the trip row (INT)
- * Nothing is ever invented: an unresolvable group is reported as `unmapped`.
+ * Final INT trip_groups.id for a legacy trip UUID. Favorites attach to the
+ * trip GROUP (`favorites.tripGroupId`), never to `trips.id`. Works on every
+ * table shape (VARCHAR tripGroupId via state lookup, tripGroupNewId or the
+ * finalized tripGroupId read off the trip row). Unresolvable -> `unmapped`.
  */
 export async function resolveTripGroupIntForTrip(
   exec: DbExecutor,
@@ -255,8 +228,8 @@ export async function resolveTripGroupIntForTrip(
     if (rows.length === 0) return { kind: 'unmapped' };
     raw = rows[0].g;
   } catch (e) {
-    // Dry-run before the ddl phase: the transitional columns/tables do not
-    // exist yet. That is "not assigned yet", never a data defect.
+    // Dry-run before ddl: transitional columns/tables do not exist yet —
+    // "not assigned yet", never a data defect.
     if (dryRun && (e as Error).message.includes('Unknown column')) return { kind: 'pending' };
     throw e;
   }
@@ -287,9 +260,8 @@ export async function quarantineDryAware(
   reason: string,
   payload: unknown,
 ): Promise<boolean> {
-  // Dry-run counts the quarantine but never touches the quarantine table
-  // (it may not exist yet before the ddl phase). Live mode persists it and
-  // reports whether the row was newly inserted (false = already present).
+  // Dry-run counts quarantines without touching the table (it may not exist
+  // before ddl). Live mode persists and reports newly inserted (false = already present).
   void db;
   if (dryRun) return true;
   return quarantine(exec, db, runId, entity, legacyId, reasonCode, reason, payload);
@@ -305,9 +277,9 @@ export async function quarantine(
   reason: string,
   payload: unknown,
 ): Promise<boolean> {
-  // Returns false when identical evidence already exists (any run): the
-  // UNIQUE(entity, legacy_id, reason_code) key suppresses rerun duplicates.
-  // Callers increment counters only on true (newly recorded evidence).
+  // false = identical evidence already exists (any run): the UNIQUE
+  // (entity, legacy_id, reason_code) key suppresses rerun duplicates;
+  // callers count only true (newly recorded).
   const safeLegacy = esc(legacyId.slice(0, 250));
   const safeReason = esc(reason.slice(0, 950));
   const safePayload = esc(JSON.stringify(payload ?? null).slice(0, 4000));

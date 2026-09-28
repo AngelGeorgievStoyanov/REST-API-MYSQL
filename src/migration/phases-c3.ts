@@ -1,7 +1,6 @@
 /**
- * PHASE 4 — per-phase migration, part C3 (images from trips/points/users).
- * Exact filenames preserved; _thumb.webp never gets its own row here
- * (it is a GCS sidecar of the stored base filename).
+ * Images from trips/points/users. Exact filenames preserved; `_thumb.webp`
+ * is a GCS sidecar of the stored base filename and gets no row of its own.
  */
 import { PrismaClient } from '@prisma/client';
 import { DbExecutor, columnExists, esc, inTx, qi, qtable, splitList, userExistsById, userKeyColumn } from './db';
@@ -10,8 +9,7 @@ import { Counters } from './types';
 
 async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
-  // Post-pkswap trips/points have NO `_id` column. Resolve legacy UUIDs
-  // via legacyId when `_id` is gone (probed once per table).
+  // Post-pkswap trips/points have no `_id`: resolve via legacyId (probed once per table).
   const hasUuid = async (table: string): Promise<boolean> =>
     (
       (await exec.$queryRawUnsafe(
@@ -20,8 +18,8 @@ async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: bo
     ).length > 0;
   const tripsIdExpr = (await hasUuid('trips')) ? qi('_id') : qi('legacyId');
   const pointsIdExpr = (await hasUuid('points')) ? qi('_id') : qi('legacyId');
-  // The legacy image columns are dropped at the end of a completed migration:
-  // a rerun then has nothing left to migrate (never crash on a finished DB).
+  // Legacy image columns are dropped by a completed migration: a rerun then
+  // has nothing left to migrate.
   const tripsImageCol = await columnExists(exec, db, 'trips', 'imageFile');
   const pointsImageCol = await columnExists(exec, db, 'points', 'imageFile');
   const usersImageCol = await columnExists(exec, db, 'users', 'imageFile');
@@ -106,9 +104,7 @@ async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: bo
     }
   }
   {
-    // User avatars: the legacy users.imageFile column is the owner-scoped image
-    // source. The user key column is resolved at runtime (`_id` in the legacy
-    // source, `id` once the finalize step renamed it).
+    // userKeyCol resolved at runtime (`_id` legacy, `id` after rename).
     const userKeyCol = (await userKeyColumn(exec, db)) || '_id';
     const userRows = usersImageCol ? ((await exec.$queryRawUnsafe(
       `SELECT ${qi(userKeyCol)} AS legacy, ${qi('imageFile')} AS raw FROM ${qtable(db, 'users')}`,

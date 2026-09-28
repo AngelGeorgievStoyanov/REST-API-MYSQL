@@ -1,10 +1,4 @@
-﻿/**
- * PHASE 4 — per-phase data migration, part B (trips, points, comments).
- * New INT ids are assigned by altering the live `_id` column mapping:
- * legacy UUID is copied to `legacyId`, the child `tripId`/`tripGroupNewId`
- * INT columns are backfilled from migration_state, timestamps parsed.
- */
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import {
   DbExecutor,
   esc,
@@ -22,10 +16,6 @@ import { isStateUnavailable, lookupState, lookupStateOrPending, quarantineDryAwa
 import { Counters } from './types';
 import { TARGET_TYPE, userExistsById } from './db';
 
-/**
- * Shape-aware user lookup. `users._id` in the legacy source; `users.id` once
- * the finalize step renamed the column, so the name is resolved at runtime.
- */
 async function userExists(exec: DbExecutor, db: string, id: string): Promise<boolean> {
   return userExistsById(exec, db, id);
 }
@@ -51,13 +41,13 @@ function cell(row: Record<string, unknown>, column: string): string {
 }
 
 export async function phaseTrips(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
-  // Resolve once, outside the per-row transaction: DDL is not transactional
-  // in MySQL, so the shape cannot change mid-phase.
+  // Resolve once outside the transaction: MySQL DDL is not transactional,
+  // so the shape cannot change mid-phase.
   const keyCol = (await legacyKeyColumn(prisma, db, 'trips')) || '_id';
   const ownerCol = (await ownerColumn(prisma, db, 'trips')) || '_ownerId';
   const groupCol = await legacyGroupColumn(prisma, db);
   const swapped = keyCol !== '_id';
-  // Before groupfinalize the INT lives in tripGroupNewId. After the rename
+  // Before groupfinalize the INT lives in tripGroupNewId; after the rename
   // (or on a half-renamed table) it lives in tripGroupId.
   const groupIntCol = groupCol === 'tripGroupId' ? 'tripGroupNewId' : 'tripGroupId';
   const groupIntPresent = (
@@ -81,17 +71,13 @@ export async function phaseTrips(prisma: PrismaClient, db: string, runId: number
       if (!isUuid(legacy)) { if (await quarantineDryAware(exec, db, dryRun, runId, 'Trip', legacy, 'INVALID_UUID', 'Trip legacy key is not a canonical UUID.', { key: legacy })) c.quarantined++; continue; }
       const already = await lookupStateOrPending(exec, db, dryRun, 'Trip', legacy);
       if (already !== null && already !== 0) { c.skipped++; continue; }
-      // A 0 placeholder means a previous attempt parked this trip (group or
-      // day not yet resolvable). Re-validate from scratch: fall through and
-      // re-run every check below instead of trusting the placeholder.
-      // NOTE: the refactored trips phase never WRITES 0 placeholders
-      // (quarantined trips `continue` before any recordState). A 0 can only
-      // come from the pkswap placeholder-delete path on resume.
+      // A 0 placeholder means a previous attempt parked this trip: re-validate
+      // from scratch instead of trusting it (a 0 can only come from the pkswap
+      // placeholder-delete path on resume).
       const owner = cell(r, ownerCol);
       const ownerOk = isUuid(owner) && (await userExists(exec, db, owner));
-      // Structural checks (group/day) run BEFORE the owner check so the
-      // quarantine evidence names the structural problem. Owner orphans
-      // are still quarantined below — nothing is skipped.
+      // Structural checks run before the owner check so the quarantine evidence
+      // names the structural problem; owner orphans are still quarantined below.
       const g = groupCol ? cell(r, groupCol) : '';
       if (!groupCol) {
         if (await quarantineDryAware(exec, db, dryRun, runId, 'Trip', legacy, 'INVALID_GROUP', 'Legacy tripGroupId already finalized; cannot re-derive the group UUID.', {})) c.quarantined++;
@@ -109,8 +95,8 @@ export async function phaseTrips(prisma: PrismaClient, db: string, runId: number
         groupPending = true;
       }
       // A real block is only a persisted unmigratable group (new_id=0) or a
-      // missing TripGroup row when migration_state exists. Pending mappings
-      // are not UNKNOWN_GROUP and must not be quarantined.
+      // missing TripGroup row when migration_state exists; pending mappings
+      // are not UNKNOWN_GROUP.
       const groupBlocked = !groupPending && (gid === null || gid === 0);
       if (groupBlocked) { if (await quarantineDryAware(exec, db, dryRun, runId, 'Trip', legacy, 'UNKNOWN_GROUP', 'Legacy group was quarantined or not migrated yet.', { group: g })) c.quarantined++; }
       const day = r['dayNumber'];
@@ -121,14 +107,12 @@ export async function phaseTrips(prisma: PrismaClient, db: string, runId: number
       if (!ownerOk) {
         if (await quarantineDryAware(exec, db, dryRun, runId, 'Trip', legacy, 'ORPHAN_USER', 'Trip owner is not a surviving user; owner not invented.', { owner })) c.quarantined++; continue;
       }
-      // A trip that fails group resolution is parked WITH identity: it gets
-      // legacyId + Trip state row (new_id=0 placeholder) but tripGroupNewId
-      // stays NULL. pkswap assigns it a real INT id (identity ≠ relations);
+      // Parked WITH identity: legacyId + Trip state row (new_id=0),
+      // tripGroupNewId stays NULL. pkswap assigns the real INT id;
       // groupfinalize excludes NULL-group rows from scope.
       if (groupBlocked || groupPending) {
         if (dryRun || !groupIntPresent || groupPending) { c.migrated++; continue; }
-        // Parked WITH identity: legacyId is set NOW (it was NULL before —
-        // this is the first write for this row), group INT stays NULL.
+        // legacyId is set NOW (first write for this row); group INT stays NULL.
         await exec.$executeRawUnsafe(
           `UPDATE ${qtable(db, 'trips')} SET ${qi('legacyId')} = '${esc(legacy)}', ` +
           `${qi(groupIntCol)} = NULL, ${qi('dayNumber')} = ${Number(day)}, ` +
@@ -147,27 +131,21 @@ export async function phaseTrips(prisma: PrismaClient, db: string, runId: number
       const created = timestampForWrite(r['timeCreated']);
       const updated = timestampForWrite(r['timeEdited']);
       if (dryRun || !groupIntPresent) { c.migrated++; continue; }
-      // Quarantined trips (orphan owner / invalid day / unknown group)
-      // `continue`d above before ANY write: no legacyId, no tripGroupNewId,
-      // no state row. pkswap only sees legacyId-bearing rows.
+      // Quarantined trips `continue` above before ANY write: no legacyId,
+      // no tripGroupNewId, no state row — pkswap only sees legacyId-bearing rows.
       await exec.$executeRawUnsafe(
         `UPDATE ${qtable(db, 'trips')} SET ${qi('legacyId')} = '${esc(legacy)}', ` +
         `${qi(groupIntCol)} = ${gid}, ${qi('dayNumber')} = ${Number(day)}, ` +
         `${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'}, ${qi('updatedAt')} = ${updated ? `'${updated}'` : 'NULL'} ` +
         `WHERE ${swapped ? `${qi('legacyId')} = '${esc(legacy)}'` : `${qi('_id')} = '${esc(legacy)}'`}`,
       );
-      // trips keeps its UUID `_id` PK for now (app still runs on it); the
-      // INT `id` column does not exist yet — PK swap is a later step.
-      // migration_state records the mapping intent (new_id=0 placeholder)
-      // so child phases can detect that the trip was processed and resume.
-      // NOTE: reaching here means gid is a REAL group id (gid===0 returns
-      // at the UNKNOWN_GROUP check above), so tripGroupNewId is always set
-      // for validated trips; groupfinalize scope = legacyId-bearing rows.
+      // trips keeps its UUID `_id` PK until pkswap; migration_state records
+      // the intent (new_id=0) so child phases can resume. gid is real here
+      // (0 returns at the UNKNOWN_GROUP check), so tripGroupNewId is always
+      // set for validated trips.
       await recordState(exec, db, 'Trip', legacy, 0, runId);
-      // Child phases (points/comments/likes/...) cannot resolve a real Trip
-      // INT id yet (no INT `id` column exists pre-PK-swap), so they
-      // deterministically quarantine as ORPHAN_TRIP until the PK-swap step
-      // assigns real INT ids and repoints the state mapping.
+      // Child phases cannot resolve a Trip INT id pre-PK-swap, so they
+      // quarantine as ORPHAN_TRIP until pkswap assigns real ids.
       c.migrated++;
     }
     return c;
@@ -211,7 +189,7 @@ async function phaseChild(
         continue;
       }
       const rawParent = cell(r, parentCol);
-      // Post-activate the UUID pointer is gone and the final INT pointer holds
+      // Post-activate the UUID pointer is gone; the final INT pointer holds
       // the resolved parent id.
       const parentIsInt = parentCol === parentIntCol && rawParent !== '' && Number.isInteger(Number(rawParent));
       if (!parentIsInt && !isUuid(rawParent)) {
@@ -239,8 +217,8 @@ async function phaseChild(
         }
       }
       // Parent UUID exists but INT id is not assigned yet (no state table, or
-      // new_id=0 placeholder before PK-swap). That is pending, not an orphan.
-      // A missing Trip state row when the table exists is a real quarantine.
+      // new_id=0 placeholder before PK-swap): pending, not orphan. A missing
+      // Trip state row when the table exists is a real quarantine.
       if (!tripPending && (tid === null || tid === 0)) {
         if (tid === null) {
           if (await quarantineDryAware(exec, db, dryRun, runId, entity, legacy, 'ORPHAN_TRIP', 'Referenced trip was quarantined or not migrated yet.', { trip: rawParent })) c.quarantined++;
@@ -248,26 +226,21 @@ async function phaseChild(
         }
         tripPending = true;
       }
-      // Point-only: a missing legacy date is the write clock, not NULL.
-      // One instant per row, so both columns match when both inputs are missing.
-      // Passed as ISO text: timestampForWrite() does not accept a Date object.
+      // Point-only: a missing legacy date falls back to the write clock (one
+      // instant per row). Passed as ISO text: timestampForWrite() rejects Date objects.
       const missingPointStamp = entity === 'Point'
         ? timestampForWrite(new Date().toISOString())
         : '';
       const created = timestampForWrite(r['timeCreated']) || missingPointStamp;
       const updated = timestampForWrite(r['timeEdited']) || missingPointStamp;
-      // Dry-run only reports the row that the live UPDATE below would write.
       if (dryRun) { c.migrated++; continue; }
       if (!parentIntPresent) {
         throw new Error(`${table}.${parentIntCol} column missing; re-run the ddl phase before migrating ${entity}.`);
       }
-      // Parent INT may still be the pre-pkswap 0 placeholder. Write legacyId
-      // anyway so pkswap can assign this row's own INT id. Leave the parent
-      // pointer NULL only in that case; backfill sets it once the parent
-      // mapping is real. When the parent INT already exists, it is written in
-      // this same statement — never counted as migrated without the write.
-      // Comments carry their polymorphic target type (2 = trip) in the same
-      // write; points have no target type (Trip.points is a direct FK).
+      // legacyId is written even when the parent INT is still the 0
+      // placeholder, so pkswap can assign this row's own id; the parent
+      // pointer stays NULL until backfill. Comments carry targetTypeId
+      // (2 = trip) in the same write; points have no target type.
       const parentAssign = tripPending
         ? ''
         : (parentTypeId === null
@@ -290,7 +263,7 @@ async function phaseChild(
 export const phasePoints = (p: PrismaClient, db: string, r: number, d: boolean) =>
   phaseChild(p, db, r, d, 'Point', 'points', '_ownerTripId');
 
-// Comments are polymorphic in the final schema: the legacy trip pointer lands
-// in `targetId` with `targetTypeId = 2` (trip). There is no comments.tripId.
+// Comments are polymorphic: the legacy trip pointer lands in `targetId` with
+// `targetTypeId = 2` (trip); there is no comments.tripId.
 export const phaseComments = (p: PrismaClient, db: string, r: number, d: boolean) =>
   phaseChild(p, db, r, d, 'Comment', 'comments', '_tripId', 'targetId', TARGET_TYPE.trip);

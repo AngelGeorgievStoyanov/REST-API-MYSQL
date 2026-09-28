@@ -1,7 +1,3 @@
-/**
- * PHASE 4 — schema transition DDL (idempotent, additive only).
- * Adds new tables + transitional columns. Never drops/renames/updates data.
- */
 import { PrismaClient } from '@prisma/client';
 import { TARGET_TYPES, columnExists, dbCollation, esc, qi, qtable, tableExists } from './db';
 import { ensureControlTables } from './state';
@@ -26,21 +22,15 @@ export interface DdlReport {
 export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: boolean): Promise<DdlReport> {
   const report: DdlReport = { createdTables: [], addedColumns: [], seededTargetTypes: [], skipped: [] };
   const co = await dbCollation(prisma, db);
-  // NOTE: live legacy tables were created WITHOUT explicit charset/collation
-  // on VARCHAR columns, so they inherit utf8mb4/utf8mb4_0900_ai_ci. New
-  // tables/columns declare it explicitly (same values) to avoid ER-1267.
-  // The `_id` column on failedlogs/routenotfoundlogs is nullable in the
-  // live schema (verified), so the PK swap cannot assume NOT NULL there.
+  // Legacy VARCHARs have no explicit charset and inherit utf8mb4/utf8mb4_0900_ai_ci;
+  // new objects declare it explicitly to avoid ER-1267. failedlogs/routenotfoundlogs
+  // `_id` is NULL in the live schema, so the PK swap must not require NOT NULL.
   const vc = (len: number, nullable: boolean): string =>
     `VARCHAR(${len}) CHARACTER SET utf8mb4 COLLATE ${co}${nullable ? ' NULL DEFAULT NULL' : ' NOT NULL'}`;
   const tables: Array<{ name: string; ddl: () => string }> = [
-    // Polymorphic target lookup table: 1 tripGroup, 2 trip, 3 point, 4 image,
-    // 5 comment. Seeded below (idempotent) with exactly those rows.
+    // Polymorphic targets: 1 tripGroup, 2 trip, 3 point, 4 image, 5 comment.
     { name: 'target_types', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`name\` ${vc(30, false)}, UNIQUE KEY \`uq_target_types_name\` (\`name\`)) ENGINE=InnoDB` },
     { name: 'trip_groups', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`ownerId\` ${vc(36, false)}, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, \`updatedAt\` DATETIME(3) NULL DEFAULT NULL, KEY \`ix_tg_owner\` (\`ownerId\`)) ENGINE=InnoDB` },
-    // Final likes/favorites/reports shapes (polymorphic targets + group-scoped
-    // favorites). There is NO likes.tripId / favorites.tripId / trip_reports /
-    // comment_reports in the final schema.
     { name: 'likes', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`targetTypeId\` INT NOT NULL, \`targetId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_likes_user_target\` (\`userId\`, \`targetTypeId\`, \`targetId\`), KEY \`ix_likes_u\` (\`userId\`), KEY \`ix_likes_target\` (\`targetTypeId\`, \`targetId\`)) ENGINE=InnoDB` },
     { name: 'favorites', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tripGroupId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_fav_user_group\` (\`userId\`, \`tripGroupId\`), KEY \`ix_fav_u\` (\`userId\`), KEY \`ix_fav_tg\` (\`tripGroupId\`)) ENGINE=InnoDB` },
     { name: 'reports', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`targetTypeId\` INT NOT NULL, \`targetId\` INT NOT NULL, \`reason\` ${vc(1000, true)}, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_reports_user_target\` (\`userId\`, \`targetTypeId\`, \`targetId\`), KEY \`ix_reports_user\` (\`userId\`), KEY \`ix_reports_target\` (\`targetId\`), KEY \`ix_reports_target_type\` (\`targetTypeId\`)) ENGINE=InnoDB` },
@@ -73,15 +63,8 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
     }
   }
   const columns: Array<{ table: string; column: string; definition: () => string }> = [
-    // Transitional INT `id` columns for the PK swap. Added here (not in the
-    // pkswap phase) so reruns and resume paths never depend on a column
-    // that a previous partial run may not have created. NULL-able until
-    // the swap promotes them; rows that never pass validation keep them NULL
-    // and are excluded from the swap by the legacyId IS NOT NULL gate.
-    // Every UUID-keyed resource table — including failedlogs and
-    // routenotfoundlogs — gets an `id` here. pkswap promotes it to
-    // INT AUTO_INCREMENT PRIMARY KEY and drops `_id`, matching
-    // prisma/schema.prisma (FailedLog.id / RouteNotFoundLog.id).
+    // Transitional INT `id` for the PK swap: created here so partial reruns
+    // never depend on it; stays NULL until pkswap (legacyId gate) promotes it.
     { table: 'trips', column: 'id', definition: () => 'INT NULL DEFAULT NULL' },
     { table: 'points', column: 'id', definition: () => 'INT NULL DEFAULT NULL' },
     { table: 'comments', column: 'id', definition: () => 'INT NULL DEFAULT NULL' },
@@ -94,10 +77,7 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
     { table: 'points', column: 'createdAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'points', column: 'updatedAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'comments', column: 'legacyId', definition: () => `${vc(36, true)}, ADD UNIQUE KEY \`uq_comments_legacyId\` (\`legacyId\`)` },
-    // Comments are polymorphic in the final schema: targetTypeId + a bare
-    // targetId (no comments.tripId exists in the final DB). Both are NULL-able
-    // while they are backfilled and are narrowed to NOT NULL by the activate
-    // step once the readiness report is clean.
+    // Polymorphic (targetTypeId + bare targetId); narrowed to NOT NULL by activate.
     { table: 'comments', column: 'targetTypeId', definition: () => 'INT NULL DEFAULT NULL' },
     { table: 'comments', column: 'targetId', definition: () => 'INT NULL DEFAULT NULL' },
     { table: 'comments', column: 'createdAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },

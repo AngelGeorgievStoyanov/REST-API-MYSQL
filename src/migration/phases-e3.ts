@@ -1,9 +1,8 @@
 /**
- * PHASE 4 — finalization E3: TripGroup FK finalization.
- * Verifies every retained trip has a valid tripGroupNewId, then renames
- * tripGroupNewId -> tripGroupId (dropping the legacy VARCHAR column first).
- * Refuses to proceed while any trip lacks a group mapping. Resumable via
- * state marker TripGroup:finalized.
+ * TripGroup FK finalization: verify every retained trip has a group mapping,
+ * then rename tripGroupNewId -> tripGroupId (dropping the legacy VARCHAR
+ * first). Refuses while any trip lacks a mapping; resumable via the
+ * TripGroup:finalized state marker.
  */
 import { PrismaClient } from '@prisma/client';
 import { esc, qi, qtable, toCount } from './db';
@@ -23,10 +22,8 @@ export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId
     }
     return c;
   }
-  // Shape probes FIRST (before any refusal query): a previous attempt may
-  // have partially renamed, in which case the legacy VARCHAR key is gone
-  // and any query referencing it would throw Unknown column. Probe once,
-  // branch on the shape, never on assumptions.
+  // Shape probes first: a previous attempt may have half-renamed, so the
+  // legacy VARCHAR key can be gone — probe once, branch on the shape.
   const colType = async (col: string): Promise<string> => {
     const rows = (await prisma.$queryRawUnsafe(
       `SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = 'trips' AND COLUMN_NAME = '${esc(col)}'`,
@@ -42,12 +39,9 @@ export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId
     return c;
   }
   if (!hasLegacyVarchar && hasTransitional) {
-    // Half-done resume: VARCHAR gone, transitional present → complete the
-    // CHANGE directly (refusal queries need the VARCHAR key — skipped).
-    // Guard: the CHANGE to NOT NULL fails (ER-1138) when parked NULL rows
-    // exist. Those rows are quarantined by design — but MySQL still
-    // refuses. Resolve by scoping the rename to a NULL-able INT first;
-    // the activate phase enforces NOT NULL/UNIQUE only when clean.
+    // Half-done resume: complete the CHANGE directly. NOT NULL would fail
+    // (ER-1138) on parked NULL rows, so the rename stays NULL-able;
+    // activate enforces NOT NULL/UNIQUE only when clean.
     if (dryRun) {
       c.migrated = toCount((await prisma.$queryRawUnsafe(`SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')}`)) as Array<Record<string, unknown>>);
       return c;
@@ -79,12 +73,10 @@ export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId
     }
   } catch (e) {
     const msg = String((e as Error).message);
-    // Fresh dry-run: ddl does not create control tables, so migration_state
-    // is absent (ER 1146). Transitional columns are absent too (Unknown column).
-    // Neither case is a write; treat as "no mappings yet" and keep counting.
+    // Fresh dry-run: no control tables (ER 1146) and no transitional
+    // columns yet — treat as "no mappings yet": count trips as pending,
+    // never quarantined.
     if (dryRun && (msg.includes("doesn't exist") || msg.includes('Unknown column') || isStateUnavailable(e))) {
-      // Absent migration_state means mappings are not created yet.
-      // Count those trips as pending/unmapped, never as quarantined.
       c.migrated = 0;
       c.quarantined = 0;
       c.skipped = toCount((await prisma.$queryRawUnsafe(
@@ -94,9 +86,8 @@ export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId
     }
     throw e;
   }
-  // Orphan group references (group id with no trip_groups row) also block —
-  // but ONLY for trips that passed validation (legacyId set) AND carry a
-  // group INT. Quarantined trips (legacyId NULL) are excluded entirely.
+  // Orphan group refs also block — but only for validated trips (legacyId
+  // set) that carry a group INT; quarantined trips are excluded entirely.
   const badRefs = toCount((await prisma.$queryRawUnsafe(
     `SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} t LEFT JOIN ${qtable(db, 'trip_groups')} g ON g.${qi('id')} = t.${qi('tripGroupNewId')} WHERE t.${qi('legacyId')} IS NOT NULL AND t.${qi('tripGroupNewId')} IS NOT NULL AND g.${qi('id')} IS NULL`,
   )) as Array<Record<string, unknown>>);
@@ -105,20 +96,12 @@ export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId
       `Group finalization refused: ${badRefs} retained trip row(s) reference missing trip_groups rows.`,
     );
   }
-  // Rename scope: only legacyId-bearing trips WITH a group INT participate
-  // in the UNIQUE(tripGroupId, dayNumber) guarantee. Parked quarantined
-  // trips (legacyId NULL, group INT NULL) are unaffected by the rename in
-  // every way that matters: their reviewability lives in quarantine
-  // payloads (UNKNOWN_GROUP/ORPHAN_USER evidence with the legacy group
-  // string), never in the dropped VARCHAR copy. The DROP is safe exactly
-  // because the two refusal checks above passed.
-  // NOTE: on a fully-quarantined dataset (dirty test snapshot) there are
-  // zero legacyId-bearing trips, so both checks pass trivially and the
-  // rename still executes: the table reaches the final INT shape with all
-  // rows parked. Verify reports the finalized shape + quarantine counts.
-  // NULL-ability: the renamed column stays NULL-able (parked rows hold
-  // NULL by design). NOT NULL + UNIQUE enforcement belongs to the
-  // activate phase, gated on clean data — never forced here.
+  // Rename scope: only legacyId-bearing trips WITH a group INT join the
+  // UNIQUE(tripGroupId, dayNumber) guarantee; parked trips keep their
+  // evidence in quarantine payloads, not the dropped VARCHAR copy. The
+  // column stays NULL-able: NOT NULL + UNIQUE belong to activate, gated on
+  // clean data. A fully-quarantined dataset passes both checks trivially
+  // and still reaches the final INT shape.
   await prisma.$executeRawUnsafe(`ALTER TABLE ${qtable(db, 'trips')} DROP COLUMN ${qi('tripGroupId')}`);
   await prisma.$executeRawUnsafe(`ALTER TABLE ${qtable(db, 'trips')} CHANGE COLUMN ${qi('tripGroupNewId')} ${qi('tripGroupId')} INT NULL DEFAULT NULL`);
   await recordState(prisma, db, 'TripGroup:finalized', 'done', 1, runId);

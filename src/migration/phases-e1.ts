@@ -1,27 +1,18 @@
 /**
- * PHASE 4 — finalization E1: deterministic INT ids + PK swap.
- * Tables: trips, points, comments, failedlogs, routenotfoundlogs.
- * verify already has INT _id; users stays UUID (never touched).
- *
- * INVARIANT (enforced by the trips/points/comments data phases):
- *   legacyId set  ⟺  Trip/Point/Comment state row exists.
- * Quarantined rows keep legacyId NULL permanently and never appear in
- * `keys` below, so they never enter the INT keyspace. The backfill in
- * step 1 therefore only covers the logs tables (mapped without
- * validation) plus resume-after-crash gaps — never quarantined rows.
+ * Deterministic INT ids + PK swap for trips, points, comments, failedlogs,
+ * routenotfoundlogs (verify already has INT id; users stays UUID).
+ * INVARIANT: legacyId set ⟺ state row exists — quarantined rows keep
+ * legacyId NULL, so they never enter the INT keyspace; backfill covers only
+ * the logs tables and resume gaps.
  */
 import { PrismaClient } from '@prisma/client';
 import { DbExecutor, esc, inTx, isUuid, qi, qtable, toCount } from './db';
 import { lookupState, lookupStateOrPending, quarantineDryAware, recordState, resolvePlaceholder } from './state';
 import { Counters } from './types';
 
-// EVERY table listed here reaches the target shape: INT AUTO_INCREMENT `id`
-// as PRIMARY KEY (first column), legacy UUID preserved in `legacyId`, and
-// the legacy `_id` column dropped. This matches prisma/schema.prisma, where
-// Trip/Point/Comment/FailedLog/RouteNotFoundLog all declare
-// `id Int @id @default(autoincrement())`.
-// `users` is deliberately absent: User.id stays UUID forever.
-// `verify` is absent too: its `_id` is ALREADY INT AUTO_INCREMENT.
+// Target shape for every table listed: INT AUTO_INCREMENT `id` PK (first
+// column), UUID preserved in `legacyId`, `_id` dropped (prisma/schema.prisma).
+// users stays UUID; verify already has INT `_id`.
 const PK_TABLES = ['trips', 'points', 'comments', 'failedlogs', 'routenotfoundlogs'] as const;
 type PkTable = (typeof PK_TABLES)[number];
 
@@ -55,8 +46,8 @@ async function legacyOrder(exec: DbExecutor, db: string, table: PkTable): Promis
     )) as Array<{ k: unknown }>;
     return rows.map((r) => String(r.k));
   } catch (e) {
-    // Dry-run before ddl: legacyId does not exist yet. Fall back to the
-    // live UUID PK so the report can still count what WOULD be assigned.
+    // Dry-run before ddl: legacyId missing — fall back to the UUID PK so the
+    // report can still count what WOULD be assigned.
     if (String((e as Error).message).includes('Unknown column')) {
       const rows = (await exec.$queryRawUnsafe(
         `SELECT ${qi('_id')} AS k FROM ${qtable(db, table)} ORDER BY ${qi('_id')} ASC`,
@@ -86,26 +77,19 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
     if (marker !== null) {
       const stillHasUuidPk = await hasColumn(prisma, db, table, '_id');
       const idIsPk = await isPrimaryKey(prisma, db, table, 'id');
-      // A previous run wrote the done marker while every legacyId was still
-      // NULL (points/comments transaction had rolled back). That marker is
-      // not a completed swap: the UUID PK is still there and `id` is not.
-      // Ignore it so this run allocates ids and swaps for real.
+      // A done marker while every legacyId is NULL (rolled-back child phase)
+      // is not a completed swap: ignore it and swap for real this run.
       if (idIsPk || !stillHasUuidPk) {
         const keys = await legacyOrder(prisma, db, table);
         c.skipped += keys.length;
         continue;
       }
     }
-    // 1. Crash-recovery backfill: a crash between the data-phase UPDATE
-    // (legacyId set) and its recordState leaves a row with legacyId but no
-    // state mapping. Re-resolve ONLY such rows (state row missing): give
-    // them the deterministic next id. Rows with legacyId NULL are either
-    // quarantined (no state row by design — left untouched) or logs rows
-    // (handled below). This backfill cannot resurrect quarantined rows
-    // because it never writes legacyId itself.
-    // NOTE: on tables whose PK was ALREADY swapped (no `_id` column left,
-    // e.g. rerun after logs swap), information_schema has no `_id` — skip
-    // the legacyId backfill entirely (legacyId is already populated).
+    // 1. Crash-recovery backfill: rows with legacyId but no state mapping
+    // (crash between UPDATE and recordState) get the deterministic next id;
+    // legacyId-NULL rows are quarantined/logs and stay untouched (this
+    // backfill never writes legacyId, so it cannot resurrect quarantined
+    // rows). Skipped entirely when `_id` is gone (already swapped).
     const stillHasUuid = await hasColumn(prisma, db, table, '_id');
     if (stillHasUuid) {
       const orphaned = (await prisma.$queryRawUnsafe(
@@ -117,15 +101,12 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
           if (await quarantineDryAware(prisma, db, false, runId, entity, k || '(empty)', 'INVALID_UUID', `Cannot assign INT id: legacyId is not a canonical UUID.`, {})) c.quarantined++;
           continue;
         }
-        // Fall through to step 2 allocation via keys (legacyOrder picks it
-        // up since legacyId IS set). Nothing to write here.
+        // Fall through to step 2 via keys (legacyOrder picks it up); nothing to write here.
         void k;
       }
     }
-    // Logs tables map legacyId without validation in their data phase, so
-    // legacyId may genuinely be missing there — fill it now (idempotent).
-    // Only when `_id` still exists (pre-swap); post-swap there is nothing
-    // to fill from.
+    // Logs map legacyId without validation, so fill it here (idempotent) —
+    // only while `_id` still exists; post-swap there is nothing to fill from.
     if ((table === 'failedlogs' || table === 'routenotfoundlogs') && stillHasUuid) {
       const missing = (await prisma.$queryRawUnsafe(
         `SELECT ${qi('_id')} AS k FROM ${qtable(db, table)} WHERE ${qi('legacyId')} IS NULL`,
@@ -143,25 +124,17 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
     }
     const keys = await legacyOrder(prisma, db, table);
     if (keys.length === 0) {
-      // Nothing is mapped yet. Do NOT write the pkswapped marker: a previous
-      // points/comments phase can fail before writing legacyId (its
-      // transaction rolls back) while this phase still runs. A done marker
-      // here would make every later resume skip the swap forever, leaving
-      // tripId NULL. Verify reports the missing PK as PENDING until a later
-      // run actually maps rows and swaps.
+      // Do NOT write the pkswapped marker when nothing is mapped: a
+      // rolled-back child phase plus this marker would make resumes skip
+      // the swap forever (tripId stays NULL). Verify reports PENDING instead.
       c.skipped++;
       continue;
     }
-    // 2. Assign deterministic INT ids in legacy-UUID order. Existing state
-    //    mappings are NEVER overwritten (first mapping wins, stable).
-    //    Quarantined rows keep legacyId NULL (their data phase `continue`s
-    //    before any recordState), so they never appear in `keys` and never
-    //    enter the INT keyspace. Only the logs tables (mapped without
-    //    validation) may carry 0 placeholders needing resolution here.
-    //    NOTE: `keys` is empty on the dirty snapshot (all rows quarantined)
-    //    → allocation is a no-op and the swap block below is skipped via
-    //    the keys.length===0 early-continue above. No id values are ever
-    //    written for quarantined rows.
+    // 2. Deterministic INT ids in legacy-UUID order; existing mappings are
+    //    never overwritten. Quarantined rows keep legacyId NULL, so they are
+    //    absent from `keys` and never enter the INT keyspace (an all-quarantined
+    //    snapshot makes allocation + swap a no-op via the keys.length===0
+    //    continue). Only logs tables may carry 0 placeholders, resolved below.
     const usedRows = (await prisma.$queryRawUnsafe(
       `SELECT ${qi('new_id')} AS n FROM ${qtable(db, 'migration_state')} WHERE ${qi('entity')} = '${entity}' AND ${qi('new_id')} > 0`,
     )) as Array<{ n: number | bigint }>;
@@ -172,30 +145,22 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
       const existing = await lookupState(prisma, db, false, entity, k);
       if (existing !== null && existing !== 0) continue;
       while (used.has(next)) next++;
-      // recordState keeps the FIRST mapping on reruns; here there is none
-      // (or a 0 placeholder). A 0 placeholder is promoted IN PLACE via
-      // resolvePlaceholder (UPDATE ... WHERE new_id = 0) instead of
-      // DELETE+INSERT: deleting first would lose the mapping entirely if
-      // the process crashed between the two statements, orphaning the row.
+      // First mapping wins on reruns. A 0 placeholder is promoted IN PLACE via
+      // resolvePlaceholder, never DELETE+INSERT: a crash between the two would
+      // lose the mapping and orphan the row.
       const assigned = existing === 0
         ? await resolvePlaceholder(prisma, db, entity, k, next, runId)
         : await recordState(prisma, db, entity, k, next, runId);
-      // Use the id the state table actually holds (a concurrent/previous
-      // run may have won the race), so the keyspace stays consistent.
+      // Use the id the state table actually holds (a concurrent run may have
+      // won), so the keyspace stays consistent.
       used.add(assigned);
       if (assigned === next) next++;
     }
-    // 3. Swap the PK (DDL commits implicitly in MySQL; marker = resume).
-    // Only legacyId-bearing rows participate: quarantined orphans
-    // (legacyId NULL) are excluded from the INT keyspace by design, and
-    // the refusal check below counts exactly that set — orphans can never
-    // block the swap.
-    // NOTE: the `id` column is created by the ddl phase (not here), so it
-    // always exists by the time pkswap runs — including on reruns/resume.
-    // `valued===0` (dirty snapshot: zero mappable rows) skips the swap
-    // block entirely via the early-continue above — this block only runs
-    // when at least one id value exists, so ADD PRIMARY KEY always has a
-    // fully-valued column here (the backfill below is belt-and-braces).
+    // 3. Swap the PK (MySQL DDL commits implicitly; marker = resume). Only
+    //    legacyId-bearing rows participate, so quarantined orphans never
+    //    block the swap. The `id` column comes from the ddl phase, and
+    //    `valued===0` early-continues above, so ADD PRIMARY KEY always has
+    //    a fully-valued column here.
     const hasId = await hasColumn(prisma, db, table, 'id');
     const idIsPk = hasId && (await isPrimaryKey(prisma, db, table, 'id'));
     if (!idIsPk) {
@@ -217,14 +182,9 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
           `PK swap refused for ${table}: ${unmapped} row(s) have no INT id mapping. Resolve quarantine first.`,
         );
       }
-      // Promote id to PK. `valued > 0` is guaranteed here (the valued===0
-      // case early-continues above), so at least one id value exists. Fill
-      // order: (1) backfill every NULL id from migration_state FIRST, while
-      // the UUID `_id` PK still exists; (2) refuse if any NULL remains
-      // (interrupted mapping — resume, never guess); (3) drop the UUID
-      // `_id` column (implicitly drops old PK); (4) add PRIMARY KEY on the
-      // now-fully-valued id; (5) set AUTO_INCREMENT. Quarantined rows
-      // (legacyId NULL) never reach this block — keys.length===0 for them.
+      // Backfill NULL ids from migration_state BEFORE dropping the UUID PK,
+      // then refuse if any NULL remains (interrupted mapping — resume, never
+      // guess). Quarantined rows (legacyId NULL) never reach this block.
       const valued = toCount((await prisma.$queryRawUnsafe(
         `SELECT COUNT(*) AS c FROM ${qtable(db, table)} WHERE ${qi('id')} IS NOT NULL`,
       )) as Array<Record<string, unknown>>);
@@ -235,11 +195,9 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
       }
       const idIsAlreadyPk = await isPrimaryKey(prisma, db, table, 'id');
       if (!idIsAlreadyPk) {
-        // valued > 0 guaranteed above: at least one id value exists, and
-        // the backfill below fills the rest from migration_state. The
-        // stillNull refusal after it fires only on truly interrupted
-        // mappings — never on quarantined orphans (they have no legacyId
-        // and are excluded from keys entirely).
+        // valued > 0 guaranteed above; the backfill fills the rest, so a
+        // later stillNull can only be an interrupted mapping — never a
+        // quarantined orphan (they have no legacyId and are in no keys).
         await prisma.$executeRawUnsafe(
           `UPDATE ${qtable(db, table)} t JOIN ${qtable(db, 'migration_state')} s ` +
             `ON s.${qi('entity')} = '${entity}' AND s.${qi('legacy_key')} = t.${qi('legacyId')} ` +
@@ -253,11 +211,9 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
             `PK swap refused for ${table}: ${stillNull} row(s) still lack INT id after backfill. Resolve quarantine first.`,
           );
         }
-        // Legacy `_id` is preserved in `legacyId` (UNIQUE) BEFORE it is
-        // dropped: the data phases copy it there and the refusal checks
-        // above guarantee every retained row is mapped. Dropping it here
-        // is therefore never data loss — it is the documented end of the
-        // transitional column's life (target schema has no `_id`).
+        // `_id` is preserved in UNIQUE legacyId before dropping (guaranteed
+        // by the refusal checks), so the drop is never data loss — the final
+        // schema has no `_id`.
         const uuidIsPresent = await hasColumn(prisma, db, table, '_id');
         if (uuidIsPresent) {
           const unpreserved = toCount((await prisma.$queryRawUnsafe(
@@ -270,13 +226,11 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
           }
           await prisma.$executeRawUnsafe(`ALTER TABLE ${qtable(db, table)} DROP COLUMN ${qi('_id')}`);
         }
-        // NOT NULL must be set BEFORE ADD PRIMARY KEY: MySQL silently
-        // coerces NULLs to 0 when a nullable column is promoted to PK,
-        // which would collapse rows onto a duplicate 0 key.
+        // NOT NULL before ADD PRIMARY KEY: MySQL silently coerces NULLs to 0
+        // when promoting a nullable column to PK, collapsing rows onto a dup key.
         await prisma.$executeRawUnsafe(`ALTER TABLE ${qtable(db, table)} MODIFY ${qi('id')} INT NOT NULL`);
         await prisma.$executeRawUnsafe(`ALTER TABLE ${qtable(db, table)} ADD PRIMARY KEY (${qi('id')})`);
-        // AUTO_INCREMENT requires the column to already be a key; making
-        // `id` the FIRST column matches the target schema layout.
+        // AUTO_INCREMENT requires the column to already be a key; FIRST matches the target layout.
         await prisma.$executeRawUnsafe(`ALTER TABLE ${qtable(db, table)} MODIFY ${qi('id')} INT NOT NULL AUTO_INCREMENT FIRST`);
       }
     }

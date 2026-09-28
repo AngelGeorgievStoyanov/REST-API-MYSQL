@@ -451,7 +451,7 @@ tripController.get('/:id/:userId', authenticateToken, async (req, res) => {
         const user = await userRepo.findById(userId)
         const trip = await tripRepo.getTripById(routeParam(req.params.id));
         if (user.role === 'admin' || user.role === 'manager') {
-            // you can see trip._ownerId
+            // Moderators always see the real ownerId; empty branch keeps it.
         } else if (trip._ownerId !== userId) {
             trip._ownerId = '';
         }

@@ -1,21 +1,9 @@
 /**
- * PHASE 4 — per-phase migration, part C2 (reports).
- *
- * The final schema has ONE generic `reports` table
- * (userId, targetTypeId, targetId, reason) and NO trip_reports /
- * comment_reports tables. Both legacy report sources are migrated here:
- *
- *   trips.reportTrip       -> targetTypeId = 2 (trip)    + final trips.id
- *   comments.reportComment -> targetTypeId = 5 (comment) + final comments.id
- *
- * Legacy semantics (src/controllers): both columns hold per-user tokens, so a
- * token becomes a `reports` row with `userId` = the token. The legacy source has
- * no report reason text, so `reason` stays NULL — nothing is invented. Tokens
- * that are not canonical UUIDs (or have no surviving user) are quarantined and
- * never split.
- *
- * NOTE: `reports.targetId` is polymorphic, so the final database declares NO FK
- * on it — exactly like `comments.targetId` / `likes.targetId`.
+ * Reports from both legacy sources into the single polymorphic `reports`
+ * table: trips.reportTrip -> targetTypeId=2 + trips.id, comments.reportComment
+ * -> targetTypeId=5 + comments.id. Tokens are per-user; `reason` stays NULL
+ * (the legacy source has none). `reports.targetId` carries no FK, like all
+ * polymorphic target columns.
  */
 import { PrismaClient } from '@prisma/client';
 import { TARGET_TYPE } from './db';

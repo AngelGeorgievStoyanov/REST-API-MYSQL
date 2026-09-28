@@ -14,13 +14,6 @@ const KEY_FILENAME = path.join(
     '../utils/hack-trip-414441f1b5d4.json'
 );
 
-/**
- * Central Google Cloud Storage client.
- *
- * This is the ONLY place in the codebase that creates `new Storage(...)`.
- * All storage consumers (imageStorage, storageConfig, controllers) must
- * reuse this instance instead of creating their own clients.
- */
 export const gcsClient = new Storage({
     keyFilename: KEY_FILENAME,
     retryOptions: {
@@ -46,11 +39,6 @@ interface GoogleCloudStorageOptions {
     ) => void;
 }
 
-/**
- * Custom Multer StorageEngine backed by the central GCS client.
- *
- * It does not create its own GCS client; it reuses `gcsClient`.
- */
 export class GoogleCloudStorage implements StorageEngine {
     private readonly selectedBucket;
     private readonly destination: GoogleCloudStorageOptions['destination'];

@@ -1,17 +1,3 @@
-/**
- * PHASE 4 — preflight checks (read-only; never writes).
- *
- * Fails closed with exit 2: missing DATABASE_URL, no connectivity, missing
- * legacy source tables, missing migration DDL prerequisites, or production
- * target without backup + dual confirmation. Dry-run mode can still report
- * what WOULD happen after these checks pass.
- *
- * A legacy source column that the data phases READ may legitimately be gone
- * because the migration already retired it — that case is downgraded to a
- * warning when the corresponding final object exists, so `--verify` still works
- * on a finished database. Everything else stays fatal.
- */
-
 import { PrismaClient } from '@prisma/client';
 import {
   databaseNameFromUrl,
@@ -39,17 +25,12 @@ const LEGACY_TABLES = [
   'routenotfoundlogs',
 ];
 
-/** Target objects the migration creates. Missing ones are fine when the ddl
- *  phase is part of the requested run. */
 const TARGET_TABLES = ['target_types', 'trip_groups', 'likes', 'favorites', 'reports', 'images'];
-
 
 interface SourceRequirement {
   table: string;
   column: string;
-  /** True when the final shape that replaced this source column is present. */
   migratedWhen: () => Promise<boolean>;
-  /** What the column feeds, used in the warning text. */
   feeds: string;
 }
 
@@ -62,12 +43,10 @@ async function sourceColumnReport(
   const hasId = (table: string): Promise<boolean> => columnExists(prisma, db, table, 'id');
   const tableFilled = (table: string): Promise<boolean> => tableExists(prisma, db, table);
   const requirements: SourceRequirement[] = [
-    // user identity: `_id` -> final `id`
     { table: 'users', column: '_id', feeds: 'users.id', migratedWhen: () => hasId('users') },
     { table: 'users', column: 'email', feeds: 'users.email', migratedWhen: async () => false },
     { table: 'users', column: 'role', feeds: 'users.role', migratedWhen: async () => false },
     { table: 'users', column: 'status', feeds: 'users.status', migratedWhen: async () => false },
-    // trips
     { table: 'trips', column: '_id', feeds: 'trips.id', migratedWhen: () => hasId('trips') },
     { table: 'trips', column: '_ownerId', feeds: 'trips.ownerId', migratedWhen: () => columnExists(prisma, db, 'trips', 'ownerId') },
     { table: 'trips', column: 'tripGroupId', feeds: 'trips.tripGroupId', migratedWhen: async () => false },
@@ -76,17 +55,14 @@ async function sourceColumnReport(
     { table: 'trips', column: 'favorites', feeds: 'favorites', migratedWhen: () => tableFilled('favorites') },
     { table: 'trips', column: 'reportTrip', feeds: 'reports(targetTypeId=2)', migratedWhen: () => tableFilled('reports') },
     { table: 'trips', column: 'imageFile', feeds: 'images', migratedWhen: () => tableFilled('images') },
-    // points
     { table: 'points', column: '_id', feeds: 'points.id', migratedWhen: () => hasId('points') },
     { table: 'points', column: '_ownerId', feeds: 'points.ownerId', migratedWhen: () => columnExists(prisma, db, 'points', 'ownerId') },
     { table: 'points', column: '_ownerTripId', feeds: 'points.tripId', migratedWhen: () => columnExists(prisma, db, 'points', 'tripId') },
     { table: 'points', column: 'imageFile', feeds: 'images', migratedWhen: () => tableFilled('images') },
-    // comments
     { table: 'comments', column: '_id', feeds: 'comments.id', migratedWhen: () => hasId('comments') },
     { table: 'comments', column: '_ownerId', feeds: 'comments.ownerId', migratedWhen: () => columnExists(prisma, db, 'comments', 'ownerId') },
     { table: 'comments', column: '_tripId', feeds: 'comments.targetId (targetTypeId=2)', migratedWhen: () => columnExists(prisma, db, 'comments', 'targetId') },
     { table: 'comments', column: 'reportComment', feeds: 'reports(targetTypeId=5)', migratedWhen: () => tableFilled('reports') },
-    // verify / logs
     { table: 'verify', column: '_id', feeds: 'verify.id', migratedWhen: () => hasId('verify') },
     { table: 'verify', column: 'userId', feeds: 'verify.userId', migratedWhen: async () => false },
     { table: 'failedlogs', column: '_id', feeds: 'failedlogs.id', migratedWhen: () => hasId('failedlogs') },
@@ -131,9 +107,8 @@ export async function preflight(prisma: PrismaClient, opts?: { allowMissingTarge
   fatal.push(...source.fatal);
   warnings.push(...source.warnings);
 
-  // Target objects: missing ones are created by the ddl phase. The trips group
-  // column must exist in SOME shape (legacy VARCHAR, transitional
-  // tripGroupNewId, or the finalized INT tripGroupId).
+  // The trips group column must exist in some shape (legacy VARCHAR,
+  // transitional tripGroupNewId, or the finalized INT tripGroupId).
   const missingTargets: string[] = [];
   for (const t of TARGET_TABLES) {
     if (!(await tableExists(prisma, db, t))) missingTargets.push(t);

@@ -1,14 +1,6 @@
-/**
- * PHASE 4 — migration configuration and CLI contract.
- *
- * Isolated from runtime application code. Only the migration runner imports
- * this module. No controllers/services are touched.
- */
-
 export const MIGRATION_NAME = 'phase4-uuid-to-int';
 export const MIGRATION_VERSION = '1.0.0';
 
-/** Ordered, resumable migration phases. */
 export const PHASES = [
   'ddl',
   'users',
@@ -113,7 +105,6 @@ export function getEnv(): MigrationEnv {
   };
 }
 
-/** Database name parsed from a mysql:// DATABASE_URL. */
 export function databaseNameFromUrl(url: string): string {
   const withoutQuery = url.split('?')[0];
   const parts = withoutQuery.split('/');
@@ -122,7 +113,6 @@ export function databaseNameFromUrl(url: string): string {
   return name;
 }
 
-/** True for loopback targets (test/dev). Never guessed for anything else. */
 export function isLocalhostTarget(url: string): boolean {
   const m = url.match(/^mysql:\/\/[^@]+@([^/:]+)/i);
   const host = (m ? m[1] : '').toLowerCase();

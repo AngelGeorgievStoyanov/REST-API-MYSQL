@@ -1,18 +1,8 @@
 /**
- * PHASE 4 — shared USER-TOKEN migration for the final polymorphic tables.
- *
- * The legacy source stores user collections as comma/space separated UUID
- * token lists inside a row:
- *   trips.likes            -> likes(userId, targetTypeId = 2, targetId)
- *   trips.favorites        -> favorites(userId, tripGroupId)
- *   trips.reportTrip       -> reports(userId, targetTypeId = 2, targetId)
- *   comments.reportComment -> reports(userId, targetTypeId = 5, targetId)
- *
- * Every token is validated (canonical UUID + surviving user) and either
- * migrated or quarantined with a reason code. Malformed tokens are NEVER
- * split or guessed; unknown users are NEVER invented. Runs are idempotent:
- * `migration_state(entity, legacy_key)` records each migrated pair and
- * `INSERT IGNORE` + the final UNIQUE key absorb reruns.
+ * Migrates legacy comma/space-separated UUID token lists into the final
+ * polymorphic tables. Tokens are validated (canonical UUID + surviving user)
+ * and either migrated or quarantined — never split or guessed. Idempotent
+ * via migration_state + the final UNIQUE keys.
  */
 import { PrismaClient } from '@prisma/client';
 import {
@@ -39,27 +29,16 @@ import {
 import { Counters } from './types';
 
 export interface TokenListConfig {
-  /** migration_state / quarantine entity name ('Like', 'Favorite', 'Report'). */
   entity: string;
-  /** Final target table ('likes' | 'favorites' | 'reports'). */
   targetTable: string;
-  /** Legacy source table that carries the token list. */
   sourceTable: 'trips' | 'comments';
-  /** Legacy token column ('likes' | 'favorites' | 'reportTrip' | 'reportComment'). */
   sourceColumn: string;
-  /** migration_state key: `${token}|||${stateKey(token, parentId)}`. */
   stateKey: (token: string, parentId: number) => string;
-  /** Final target INT column that holds the parent id. */
   targetColumn: 'targetId' | 'tripGroupId';
-  /** target_types seed id, or null when the target has no polymorphic type. */
   targetTypeId: number | null;
-  /** Reason code for a token that is not a canonical UUID. */
   malformedCode: string;
-  /** Reason code for a valid token whose parent could not be resolved. */
   orphanCode: string;
-  /** Human label of the parent used in the quarantine reason text. */
   parentLabel: string;
-  /** Resolve the parent row's final INT id for a legacy source key. */
   resolve: (exec: DbExecutor, legacyKey: string) => Promise<TargetResolution>;
 }
 
@@ -110,8 +89,8 @@ export async function migrateUserTokenList(
 ): Promise<Counters> {
   const empty: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
   const keyCol = await legacyKeyColumn(prisma, db, cfg.sourceTable);
-  // After finalization the legacy token column is dropped: nothing left to do
-  // (reruns of a finished migration stay no-ops instead of crashing).
+  // Finalization dropped the legacy token column: reruns of a finished
+  // migration stay no-ops instead of crashing.
   if (keyCol === '') return empty;
   if (!(await columnExists(prisma, db, cfg.sourceTable, cfg.sourceColumn))) return empty;
   const rows = (await prisma.$queryRawUnsafe(
@@ -126,8 +105,8 @@ export async function migrateUserTokenList(
       if (tokens.length === 0) continue;
       const parent = await cfg.resolve(exec, legacy);
       if (parent.kind === 'pending') {
-        // Final INT id not assigned yet (pre-PK-swap, or state table absent in
-        // a dry-run): recount in the replay phase, never quarantine.
+        // Final INT id not assigned yet (pre-PK-swap or dry-run without state):
+        // recount in the replay phase, never quarantine.
         c.skipped += tokens.length;
         continue;
       }

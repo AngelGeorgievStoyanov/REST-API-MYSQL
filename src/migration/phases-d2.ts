@@ -1,6 +1,3 @@
-/**
- * PHASE 4 — part D2a (logs mapping).
- */
 import { PrismaClient } from '@prisma/client';
 import { DbExecutor, esc, inTx, isUuid, legacyKeyColumn, qi, qtable, timestampForWrite } from './db';
 import { lookupStateOrPending, quarantineDryAware, recordState } from './state';
@@ -21,9 +18,7 @@ export async function phaseLogs(prisma: PrismaClient, db: string, runId: number,
       await exec.$executeRawUnsafe(
         `UPDATE ${qtable(db, 'failedlogs')} SET ${qi('legacyId')} = '${esc(legacy)}', ${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'} WHERE ${qi(flKey)} = '${esc(legacy)}'`,
       );
-      // A 0 placeholder records "row validated, INT id pending". The pkswap
-      // phase promotes it to the deterministic INT id (resolvePlaceholder),
-      // matching the target schema where FailedLog.id is INT AUTO_INCREMENT.
+      // 0 = "validated, INT id pending"; pkswap promotes it (resolvePlaceholder).
       await recordState(exec, db, 'FailedLog', legacy, 0, runId);
       c.migrated++;
     }
@@ -42,7 +37,7 @@ export async function phaseLogs(prisma: PrismaClient, db: string, runId: number,
       await exec.$executeRawUnsafe(
         `UPDATE ${qtable(db, 'routenotfoundlogs')} SET ${qi('legacyId')} = '${esc(legacy)}', ${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'} WHERE ${qi(rnKey)} = '${esc(legacy)}'`,
       );
-      // 0 placeholder → promoted by pkswap (see failedlogs note above).
+      // 0 placeholder → promoted by pkswap (see failedlogs above).
       await recordState(exec, db, 'RouteNotFoundLog', legacy, 0, runId);
       c.migrated++;
     }
