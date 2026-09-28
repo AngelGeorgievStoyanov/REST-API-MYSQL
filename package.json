@@ -13,6 +13,8 @@
     "migration:phase4": "ts-node src/migration/run-main.ts",
     "migration:phase4:dry-run": "ts-node src/migration/run-main.ts --dry-run",
     "migration:phase4:verify": "ts-node src/migration/run-main.ts --verify",
+    "db:clone-test": "ts-node src/db/cloneTestDatabase.ts",
+    "db:clone-test:dry-run": "ts-node src/db/cloneTestDatabase.ts --dry-run",
     "lint": "eslint ."
   },
   "author": "Angel Stoyanov",
