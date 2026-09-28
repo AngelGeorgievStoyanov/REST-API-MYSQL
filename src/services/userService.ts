@@ -46,7 +46,7 @@ export class UserRepository implements IUserRepository<User> {
     async findByEmail(email): Promise<User> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.users WHERE email =?', [email], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.users WHERE email =?', [email], (err, rows) => {
 
 
                 if (err) {
@@ -83,7 +83,7 @@ export class UserRepository implements IUserRepository<User> {
             this.pool.query(createSql,
                 [user._id, user.email, user.firstName, user.lastName, user.hashedPassword,
                 user.timeCreated, user.timeEdited, user.lastTimeLogin, user.countOfLogs],
-                (err, rows, fields) => {
+                (err) => {
                     if (err) {
 
                         console.log(err);
@@ -91,7 +91,7 @@ export class UserRepository implements IUserRepository<User> {
                         return;
                     }
 
-                    this.pool.query('SELECT * FROM hack_trip.users WHERE email =?', [user.email], (err, rows, fields) => {
+                    this.pool.query('SELECT * FROM hack_trip.users WHERE email =?', [user.email], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -119,7 +119,7 @@ export class UserRepository implements IUserRepository<User> {
             this.pool.query(createFailedLog,
                 [_id, date, email, ip, userAgent, country_code,
                     country_name, postal, city, latitude, longitude, state],
-                (err, rows, fields) => {
+                (err) => {
                     if (err) {
 
                         console.log(err);
@@ -127,7 +127,7 @@ export class UserRepository implements IUserRepository<User> {
                         return;
                     }
 
-                    this.pool.query('SELECT * FROM hack_trip.failedlogs WHERE _id =?', [_id], (err, rows, fields) => {
+                    this.pool.query('SELECT * FROM hack_trip.failedlogs WHERE _id =?', [_id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -157,14 +157,14 @@ export class UserRepository implements IUserRepository<User> {
         let newLastTimeLogs = new Date().toISOString();
         let newCount = Number(count) + 1
         return new Promise((resolve, reject) => {
-            this.pool.query(loginSql, [newLastTimeLogs, newCount, id], (err, rows, fields) => {
+            this.pool.query(loginSql, [newLastTimeLogs, newCount, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -191,7 +191,7 @@ export class UserRepository implements IUserRepository<User> {
     async findById(id: IdType): Promise<User> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows) => {
 
 
                 if (err) {
@@ -217,14 +217,14 @@ export class UserRepository implements IUserRepository<User> {
 
         user.timeEdited = new Date().toISOString();
         return new Promise((resolve, reject) => {
-            this.pool.query(updateUserAdminSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, user.role, user.status, id], (err, rows, fields) => {
+            this.pool.query(updateUserAdminSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, user.role, user.status, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -254,14 +254,14 @@ export class UserRepository implements IUserRepository<User> {
 
         user.timeEdited = new Date().toISOString();
         return new Promise((resolve, reject) => {
-            this.pool.query(updateUserSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, id], (err, rows, fields) => {
+            this.pool.query(updateUserSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -289,14 +289,14 @@ export class UserRepository implements IUserRepository<User> {
     async updateUserverifyEmail(id: IdType, confirmation: boolean): Promise<User> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateUserVerifyEmailSql, [confirmation, id], (err, rows, fields) => {
+            this.pool.query(updateUserVerifyEmailSql, [confirmation, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -329,14 +329,14 @@ export class UserRepository implements IUserRepository<User> {
 
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateUserPassSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, user.hashedPassword, id], (err, rows, fields) => {
+            this.pool.query(updateUserPassSql, [user.firstName, user.lastName, user.timeEdited, user.imageFile, user.hashedPassword, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -361,14 +361,14 @@ export class UserRepository implements IUserRepository<User> {
 
     async editProfileImage(id: IdType, entity: string): Promise<User> {
         return new Promise((resolve, reject) => {
-            this.pool.query('UPDATE hack_trip.users SET imageFile = null WHERE imageFile=? AND _id =?', [entity, id], (err, rows, fields) => {
+            this.pool.query('UPDATE hack_trip.users SET imageFile = null WHERE imageFile=? AND _id =?', [entity, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -395,7 +395,7 @@ export class UserRepository implements IUserRepository<User> {
     async getAll(): Promise<User[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.users', (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.users', (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -411,7 +411,7 @@ export class UserRepository implements IUserRepository<User> {
     async getAllFailedLogs(): Promise<IFailedLogs[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.failedlogs ORDER BY date desc', (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.failedlogs ORDER BY date desc', (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -426,7 +426,7 @@ export class UserRepository implements IUserRepository<User> {
 
     async confirmRole(id: IdType, role: string): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =? AND role=?', [id, role], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =? AND role=?', [id, role], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -447,7 +447,7 @@ export class UserRepository implements IUserRepository<User> {
 
     async confirmUserId(id: IdType): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.users WHERE _id =?', [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -469,14 +469,14 @@ export class UserRepository implements IUserRepository<User> {
 
         const hashedPassword = await bcrypt.hash(password, 10);
         return new Promise((resolve, reject) => {
-            this.pool.query(updateUserNewPassSql, [hashedPassword, id], (err, rows, fields) => {
+            this.pool.query(updateUserNewPassSql, [hashedPassword, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -506,7 +506,7 @@ export class UserRepository implements IUserRepository<User> {
         let userDel;
 
         return new Promise((resolve, reject) => {
-            this.pool.query(selectOne, [id], (err, rows, fields) => {
+            this.pool.query(selectOne, [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -516,7 +516,7 @@ export class UserRepository implements IUserRepository<User> {
 
                     userDel = rows[0];
 
-                    this.pool.query(deleteOne, [id], (err, rows, fields) => {
+                    this.pool.query(deleteOne, [id], (err) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -540,7 +540,7 @@ export class UserRepository implements IUserRepository<User> {
 
         let selectDeleteFailedLogsArr;
         return new Promise((resolve, reject) => {
-            this.pool.query(selectDeleteFailedLogs, [failedlogsArr], (err, rows, fields) => {
+            this.pool.query(selectDeleteFailedLogs, [failedlogsArr], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -549,7 +549,7 @@ export class UserRepository implements IUserRepository<User> {
                 if (rows) {
 
                     selectDeleteFailedLogsArr = rows.map(row => ({ ...row }));
-                    this.pool.query(deleteFailedLogsArr, [failedlogsArr], (err, rows, fields) => {
+                    this.pool.query(deleteFailedLogsArr, [failedlogsArr], (err) => {
                         if (err) {
                             console.log(err);
                             reject(err);

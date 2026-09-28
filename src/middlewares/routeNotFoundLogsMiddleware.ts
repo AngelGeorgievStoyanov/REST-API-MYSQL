@@ -1,9 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
 import os from 'os';
 
 
-export const routeNotFoundLogsMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+export const routeNotFoundLogsMiddleware = async (req: Request, res: Response) => {
     const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository = req.app.get('routeNotFoundLogsRepo');
 
     try {

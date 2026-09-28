@@ -16,30 +16,6 @@ async function addColumn(
   return true;
 }
 
-async function indexExists(
-  prisma: PrismaClient, db: string, table: string, name: string,
-): Promise<boolean> {
-  const rows = (await prisma.$queryRawUnsafe(
-    `SELECT 1 AS ok FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND INDEX_NAME = '${esc(name)}' LIMIT 1`,
-  )) as Array<{ ok: number }>;
-  return rows.length > 0;
-}
-
-async function ensureUniqueKey(
-  prisma: PrismaClient, db: string, table: string, column: string, keyName: string, dryRun: boolean,
-): Promise<boolean> {
-  if (await indexExists(prisma, db, table, keyName)) return false;
-  // Column must exist before the key can be added (rerun where column exists
-  // but a previous crash happened between ADD COLUMN and ADD UNIQUE KEY).
-  if (!(await columnExists(prisma, db, table, column))) return false;
-  if (!dryRun) {
-    await prisma.$executeRawUnsafe(
-      `ALTER TABLE ${qtable(db, table)} ADD UNIQUE KEY ${qi(keyName)} (${qi(column)})`,
-    );
-  }
-  return true;
-}
-
 export interface DdlReport {
   createdTables: string[];
   addedColumns: string[];

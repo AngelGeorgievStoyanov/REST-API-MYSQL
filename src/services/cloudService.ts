@@ -15,7 +15,7 @@ export class CloudRepository implements ICloudImages {
             SELECT imageFile FROM hack_trip.points WHERE imageFile IS NOT NULL
             UNION
             SELECT imageFile FROM hack_trip.users WHERE imageFile IS NOT NULL;
-            `, (err, rows, fields) => {
+            `, (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);

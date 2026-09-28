@@ -21,7 +21,7 @@
  * finalization is a no-op.
  */
 import { PrismaClient } from '@prisma/client';
-import { TARGET_TYPES, columnExists, columnNullable, columnType, esc, qi, qtable, tableExists, userKeyColumn } from './db';
+import { TARGET_TYPES, columnExists, columnNullable, esc, qi, qtable, tableExists, userKeyColumn } from './db';
 import { quarantineDryAware } from './state';
 import { phaseConstraints } from './phases-d3';
 import { Counters } from './types';
@@ -134,7 +134,7 @@ const CONTROL_TABLES = ['migration_runs', 'migration_state', 'migration_quaranti
 
 export async function phaseActivate(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
-  const report = await phaseConstraints(prisma, db, dryRun);
+  const report = await phaseConstraints(prisma, db);
   const blocked = report.checks.filter((k) => !k.ok);
   if (dryRun) {
     // Read-only: report what WOULD be done. Checks that only say the

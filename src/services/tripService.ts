@@ -79,14 +79,14 @@ export class TripRepository implements ITripRepository<Trip> {
 
                 this.pool.query(createSql,
                     [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites, trip.currency, trip.dayNumber, trip.tripGroupId],
-                    (err, rows, fields) => {
+                    (err) => {
                         if (err) {
                             return reject(err);
                         }
 
                         this.pool.query(selectCreatedTrip,
                             [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip._ownerId, trip.dayNumber, trip.tripGroupId],
-                            (err, rows, fields) => {
+                            (err, rows) => {
                                 if (err) {
                                     return reject(err);
                                 }
@@ -116,7 +116,7 @@ export class TripRepository implements ITripRepository<Trip> {
         ) t2
         ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
         ;
-    `, [searchInp, typeGroupSelect, typeTransportSelect], (err, rows, fields) => {
+    `, [searchInp, typeGroupSelect, typeTransportSelect], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -157,7 +157,7 @@ export class TripRepository implements ITripRepository<Trip> {
         ) t2
         ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
         LIMIT ? OFFSET ?;
-    `, [searchInp, typeGroupSelect, typeTransportSelect, perPage, currentPage], (err, rows, fields) => {
+    `, [searchInp, typeGroupSelect, typeTransportSelect, perPage, currentPage], (err, rows) => {
 
                 if (err) {
                     reject(err);
@@ -180,7 +180,7 @@ export class TripRepository implements ITripRepository<Trip> {
     async getAllReports(): Promise<Trip[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query("SELECT * FROM hack_trip.trips WHERE reportTrip IS NOT NULL AND TRIM(reportTrip) <> '';", (err, rows, fields) => {
+            this.pool.query("SELECT * FROM hack_trip.trips WHERE reportTrip IS NOT NULL AND TRIM(reportTrip) <> '';", (err, rows) => {
                 if (err) {
                     reject(err);
                     return;
@@ -202,7 +202,7 @@ export class TripRepository implements ITripRepository<Trip> {
     async getTripById(id: IdType): Promise<Trip> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE _id =?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.trips WHERE _id =?', [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -239,7 +239,7 @@ export class TripRepository implements ITripRepository<Trip> {
         let tripDel;
 
         return new Promise((resolve, reject) => {
-            this.pool.query(selectOne, [id], (err, rows, fields) => {
+            this.pool.query(selectOne, [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -249,7 +249,7 @@ export class TripRepository implements ITripRepository<Trip> {
 
                     tripDel = rows[0];
 
-                    this.pool.query(deleteOne, [id], (err, rows, fields) => {
+                    this.pool.query(deleteOne, [id], (err) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -281,7 +281,7 @@ export class TripRepository implements ITripRepository<Trip> {
                     GROUP BY tripGroupId
                 ) t2
                 ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
-                ;`, [id], (err, rows, fields) => {
+                ;`, [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -311,7 +311,7 @@ export class TripRepository implements ITripRepository<Trip> {
                 WHERE favorites LIKE ?
                 GROUP BY tripGroupId
             ) AS grouped_trips ON t.tripGroupId = grouped_trips.tripGroupId AND t._id = grouped_trips.max_id
-            WHERE t.favorites LIKE ?;`, [id, id], (err, rows, fields) => {
+            WHERE t.favorites LIKE ?;`, [id, id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -335,13 +335,13 @@ export class TripRepository implements ITripRepository<Trip> {
         let editedImg = trip.imageFile.join();
         return new Promise((resolve, reject) => {
             this.pool.query(updateSql, [trip.title, trip.description, trip.price, trip.transport,
-            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.lat, trip.lng, trip.timeEdited, editedImg, trip.currency, trip.dayNumber, id], (err, rows, fields) => {
+            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.lat, trip.lng, trip.timeEdited, editedImg, trip.currency, trip.dayNumber, id], (err) => {
                 if (err) {
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err)
                             reject(err);
@@ -374,14 +374,14 @@ export class TripRepository implements ITripRepository<Trip> {
 
         let favoritessNew = trip.favorites.join();
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlFavorites, [favoritessNew, id], (err, rows, fields) => {
+            this.pool.query(updateSqlFavorites, [favoritessNew, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -414,14 +414,14 @@ export class TripRepository implements ITripRepository<Trip> {
 
         let likesNew = trip.likes.join();
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlLikes, [likesNew, id], (err, rows, fields) => {
+            this.pool.query(updateSqlLikes, [likesNew, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -453,14 +453,14 @@ export class TripRepository implements ITripRepository<Trip> {
     async deleteReportTripByuserId(id: IdType, trip: Trip): Promise<Trip> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlReports, [trip.reportTrip, id], (err, rows, fields) => {
+            this.pool.query(updateSqlReports, [trip.reportTrip, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -492,14 +492,14 @@ export class TripRepository implements ITripRepository<Trip> {
 
         let reportsNew = trip.reportTrip.join();
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlReports, [reportsNew, id], (err, rows, fields) => {
+            this.pool.query(updateSqlReports, [reportsNew, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -533,14 +533,14 @@ export class TripRepository implements ITripRepository<Trip> {
         let editedImages = data.imageFile.join();
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlImages, [editedImages, id], (err, rows, fields) => {
+            this.pool.query(updateSqlImages, [editedImages, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -607,7 +607,7 @@ export class TripRepository implements ITripRepository<Trip> {
 
     async getTripsByGroupId(id: string): Promise<Trip[]> {
         return new Promise((resolve, reject) => {
-            this.pool.query(`SELECT * FROM hack_trip.trips WHERE tripGroupId = ? ORDER BY dayNumber DESC;`, [id], (err, rows, fields) => {
+            this.pool.query(`SELECT * FROM hack_trip.trips WHERE tripGroupId = ? ORDER BY dayNumber DESC;`, [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);

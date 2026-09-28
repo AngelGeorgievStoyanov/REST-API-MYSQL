@@ -54,7 +54,7 @@ async function runPhase(
     case 'groupfinalize': report['groupfinalize'] = await phaseGroupfinalize(prisma, db, runId, dryRun); break;
     case 'replay': report['replay'] = await phaseReplay(prisma, db, runId, dryRun); break;
     case 'activate': report['activate'] = await phaseActivate(prisma, db, runId, dryRun); break;
-    case 'constraints': report['constraints'] = await phaseConstraints(prisma, db, dryRun); break;
+    case 'constraints': report['constraints'] = await phaseConstraints(prisma, db); break;
   }
   const r = report[phase] as Counters | undefined;
   if (r && typeof (r as Counters).migrated === 'number') {

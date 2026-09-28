@@ -25,7 +25,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
                 [token, userId],
-                (err, rows, fields) => {
+                (err) => {
                     if (err) {
 
                         console.log(err);
@@ -33,7 +33,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
                         return;
                     }
 
-                    this.pool.query('SELECT * FROM hack_trip.verify WHERE userId =?', [userId], (err, rows, fields) => {
+                    this.pool.query('SELECT * FROM hack_trip.verify WHERE userId =?', [userId], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -58,7 +58,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
     async findById(userId: string, token: string): Promise<VerifyToken> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.verify WHERE (userId like ? AND verifyToken like ?);', [userId, token],
-                (err, rows, fields) => {
+                (err, rows) => {
                     if (err) {
 
                         console.log(err);
@@ -82,7 +82,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
         return new Promise((resolve, reject) => {
             this.pool.query(forgotPasswordSql,
                 [token, userId],
-                (err, rows, fields) => {
+                (err) => {
                     if (err) {
 
                         console.log(err);
@@ -90,7 +90,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
                         return;
                     }
 
-                    this.pool.query('SELECT * FROM hack_trip.verify WHERE userId =?', [userId], (err, rows, fields) => {
+                    this.pool.query('SELECT * FROM hack_trip.verify WHERE userId =?', [userId], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -114,7 +114,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
     async findByIdAndVerifyTokenForgotPassword(userId:string, token: string): Promise<VerifyToken> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.verify WHERE (userId like ? AND verifyTokenForgotPassword like ?);', [userId, token],
-                (err, rows, fields) => {
+                (err, rows) => {
                     if (err) {
 
                         console.log(err);
@@ -135,7 +135,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
     async findByUserId(userId: string): Promise<VerifyToken> {
         return new Promise((resolve, reject) => {
             this.pool.query('SELECT * FROM hack_trip.verify WHERE (userId like ? );', [userId],
-                (err, rows, fields) => {
+                (err, rows) => {
                    
                     if (err) {
 
@@ -158,7 +158,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
        const timeVerifyToken = new Date().toISOString()
         return new Promise((resolve, reject) => {
             this.pool.query(updateDateVerifyToken, [timeVerifyToken,userId, verifyToken],
-                (err, rows, fields) => {
+                (err, rows) => {
                     if (err) {
 
                         console.log(err);
@@ -179,7 +179,7 @@ export class VerifyTokenRepository implements IVerifyTokenRepository<VerifyToken
         const timeVerifyTokenForgotPassword = new Date().toISOString()
          return new Promise((resolve, reject) => {
              this.pool.query(updateVerifyTokenForgotPassword, [timeVerifyTokenForgotPassword, userId, verifyToken],
-                 (err, rows, fields) => {
+                 (err, rows) => {
                      if (err) {
  
                          console.log(err);

@@ -51,7 +51,7 @@ export async function setupDatabase(): Promise<void> {
             try {
                 for (const query of queries) {
                     await new Promise<void>((queryResolve, queryReject) => {
-                        connection.query(query.sql, (queryError, result) => {
+                        connection.query(query.sql, (queryError) => {
                             if (queryError) {
                                 console.error(`Error executing query: ${query.sql}`, queryError);
                                 queryReject(queryError);

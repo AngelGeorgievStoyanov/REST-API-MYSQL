@@ -35,7 +35,7 @@ function pushCheck(checks: ConstraintCheck[], input: CheckInput): void {
   });
 }
 
-export async function phaseConstraints(prisma: PrismaClient, db: string, dryRun = false): Promise<{ checks: ConstraintCheck[] }> {
+export async function phaseConstraints(prisma: PrismaClient, db: string): Promise<{ checks: ConstraintCheck[] }> {
   const checks: ConstraintCheck[] = [];
   const count = async (sql: string): Promise<number> => toCount((await prisma.$queryRawUnsafe(sql)) as Array<Record<string, unknown>>);
   const isMissingObject = (e: unknown): boolean => {

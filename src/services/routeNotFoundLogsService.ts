@@ -74,7 +74,7 @@ export class RouteNotFoudLogsRepository
           reqUserId,
           reqUserEmail,
         ],
-        (err, result) => {
+        (err) => {
           if (err) {
             console.log(err);
             reject(err);
@@ -91,7 +91,7 @@ export class RouteNotFoudLogsRepository
     return new Promise((resolve, reject) => {
       this.pool.query(
         "SELECT * FROM hack_trip.routenotfoundlogs ORDER BY date desc",
-        (err, rows, fields) => {
+        (err, rows) => {
           if (err) {
             console.log(err);
             reject(err);

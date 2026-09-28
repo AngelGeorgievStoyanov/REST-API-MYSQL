@@ -50,7 +50,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
             this.pool.query(createSql,
                 [point._id, point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew, point._ownerId, timeCreated],
-                (err, rows, fields) => {
+                (err) => {
                     if (err) {
 
                         console.log(err.message);
@@ -70,7 +70,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
     async findByTripId(id: IdType): Promise<Point[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.points WHERE _ownerTripId =? ORDER BY pointNumber ASC', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.points WHERE _ownerTripId =? ORDER BY pointNumber ASC', [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -101,7 +101,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         let pointDel;
 
         return new Promise((resolve, reject) => {
-            this.pool.query(selectOne, [id], (err, rows, fields) => {
+            this.pool.query(selectOne, [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -109,7 +109,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                 }
                 if (rows.length === 1) {
                     pointDel = rows[0];
-                    this.pool.query(deleteOne, [id], (err, rows, fields) => {
+                    this.pool.query(deleteOne, [id], (err) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -137,7 +137,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         let pointsDel;
 
         return new Promise((resolve, reject) => {
-            this.pool.query(selectByOwnerId, [id], (err, rows, fields) => {
+            this.pool.query(selectByOwnerId, [id], (err, rows) => {
                 if (err) {
                     console.log(err)
                     reject(err);
@@ -145,7 +145,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                 }
                 if (rows.length > 0) {
                     pointsDel = rows;
-                    this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
+                    this.pool.query(deleteByOTripId, [id], (err) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -167,7 +167,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
     async getPointById(id: IdType): Promise<Point> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.points WHERE _id =?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.points WHERE _id =?', [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -198,14 +198,14 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
         return new Promise((resolve, reject) => {
             const timeEdited = new Date().toISOString()
-            this.pool.query(updateSql, [point.name, point.description, point.lat, point.lng, point.pointNumber, editedImg, timeEdited, id], (err, rows, fields) => {
+            this.pool.query(updateSql, [point.name, point.description, point.lat, point.lng, point.pointNumber, editedImg, timeEdited, id], (err) => {
                 if (err) {
                     console.log(err);
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err)
                             reject(err);
@@ -233,7 +233,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
 
         return new Promise((resolve, reject) => {
 
-            this.pool.query(updatePositionSql, [pointPosition, id], (err, rows, fields) => {
+            this.pool.query(updatePositionSql, [pointPosition, id], (err) => {
                 if (err) {
                     console.log(err)
 
@@ -242,7 +242,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
                 }
 
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err)
                             reject(err);
@@ -271,14 +271,14 @@ export class PointTripRepository implements IPointTripRepository<Point> {
         let editedImages = data.imageFile.join();
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlImages, [editedImages, id], (err, rows, fields) => {
+            this.pool.query(updateSqlImages, [editedImages, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -311,7 +311,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
     async findBytripIdOrderByPointPosition(id: IdType): Promise<Point[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query(findBytripIdOrderByPointPositionSql, [id], (err, rows, fields) => {
+            this.pool.query(findBytripIdOrderByPointPositionSql, [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -337,7 +337,7 @@ export class PointTripRepository implements IPointTripRepository<Point> {
     async findById(id): Promise<Point> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.points WHERE _id =?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.points WHERE _id =?', [id], (err, rows) => {
 
                 if (err) {
                     console.log(err);

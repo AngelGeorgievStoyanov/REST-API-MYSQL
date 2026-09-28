@@ -41,7 +41,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
         return new Promise((resolve, reject) => {
             this.pool.query(createSql,
                 [comment._id, comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId, comment.reportComment, timeCreated],
-                (err, rows, fields) => {
+                (err) => {
                     if (err) {
 
                         console.log(err.message);
@@ -61,7 +61,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
     async getCommentById(id: IdType): Promise<Comment> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.comments WHERE _id =?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.comments WHERE _id =?', [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -88,7 +88,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
     async getCommentsByTripId(id: IdType): Promise<Comment[]> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.comments WHERE _tripId =?', [id], (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.comments WHERE _tripId =?', [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -116,14 +116,14 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
         return new Promise((resolve, reject) => {
             const timeEdited = new Date().toISOString()
-            this.pool.query(updateSql, [comment.comment, timeEdited, id], (err, rows, fields) => {
+            this.pool.query(updateSql, [comment.comment, timeEdited, id], (err) => {
                 if (err) {
                     console.log(err);
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err)
                             reject(err);
@@ -154,7 +154,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
         let commentDel;
 
         return new Promise((resolve, reject) => {
-            this.pool.query(selectOne, [id], (err, rows, fields) => {
+            this.pool.query(selectOne, [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -164,7 +164,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                     commentDel = rows.map(row => ({
                         ...row
                     }));
-                    this.pool.query(deleteOne, [id], (err, rows, fields) => {
+                    this.pool.query(deleteOne, [id], (err) => {
                         if (err) {
                             console.log(err)
                             reject(err);
@@ -192,7 +192,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
         let commentDel = [];
 
         return new Promise((resolve, reject) => {
-            this.pool.query(selectByOwnerId, [id], (err, rows, fields) => {
+            this.pool.query(selectByOwnerId, [id], (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -205,7 +205,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
                         ...row
                     }));
 
-                    this.pool.query(deleteByOTripId, [id], (err, rows, fields) => {
+                    this.pool.query(deleteByOTripId, [id], (err) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -229,14 +229,14 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
         let reportsNew = comment.reportComment.join();
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlReports, [reportsNew, id], (err, rows, fields) => {
+            this.pool.query(updateSqlReports, [reportsNew, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);
@@ -264,7 +264,7 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
 
     async getAllReports(): Promise<Comment[]> {
         return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.comments WHERE (reportComment IS NOT NULL AND reportComment NOT LIKE "")', (err, rows, fields) => {
+            this.pool.query('SELECT * FROM hack_trip.comments WHERE (reportComment IS NOT NULL AND reportComment NOT LIKE "")', (err, rows) => {
                 if (err) {
                     console.log(err);
                     reject(err);
@@ -284,14 +284,14 @@ export class CommentTripRepository implements ICommentTripRepository<Comment> {
     async deleteReportCommentByuserId(id: IdType, trip: Comment): Promise<Comment> {
 
         return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlReports, [trip.reportComment, id], (err, rows, fields) => {
+            this.pool.query(updateSqlReports, [trip.reportComment, id], (err) => {
                 if (err) {
 
                     reject(err);
                     return;
                 }
                 if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows, fields) => {
+                    this.pool.query(selectOne, [id], (err, rows) => {
                         if (err) {
                             console.log(err);
                             reject(err);

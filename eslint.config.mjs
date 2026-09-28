@@ -9,6 +9,14 @@ export default [
   },
   eslint.configs.recommended,
   {
+    // Plain Node scripts (CommonJS/ESM): provide Node globals so `require`,
+    // `__dirname`, `console`, `process` etc. are defined for no-undef.
+    files: ['**/*.js', '**/*.cjs', '**/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
     files: ['src/**/*.ts'],
     languageOptions: {
       globals: globals.node,
