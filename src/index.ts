@@ -7,7 +7,6 @@ import pointController from './controllers/pointController';
 import commentController from './controllers/commentController';
 import { initMySqlPool } from './db/mysqlPool';
 import { UserRepository } from './services/userService';
-import { TripRepository } from './services/tripService';
 import { PointTripRepository } from './services/pointService';
 import { CommentTripRepository } from './services/commentService';
 import { VerifyTokenRepository } from './services/verifyTokenService';
@@ -46,7 +45,7 @@ app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
 
 app.use('/users', authController);
-app.use('/data/trips', tripController);
+app.use('/api/trips', tripController);
 app.use('/data/points', pointController);
 app.use('/data/comments', commentController);
 app.use('/data/cloud', cloudController);
@@ -67,7 +66,6 @@ app.get('/', (req: express.Request, res: express.Response) => {
     });
     app.set("trust proxy", true);
     app.set("usersRepo", new UserRepository(pool));
-    app.set("tripsRepo", new TripRepository(pool));
     app.set("pointsRepo", new PointTripRepository(pool));
     app.set("commentsRepo", new CommentTripRepository(pool));
     app.set("verifyTokenRepo", new VerifyTokenRepository(pool));

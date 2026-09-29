@@ -1,628 +1,237 @@
-import { Pool } from "mysql";
-import { ITripRepository } from "../interface/trip-repository";
-import { IdType } from "../interface/user-repository";
-import { Trip } from "../model/trip";
-import { v4 as uuid } from 'uuid';
+import { GROUP_SELECT_TYPE, MODERATOR_ROLES, TRANSPORT_SELECT_TYPE } from '../constants/trip';
+import {
+    TripActor,
+    TripAuthor,
+    TripDay,
+    TripDayInput,
+    TripDetails,
+    TripGroupInfo,
+    TripListItem,
+    TripListResponse,
+    TripPointInput,
+    TripStats,
+    TripWriteRequest,
+} from '../model/trip';
+import { ApiError } from '../utils/apiError';
+import {
+    parseListQuery,
+    parseTripBody,
+    parseTripId,
+    resolveSelectFilterValues,
+    resolveSelectValue,
+    toImageUrl,
+} from '../utils/trip';
+import { toIsoString, toNumberOrNull } from '../utils/utils';
+import {
+    TripGroupDetailsRow,
+    TripGroupListRow,
+    TripGroupTargetRef,
+    TripRepository,
+    TripWriteInput,
+    TripWritePoint,
+} from './tripRepository';
 
+function buildWriteInput(ownerId: string, request: TripWriteRequest): TripWriteInput {
+    const days: TripDayInput[] = request.days.length > 0
+        ? request.days
+        : [{ day: 1, title: null, points: [] }];
+    const canonicalDay = Math.min(...days.map((day) => day.day));
 
+    return {
+        ownerId,
+        title: request.title,
+        description: request.description,
+        group: request.group,
+        transport: request.transport,
+        days: days.map((day) => ({
+            dayNumber: day.day,
+            // A `trips` row carries a single title/description, so the earliest day
+            // row holds the trip metadata while the following days keep their own title.
+            title: day.day === canonicalDay ? request.title : day.title ?? request.title,
+            description: request.description,
+            points: day.points.map(toWritePoint),
+        })),
+    };
+}
 
+function toWritePoint(point: TripPointInput): TripWritePoint {
+    return {
+        name: point.title,
+        description: point.description,
+        latitude: point.latitude === null ? null : String(point.latitude),
+        longitude: point.longitude === null ? null : String(point.longitude),
+        images: point.images,
+    };
+}
 
+function toAuthor(owner: { id: string; firstName: string; lastName: string }): TripAuthor {
+    return { id: owner.id, firstName: owner.firstName, lastName: owner.lastName };
+}
 
-const createSql = `INSERT INTO hack_trip.trips (
-    _id,
-    title,
-    description,
-    price,
-    transport,
-    countPeoples,
-    typeOfPeople,
-    destination,
-    coments,
-    likes,
-    _ownerId,
-    lat,
-    lng,
-    timeCreated,
-    timeEdited,
-    reportTrip,
-    imageFile,
-    favorites,
-    currency,
-    dayNumber,
-    tripGroupId
-  )
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
+function latestDayUpdate(trips: { updatedAt: Date | null }[]): Date | null {
+    return trips.reduce<Date | null>((latest, trip) => {
+        if (!trip.updatedAt) return latest;
+        return !latest || trip.updatedAt > latest ? trip.updatedAt : latest;
+    }, null);
+}
 
-const selectOne = `SELECT * FROM hack_trip.trips WHERE _id =?`;
+function toListItem(row: TripGroupListRow, covers: Map<number, string>, stats: TripStats): TripListItem {
+    const canonicalDay = row.trips[0];
+    const coverFilePath = canonicalDay ? covers.get(canonicalDay.id) : undefined;
 
-const deleteOne = `DELETE from hack_trip.trips WHERE _id =?`;
+    return {
+        id: row.id,
+        title: canonicalDay?.title ?? '',
+        description: canonicalDay?.description ?? null,
+        group: resolveSelectValue(GROUP_SELECT_TYPE, canonicalDay?.typeOfPeople ?? null),
+        transport: resolveSelectValue(TRANSPORT_SELECT_TYPE, canonicalDay?.transport ?? null),
+        author: toAuthor(row.owner),
+        coverImage: coverFilePath ? toImageUrl(coverFilePath) : null,
+        stats,
+        createdAt: toIsoString(row.createdAt ?? canonicalDay?.createdAt ?? null),
+    };
+}
 
-const updateSql = `UPDATE hack_trip.trips SET title =?, description=?, price=?, transport=?, countPeoples=?, typeOfPeople=?, destination=?, lat=?,lng=?, timeEdited=?, imageFile =?, currency =?, dayNumber =?, countEdited = countEdited + 1 WHERE _id =?`;
+function toDetailsDto(row: TripGroupDetailsRow, stats: TripStats): TripDetails {
+    const canonicalDay = row.trips[0];
+    const groupValue = resolveSelectValue(GROUP_SELECT_TYPE, canonicalDay?.typeOfPeople ?? null);
+    const group: TripGroupInfo = { id: row.id, key: groupValue.key, name: groupValue.name };
 
-const updateSqlLikes = `UPDATE hack_trip.trips SET likes =? WHERE _id =?`;
-const updateSqlFavorites = `UPDATE hack_trip.trips SET favorites =? WHERE _id =?`;
+    const days: TripDay[] = row.trips.map((trip) => ({
+        id: trip.id,
+        day: trip.dayNumber ?? 0,
+        title: trip.title,
+        points: trip.points.map((point) => ({
+            id: point.id,
+            title: point.name,
+            description: point.description,
+            latitude: toNumberOrNull(point.lat),
+            longitude: toNumberOrNull(point.lng),
+            images: point.images.map((image) => toImageUrl(image.filePath)),
+        })),
+    }));
 
-const updateSqlReports = `UPDATE hack_trip.trips SET reportTrip =? WHERE _id =?`;
-const updateSqlImages = `UPDATE hack_trip.trips SET imageFile =? WHERE _id =?`;
+    return {
+        id: row.id,
+        title: canonicalDay?.title ?? '',
+        description: canonicalDay?.description ?? null,
+        group,
+        transport: resolveSelectValue(TRANSPORT_SELECT_TYPE, canonicalDay?.transport ?? null),
+        author: toAuthor(row.owner),
+        coverImage: canonicalDay?.images[0] ? toImageUrl(canonicalDay.images[0].filePath) : null,
+        days,
+        stats,
+        createdAt: toIsoString(row.createdAt ?? canonicalDay?.createdAt ?? null),
+        updatedAt: toIsoString(row.updatedAt ?? latestDayUpdate(row.trips)),
+    };
+}
 
+export class TripService {
+    constructor(private readonly repository: TripRepository) { }
 
-const selectCreatedTrip = `SELECT * FROM hack_trip.trips WHERE title=? AND description=? AND price=? AND transport=? AND countPeoples=? AND typeOfPeople=? AND destination=? AND _ownerId=? AND dayNumber =? AND tripGroupId =?`;
+    async listTrips(rawQuery: unknown): Promise<TripListResponse> {
+        const query = parseListQuery(rawQuery);
 
+        const { rows, total } = await this.repository.findPage({
+            skip: (query.page - 1) * query.limit,
+            take: query.limit,
+            search: query.search ?? undefined,
+            groupValues: query.group
+                ? resolveSelectFilterValues(GROUP_SELECT_TYPE, query.group, 'group')
+                : undefined,
+            transportValues: query.transport
+                ? resolveSelectFilterValues(TRANSPORT_SELECT_TYPE, query.transport, 'transport')
+                : undefined,
+            sort: query.sort,
+        });
 
-export class TripRepository implements ITripRepository<Trip> {
-    constructor(protected pool: Pool) { }
+        const groups: TripGroupTargetRef[] = rows.map((row) => ({
+            id: row.id,
+            tripIds: row.trips.map((trip) => trip.id),
+        }));
+        const coverTripIds = rows
+            .map((row) => row.trips[0]?.id)
+            .filter((tripId): tripId is number => tripId !== undefined);
 
+        const [covers, likes, comments] = await Promise.all([
+            this.repository.findCoverImages(coverTripIds),
+            this.repository.countLikes(groups),
+            this.repository.countComments(groups),
+        ]);
 
-    async create(trip: Trip): Promise<Trip> {
-        trip.timeCreated = new Date().toISOString();
-        trip.timeEdited = new Date().toISOString();
-        trip._id = uuid();
+        const items = rows.map((row) => toListItem(row, covers, {
+            likes: likes.get(row.id) ?? 0,
+            favorites: row._count.favorites,
+            comments: comments.get(row.id) ?? 0,
+        }));
 
-        if (!trip.tripGroupId) {
-            trip.tripGroupId = uuid();
+        return {
+            items,
+            pagination: {
+                page: query.page,
+                limit: query.limit,
+                total,
+                totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+            },
+        };
+    }
+
+    async getTrip(rawId: string): Promise<TripDetails> {
+        const row = await this.repository.findById(parseTripId(rawId));
+        if (!row) throw ApiError.tripNotFound();
+
+        return this.toDetails(row);
+    }
+
+    async createTrip(actor: TripActor, body: unknown): Promise<TripDetails> {
+        const request = parseTripBody(body);
+        const createdId = await this.repository.create(buildWriteInput(actor.id, request));
+
+        return this.getTrip(String(createdId));
+    }
+
+    async updateTrip(actor: TripActor, rawId: string, body: unknown): Promise<TripDetails> {
+        const id = parseTripId(rawId);
+        const ownerId = await this.assertCanModify(actor, id);
+        const request = parseTripBody(body);
+
+        await this.repository.update(id, buildWriteInput(ownerId, request));
+
+        return this.getTrip(rawId);
+    }
+
+    async deleteTrip(actor: TripActor, rawId: string): Promise<void> {
+        const id = parseTripId(rawId);
+        await this.assertCanModify(actor, id);
+
+        await this.repository.delete(id);
+    }
+
+    private async toDetails(row: TripGroupDetailsRow): Promise<TripDetails> {
+        const group: TripGroupTargetRef = {
+            id: row.id,
+            tripIds: row.trips.map((trip) => trip.id),
+        };
+        const [likes, comments] = await Promise.all([
+            this.repository.countLikes([group]),
+            this.repository.countComments([group]),
+        ]);
+
+        return toDetailsDto(row, {
+            likes: likes.get(row.id) ?? 0,
+            favorites: row._count.favorites,
+            comments: comments.get(row.id) ?? 0,
+        });
+    }
+
+    private async assertCanModify(actor: TripActor, tripId: number): Promise<string> {
+        const ownerId = await this.repository.findOwnerId(tripId);
+        if (ownerId === null) throw ApiError.tripNotFound();
+
+        if (ownerId !== actor.id && !MODERATOR_ROLES.includes(actor.role)) {
+            throw ApiError.forbidden('Only the trip owner can modify this trip.');
         }
-
-        const duplicateCheckQuery = `SELECT * FROM hack_trip.trips WHERE tripGroupId = ? AND dayNumber = ? LIMIT 1`;
-
-        return new Promise((resolve, reject) => {
-
-            this.pool.query(duplicateCheckQuery, [trip.tripGroupId, trip.dayNumber], (err, rows) => {
-                if (err) {
-                    return reject(err);
-                }
-
-                if (rows.length > 0) {
-                    return reject(new Error(`A trip ${trip.title} with day ${trip.dayNumber} already exists, please change the day of trip.`));
-                }
-
-                let imagesNew = (trip.imageFile || []).join();
-
-                this.pool.query(createSql,
-                    [trip._id, trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip.coments, trip.likes, trip._ownerId, trip.lat, trip.lng, trip.timeCreated, trip.timeEdited, trip.reportTrip, imagesNew, trip.favorites, trip.currency, trip.dayNumber, trip.tripGroupId],
-                    (err) => {
-                        if (err) {
-                            return reject(err);
-                        }
-
-                        this.pool.query(selectCreatedTrip,
-                            [trip.title, trip.description, trip.price, trip.transport, trip.countPeoples, trip.typeOfPeople, trip.destination, trip._ownerId, trip.dayNumber, trip.tripGroupId],
-                            (err, rows) => {
-                                if (err) {
-                                    return reject(err);
-                                }
-
-                                resolve(rows[0]);
-                            });
-                    });
-            });
-        });
-    }
-
-
-
-    async getAll(search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
-        const searchInp = '%' + search + '%';
-        const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup;
-        const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport;
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(`SELECT t1.*
-        FROM hack_trip.trips t1
-        JOIN (
-            SELECT tripGroupId, MIN(dayNumber) as minDayNumber
-            FROM hack_trip.trips
-            WHERE title LIKE ? AND typeOfPeople LIKE ? AND transport LIKE ?
-            GROUP BY tripGroupId
-        ) t2
-        ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
-        ;
-    `, [searchInp, typeGroupSelect, typeTransportSelect], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-
-                resolve(rows.map(row => ({
-                    ...row,
-                    likes: row.likes ? row.likes.split(/[,\s]+/) : [],
-                    reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
-                    imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
-
-                })));
-            });
-        });
-    }
-
-
-    async getPagination(page: number, search: string, typegroup: string, typetransport: string): Promise<Trip[]> {
-
-        page = page || 1;
-        const perPage = 8;
-        const currentPage = (page - 1) * perPage;
-        const searchInp = '%' + search + '%';
-        const typeGroupSelect = typegroup.length === 0 ? '%' : typegroup;
-        const typeTransportSelect = typetransport.length === 0 ? '%' : typetransport;
-
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(` SELECT t1.*
-        FROM hack_trip.trips t1
-        JOIN (
-            SELECT tripGroupId, MIN(dayNumber) as minDayNumber
-            FROM hack_trip.trips
-            WHERE title LIKE ? AND typeOfPeople LIKE ? AND transport LIKE ?
-            GROUP BY tripGroupId
-        ) t2
-        ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
-        LIMIT ? OFFSET ?;
-    `, [searchInp, typeGroupSelect, typeTransportSelect, perPage, currentPage], (err, rows) => {
-
-                if (err) {
-                    reject(err);
-                    return;
-                }
-
-                resolve(rows.map(row => ({
-                    ...row,
-                    likes: row.likes ? row.likes.split(/[,\s]+/) : [],
-                    reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
-                    imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
-
-                })));
-            });
-        });
-    }
-
-
-    async getAllReports(): Promise<Trip[]> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query("SELECT * FROM hack_trip.trips WHERE reportTrip IS NOT NULL AND TRIM(reportTrip) <> '';", (err, rows) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
-
-                resolve(rows.map(row => ({
-                    ...row,
-                    likes: row.likes ? row.likes.split(/[,\s]+/) : [],
-                    reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
-                    imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
-
-                })));
-            });
-        });
-    }
-
-
-    async getTripById(id: IdType): Promise<Trip> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.trips WHERE _id =?', [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-
-                if (rows.length == 1) {
-
-                    const trip = rows[0];
-                    resolve({
-                        ...trip,
-                        likes: trip.likes ? trip.likes.split(/[,\s]+/) : trip.likes !== null && trip.likes.length > 0 ? trip.likes.split('') : [],
-                        reportTrip: trip.reportTrip ? trip.reportTrip.split(/[,\s]+/) : trip.reportTrip !== null && trip.reportTrip.length > 0 ? trip.reportTrip.split('') : [],
-                        imageFile: trip.imageFile ? trip.imageFile.split(/[,\s]+/) : trip.imageFile !== null && trip.imageFile.length > 0 ? trip.imageFile.split('') : [],
-                        favorites: trip.favorites ? trip.favorites.split(/[,\s]+/) : trip.favorites !== null && trip.favorites.length > 0 ? trip.favorites.split('') : [],
-
-                    });
-
-
-                } else if (Array.isArray(rows) && rows.length == 0) {
-                    resolve(rows[0])
-                }
-                else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-    async deleteTrypById(id: IdType): Promise<Trip> {
-
-        let tripDel;
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(selectOne, [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows.length === 1) {
-
-                    tripDel = rows[0];
-
-                    this.pool.query(deleteOne, [id], (err) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (!err) {
-                            resolve(tripDel);
-
-                        }
-
-                    });
-                } else {
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-    async getAllMyTrips(id: IdType): Promise<Trip[]> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(`SELECT t1.*
-                FROM hack_trip.trips t1
-                JOIN (
-                    SELECT tripGroupId, MIN(dayNumber) as minDayNumber
-                    FROM hack_trip.trips
-                    WHERE _ownerId =?
-                    GROUP BY tripGroupId
-                ) t2
-                ON t1.tripGroupId = t2.tripGroupId AND t1.dayNumber = t2.minDayNumber
-                ;`, [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                resolve(rows.map(row => ({
-                    ...row,
-                    likes: row.likes ? row.likes.split(/[,\s]+/) : [],
-                    reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
-                    imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites = [],
-
-                })));
-            });
-        });
-    }
-
-
-    async getAllMyFavorites(id: IdType): Promise<Trip[]> {
-        id = '%' + id + '%';
-        return new Promise((resolve, reject) => {
-            this.pool.query(`SELECT t.*
-            FROM hack_trip.trips t
-            JOIN (
-                SELECT tripGroupId, MAX(_id) AS max_id
-                FROM hack_trip.trips
-                WHERE favorites LIKE ?
-                GROUP BY tripGroupId
-            ) AS grouped_trips ON t.tripGroupId = grouped_trips.tripGroupId AND t._id = grouped_trips.max_id
-            WHERE t.favorites LIKE ?;`, [id, id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                resolve(rows.map(row => ({
-                    ...row,
-                    likes: row.likes ? row.likes.split(/[,\s]+/) : [],
-                    reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
-                    imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: row.favorites = [],
-
-                })));
-            });
-        });
-    }
-
-
-    async updateTripById(id: IdType, trip: Trip): Promise<Trip> {
-        trip.timeEdited = new Date().toISOString();
-        let editedImg = trip.imageFile.join();
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSql, [trip.title, trip.description, trip.price, trip.transport,
-            trip.countPeoples, trip.typeOfPeople, trip.destination, trip.lat, trip.lng, trip.timeEdited, editedImg, trip.currency, trip.dayNumber, id], (err) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err)
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            resolve({
-                                ...rows[0],
-                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
-                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
-                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
-                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
-
-                            });
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-    async updateTripFavoritesByuserId(id: IdType, trip: Trip): Promise<Trip> {
-
-        let favoritessNew = trip.favorites.join();
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlFavorites, [favoritessNew, id], (err) => {
-                if (err) {
-
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            resolve({
-                                ...rows[0],
-                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
-                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
-                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
-                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
-
-                            });
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-    async updateTripLikeByuserId(id: IdType, trip: Trip): Promise<Trip> {
-
-        let likesNew = trip.likes.join();
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlLikes, [likesNew, id], (err) => {
-                if (err) {
-
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            resolve({
-                                ...rows[0],
-                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
-                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
-                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
-                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
-
-                            });
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-    async deleteReportTripByuserId(id: IdType, trip: Trip): Promise<Trip> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlReports, [trip.reportTrip, id], (err) => {
-                if (err) {
-
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            resolve({
-                                ...rows[0],
-                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
-                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
-                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
-                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
-
-                            });
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-    async reportTripByuserId(id: IdType, trip: Trip): Promise<Trip> {
-
-        let reportsNew = trip.reportTrip.join();
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlReports, [reportsNew, id], (err) => {
-                if (err) {
-
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            resolve({
-                                ...rows[0],
-                                likes: rows[0].likes ? rows[0].likes.split(/[,\s]+/) : [],
-                                reportTrip: rows[0].reportTrip ? rows[0].reportTrip.split(/[,\s]+/) : [],
-                                imageFile: rows[0].imageFile ? rows[0].imageFile.split(/[,\s]+/) : [],
-                                favorites: rows[0].favorites ? rows[0].favorites.split(/[,\s]+/) : [],
-
-                            });
-
-                        }
-
-                    })
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-    async editImagesByTripId(id: IdType, data: Trip): Promise<Trip> {
-
-        let editedImages = data.imageFile.join();
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlImages, [editedImages, id], (err) => {
-                if (err) {
-
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-
-                            const point = rows.map(row => ({
-                                ...row,
-                                likes: row.likes ? row.likes.split(/[,\s]+/) : [],
-                                reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
-                                imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                                favorites: row.favorites ? row.favorites.split(/[,\s]+/) : [],
-
-                            }));
-
-
-                            resolve(point[0]);
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-    async getTop(): Promise<Trip[]> {
-        return new Promise((resolve, reject) => {
-            this.pool.query(`
-             SELECT t1.*
-                FROM hack_trip.trips t1
-            LEFT JOIN hack_trip.trips t2
-            ON t1.tripGroupId = t2.tripGroupId
-            AND (
-                LENGTH(t1.likes) < LENGTH(t2.likes) 
-                OR (LENGTH(t1.likes) = LENGTH(t2.likes) AND t1.dayNumber > t2.dayNumber)
-            )
-            WHERE t2.tripGroupId IS NULL
-            ORDER BY LENGTH(t1.likes) DESC, t1.dayNumber ASC
-            LIMIT 5;
-            `, (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-
-                resolve(rows.map(row => ({
-                    ...row,
-                    likes: row.likes ? row.likes.split(/[,\s]+/) : [],
-                    reportTrip: row.reportTrip ? row.reportTrip.split(/[,\s]+/) : [],
-                    imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                    favorites: [],
-                })));
-            });
-        });
-    }
-
-    async getTripsByGroupId(id: string): Promise<Trip[]> {
-        return new Promise((resolve, reject) => {
-            this.pool.query(`SELECT * FROM hack_trip.trips WHERE tripGroupId = ? ORDER BY dayNumber DESC;`, [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows) {
-
-                    resolve(
-                        rows.map(row => ({
-                            ...row
-                        }))
-                    );
-                }
-            });
-        });
-
+        return ownerId;
     }
 }
+
