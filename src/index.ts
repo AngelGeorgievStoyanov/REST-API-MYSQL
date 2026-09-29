@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import authController from './controllers/authController';
-import tripController from './controllers/tripController';
 import pointController from './controllers/pointController';
 import commentController from './controllers/commentController';
 import { initMySqlPool } from './db/mysqlPool';
@@ -16,6 +15,7 @@ import { CloudRepository } from './services/cloudService';
 import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
 import configController from './controllers/configController';
 import { ConfigRepository } from './services/configRepository';
+import apiRouter from './routes/apiRouter';
 import { prisma } from './clients/prisma';
 import { dynamicConfig } from './config/dynamicConfig';
 import { loadEnvironmentConfig } from './config/environment';
@@ -45,7 +45,7 @@ app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
 
 app.use('/users', authController);
-app.use('/api/trips', tripController);
+app.use('/api', apiRouter);
 app.use('/data/points', pointController);
 app.use('/data/comments', commentController);
 app.use('/data/cloud', cloudController);
