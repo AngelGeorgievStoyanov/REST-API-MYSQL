@@ -17,7 +17,10 @@ import { CloudRepository } from './services/cloudService';
 import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
 import configController from './controllers/configController';
 import { ConfigRepository } from './services/configRepository';
-import { ConfigService, getConfigCacheTtlSeconds } from './services/configService';
+import { prisma } from './clients/prisma';
+import { dynamicConfig } from './config/dynamicConfig';
+import { loadEnvironmentConfig } from './config/environment';
+import { getErrorMessage } from './utils/error';
 
 dotenv.config()
 
@@ -56,7 +59,7 @@ app.get('/', (req: express.Request, res: express.Response) => {
 
 
 
-(() => {
+(async () => {
     const pool = initMySqlPool();
     app.use((req, res, next) => {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
@@ -71,24 +74,27 @@ app.get('/', (req: express.Request, res: express.Response) => {
     app.set("imagesRepo", new CloudRepository(pool));
     app.set("routeNotFoundLogsRepo", new RouteNotFoudLogsRepository(pool));
 
-    const configTtlSeconds = getConfigCacheTtlSeconds();
-    const configService = new ConfigService(new ConfigRepository(pool), configTtlSeconds);
-    app.set("configService", configService);
-    configService.startPeriodicRefresh();
-    configService.initialLoad()
-        .then(() => console.log(`[config] initial load ok (ttl=${configTtlSeconds}s)`))
-        .catch((err) => {
-            // Not fatal: the app has no runtime dependency on config yet, but this must not be silent.
-            console.log(`[config] initial load failed, /config endpoints will retry on demand: ${err?.message}`);
-        });
+    try {
+        const environment = loadEnvironmentConfig();
+        await dynamicConfig.init(new ConfigRepository(prisma), environment);
+    } catch (err: unknown) {
+        const reason = getErrorMessage(err);
+        console.log(`[startup] configuration failed: ${reason}`);
+        await prisma.$disconnect().catch(() => undefined);
+        process.exit(1);
+    }
 
     const server = app.listen(port, () => {
         console.log(`Connected succesfully on port ${port}`)
     });
 
-    server.on('close', () => configService.stopPeriodicRefresh());
+    server.on('close', () => {
+        dynamicConfig.stopRefreshTimer();
+        prisma.$disconnect().catch(() => undefined);
+    });
 
     server.on('error', err => {
         console.log('Server error:', err);
     });
 })();
+

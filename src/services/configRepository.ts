@@ -1,3 +1,10 @@
+import {
+    PrismaClient,
+    SelectOption as PrismaSelectOption,
+    SelectType as PrismaSelectType,
+    ServiceConfig as PrismaServiceConfig,
+    ServiceType as PrismaServiceType,
+} from '@prisma/client';
 import { IConfigRepository } from '../interface/config-repository';
 import {
     SelectConfig,
@@ -6,135 +13,92 @@ import {
     ServiceConfigEntry,
     ServiceConfigValueType,
 } from '../model/config';
-import { DbPool, runQuery } from '../db/mysqlPool';
 
-const selectTypesSql = 'SELECT id, `key`, name, isActive FROM hack_trip.select_types ORDER BY id';
-const selectOptionsSql =
-    'SELECT id, selectTypeId, `key`, value, sortOrder, isActive FROM hack_trip.select_options ' +
-    'ORDER BY selectTypeId, sortOrder, id';
-const selectTypeByKeySql = 'SELECT id, `key`, name, isActive FROM hack_trip.select_types WHERE `key` = ?';
-const selectOptionsForTypeSql =
-    'SELECT id, selectTypeId, `key`, value, sortOrder, isActive FROM hack_trip.select_options ' +
-    'WHERE selectTypeId = ? ORDER BY sortOrder, id';
-const serviceTypesSql = 'SELECT id, `key`, name, isActive FROM hack_trip.service_types ORDER BY id';
-const serviceConfigsSql =
-    'SELECT id, serviceTypeId, `key`, value, `type`, isActive FROM hack_trip.service_configs ' +
-    'ORDER BY serviceTypeId, id';
-const serviceTypeByKeySql = 'SELECT id, `key`, name, isActive FROM hack_trip.service_types WHERE `key` = ?';
-const serviceConfigsForTypeSql =
-    'SELECT id, serviceTypeId, `key`, value, `type`, isActive FROM hack_trip.service_configs ' +
-    'WHERE serviceTypeId = ? ORDER BY id';
-
-interface SelectTypeRow {
-    id: number;
-    key: string;
-    name: string;
-    isActive: number | boolean;
-}
-
-interface SelectOptionRow {
-    id: number;
-    selectTypeId: number;
-    key: string;
-    value: string;
-    sortOrder: number;
-    isActive: number | boolean;
-}
-
-interface ServiceTypeRow {
-    id: number;
-    key: string;
-    name: string;
-    isActive: number | boolean;
-}
-
-interface ServiceConfigRow {
-    id: number;
-    serviceTypeId: number;
-    key: string;
-    value: string;
-    type: string;
-    isActive: number | boolean;
-}
-
-// mysql driver returns BOOLEAN (TINYINT(1)) as 0/1.
-const toBoolean = (value: number | boolean): boolean => value === true || value === 1;
+type SelectTypeWithOptions = PrismaSelectType & { options: PrismaSelectOption[] };
+type ServiceTypeWithConfigs = PrismaServiceType & { configs: PrismaServiceConfig[] };
 
 const toServiceConfigValueType = (value: string): ServiceConfigValueType =>
     value === 'number' || value === 'boolean' || value === 'json' ? value : 'string';
 
-const toSelectOption = (row: SelectOptionRow): SelectOption => ({
+const toSelectOption = (row: PrismaSelectOption): SelectOption => ({
     id: row.id,
     selectTypeId: row.selectTypeId,
     key: row.key,
     value: row.value,
     sortOrder: row.sortOrder,
-    isActive: toBoolean(row.isActive),
+    isActive: row.isActive,
 });
 
-const toSelectConfig = (row: SelectTypeRow, options: SelectOption[]): SelectConfig => ({
+const toSelectConfig = (row: PrismaSelectType, options: SelectOption[]): SelectConfig => ({
     id: row.id,
     key: row.key,
     name: row.name,
-    isActive: toBoolean(row.isActive),
+    isActive: row.isActive,
     options,
 });
 
-const toServiceConfigEntry = (row: ServiceConfigRow): ServiceConfigEntry => ({
+const toServiceConfigEntry = (row: PrismaServiceConfig): ServiceConfigEntry => ({
     id: row.id,
     serviceTypeId: row.serviceTypeId,
     key: row.key,
     value: row.value,
     type: toServiceConfigValueType(row.type),
-    isActive: toBoolean(row.isActive),
+    isActive: row.isActive,
 });
 
-const toServiceConfig = (row: ServiceTypeRow, configs: ServiceConfigEntry[]): ServiceConfig => ({
+const toServiceConfig = (row: PrismaServiceType, configs: ServiceConfigEntry[]): ServiceConfig => ({
     id: row.id,
     key: row.key,
     name: row.name,
-    isActive: toBoolean(row.isActive),
+    isActive: row.isActive,
     configs,
 });
 
+/**
+ * Persistence layer for dynamic configuration.
+ *
+ * Uses the shared PrismaClient (Prisma is the ORM) — no mysqlPool,
+ * no raw SQL here. Returns domain models from `src/model/config.ts`.
+ */
 export class ConfigRepository implements IConfigRepository {
-    constructor(protected pool: DbPool) { }
+    constructor(private readonly prisma: PrismaClient) { }
 
     async getSelectTypes(): Promise<SelectConfig[]> {
-        const [typeRows, optionRows] = await Promise.all([
-            runQuery<SelectTypeRow[]>(this.pool, selectTypesSql),
-            runQuery<SelectOptionRow[]>(this.pool, selectOptionsSql),
-        ]);
+        const types: SelectTypeWithOptions[] = await this.prisma.selectType.findMany({
+            include: { options: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] } },
+            orderBy: { id: 'asc' },
+        });
 
-        return typeRows.map((typeRow) =>
-            toSelectConfig(typeRow, optionRows.filter((o) => o.selectTypeId === typeRow.id).map(toSelectOption)));
+        return types.map((type) => toSelectConfig(type, type.options.map(toSelectOption)));
     }
 
     async getSelectType(key: string): Promise<SelectConfig | null> {
-        const typeRows = await runQuery<SelectTypeRow[]>(this.pool, selectTypeByKeySql, [key]);
-        const typeRow = typeRows[0];
-        if (!typeRow) return null;
+        const type: SelectTypeWithOptions | null = await this.prisma.selectType.findUnique({
+            where: { key },
+            include: { options: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] } },
+        });
+        if (!type) return null;
 
-        const optionRows = await runQuery<SelectOptionRow[]>(this.pool, selectOptionsForTypeSql, [typeRow.id]);
-        return toSelectConfig(typeRow, optionRows.map(toSelectOption));
+        return toSelectConfig(type, type.options.map(toSelectOption));
     }
 
     async getServiceConfigs(): Promise<ServiceConfig[]> {
-        const [typeRows, configRows] = await Promise.all([
-            runQuery<ServiceTypeRow[]>(this.pool, serviceTypesSql),
-            runQuery<ServiceConfigRow[]>(this.pool, serviceConfigsSql),
-        ]);
+        const types: ServiceTypeWithConfigs[] = await this.prisma.serviceType.findMany({
+            include: { configs: { orderBy: { id: 'asc' } } },
+            orderBy: { id: 'asc' },
+        });
 
-        return typeRows.map((typeRow) =>
-            toServiceConfig(typeRow, configRows.filter((c) => c.serviceTypeId === typeRow.id).map(toServiceConfigEntry)));
+        return types.map((type) => toServiceConfig(type, type.configs.map(toServiceConfigEntry)));
     }
 
     async getServiceConfig(key: string): Promise<ServiceConfig | null> {
-        const typeRows = await runQuery<ServiceTypeRow[]>(this.pool, serviceTypeByKeySql, [key]);
-        const typeRow = typeRows[0];
-        if (!typeRow) return null;
+        const type: ServiceTypeWithConfigs | null = await this.prisma.serviceType.findUnique({
+            where: { key },
+            include: { configs: { orderBy: { id: 'asc' } } },
+        });
+        if (!type) return null;
 
-        const configRows = await runQuery<ServiceConfigRow[]>(this.pool, serviceConfigsForTypeSql, [typeRow.id]);
-        return toServiceConfig(typeRow, configRows.map(toServiceConfigEntry));
+        return toServiceConfig(type, type.configs.map(toServiceConfigEntry));
     }
 }
+
