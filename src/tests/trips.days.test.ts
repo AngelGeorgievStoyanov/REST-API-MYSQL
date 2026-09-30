@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { prisma } from '../clients/prisma';
-import { dynamicConfig } from '../config/dynamicConfig';
+import { dynamicConfig } from '../services/dynamicConfig';
 import { loadEnvironmentConfig } from '../config/environment';
-import { ConfigRepository } from '../services/configRepository';
+import { ConfigRepository } from '../repositories/configRepository';
 import { api, ApiResponse, FOREIGN, OWNER, startTestServer, tokenFor, TRIP_BODY } from './apiTestApp';
 import { cleanupTrips } from './testDatabase';
 

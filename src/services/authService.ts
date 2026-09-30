@@ -19,12 +19,12 @@ import {
     verifyPassword,
 } from '../utils/auth';
 import { asRecord, requireTrimmedString } from '../utils/validation';
-import type { AuthUserRow } from './authUserRepository';
-import { AuthUserRepository } from './authUserRepository';
-import { EmailVerificationTokenRepository } from './emailVerificationTokenRepository';
+import type { AuthUserRow } from '../repositories/authUserRepository';
+import { AuthUserRepository } from '../repositories/authUserRepository';
+import { EmailVerificationTokenRepository } from '../repositories/emailVerificationTokenRepository';
 import { AuthMailer } from './authMailer';
-import { PasswordResetTokenRepository } from './passwordResetTokenRepository';
-import { RefreshTokenRepository } from './refreshTokenRepository';
+import { PasswordResetTokenRepository } from '../repositories/passwordResetTokenRepository';
+import { RefreshTokenRepository } from '../repositories/refreshTokenRepository';
 
 /** Session plus the raw refresh token the HTTP layer turns into a cookie. */
 export interface AuthSessionResult {

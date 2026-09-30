@@ -3,9 +3,9 @@ import { TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
 import { parseReportBody, parseSocialTargetBody } from '../utils/social';
 import { toIsoString } from '../utils/utils';
-import { ReportRepository } from './reportRepository';
-import { SocialTargetRepository } from './socialTargetRepository';
-import { TargetTypeRepository } from './targetTypeRepository';
+import { ReportRepository } from '../repositories/reportRepository';
+import { SocialTargetRepository } from '../repositories/socialTargetRepository';
+import { TargetTypeRepository } from '../repositories/targetTypeRepository';
 
 export interface ReportDto {
     id: number;

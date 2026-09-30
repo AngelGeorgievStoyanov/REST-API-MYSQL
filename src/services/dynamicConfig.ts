@@ -1,7 +1,7 @@
 import { IConfigRepository } from '../interface/config-repository';
 import { SelectConfig, ServiceConfig } from '../model/config';
 import { getErrorMessage } from '../utils/error';
-import { EnvironmentConfig } from './environment';
+import { EnvironmentConfig } from '../config/environment';
 
 export interface DynamicConfig {
     selects: SelectConfig[];

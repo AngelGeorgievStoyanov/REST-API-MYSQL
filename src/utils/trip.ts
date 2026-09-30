@@ -1,4 +1,4 @@
-import { dynamicConfig } from '../config/dynamicConfig';
+import { dynamicConfig } from '../services/dynamicConfig';
 import {
     DEFAULT_LIMIT,
     DEFAULT_PAGE,

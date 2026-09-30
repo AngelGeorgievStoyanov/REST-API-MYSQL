@@ -1,4 +1,4 @@
-import { RouteNotFoundLogRecord, RouteNotFoundLogsRepository } from './routeNotFoundLogsRepository';
+import { RouteNotFoundLogRecord, RouteNotFoundLogsRepository } from '../repositories/routeNotFoundLogsRepository';
 
 /** Request context collected by the route-not-found middleware. */
 export interface RouteNotFoundLogEvent {

@@ -1,10 +1,10 @@
 import { SocialState } from '../model/social';
 import { TripActor } from '../model/trip';
 import { parseSocialTargetBody, parseSocialTargetQuery } from '../utils/social';
-import { LikeRepository } from './likeRepository';
+import { LikeRepository } from '../repositories/likeRepository';
 import { SocialStateService } from './socialStateService';
-import { SocialTargetRepository } from './socialTargetRepository';
-import { TargetTypeRepository } from './targetTypeRepository';
+import { SocialTargetRepository } from '../repositories/socialTargetRepository';
+import { TargetTypeRepository } from '../repositories/targetTypeRepository';
 
 export class LikeService {
     constructor(

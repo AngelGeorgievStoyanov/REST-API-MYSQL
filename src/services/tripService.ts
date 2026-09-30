@@ -36,7 +36,7 @@ import {
     TripGroupListRow,
     TripMetadataInput,
     TripRepository,
-} from './tripRepository';
+} from '../repositories/tripRepository';
 
 /** Social targets of one day row: the day itself, its images, its points and their images. */
 function toDayTargets(day: {

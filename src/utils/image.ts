@@ -1,4 +1,4 @@
-import { dynamicConfig } from '../config/dynamicConfig';
+import { dynamicConfig } from '../services/dynamicConfig';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { IMAGE_BASE_URL_KEY, VISUAL_SERVICE } from '../constants/trip';
 import { ImageDto, SocialImageDto } from '../model/image';

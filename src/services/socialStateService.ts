@@ -1,10 +1,10 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { SocialState, SocialStates, SocialTargetRef, SocialTargetType } from '../model/social';
 import { socialTargetKey } from '../utils/social';
-import { CommentRepository } from './commentRepository';
-import { FavoriteRepository } from './favoriteRepository';
-import { LikeRepository } from './likeRepository';
-import { TargetTypeRepository } from './targetTypeRepository';
+import { CommentRepository } from '../repositories/commentRepository';
+import { FavoriteRepository } from '../repositories/favoriteRepository';
+import { LikeRepository } from '../repositories/likeRepository';
+import { TargetTypeRepository } from '../repositories/targetTypeRepository';
 
 function unique(values: number[]): number[] {
     return [...new Set(values)];

@@ -9,7 +9,7 @@ import { toImageDto, toSocialImageDto } from '../utils/image';
 import { parsePointCreateBody, parsePointUpdateBody } from '../utils/point';
 import { parseIdList, parsePositiveId } from '../utils/validation';
 import { toNumberOrNull } from '../utils/utils';
-import { PointContext, PointDayContext, PointRepository, PointRow, PointWriteFields } from './pointRepository';
+import { PointContext, PointDayContext, PointRepository, PointRow, PointWriteFields } from '../repositories/pointRepository';
 import { SocialStateService } from './socialStateService';
 
 export function toPointDto(row: PointRow, states: SocialStates): TripPoint {

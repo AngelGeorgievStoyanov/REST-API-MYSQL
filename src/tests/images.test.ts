@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { prisma } from '../clients/prisma';
-import { dynamicConfig } from '../config/dynamicConfig';
+import { dynamicConfig } from '../services/dynamicConfig';
 import { loadEnvironmentConfig } from '../config/environment';
-import { ConfigRepository } from '../services/configRepository';
-import { PointRepository } from '../services/pointRepository';
+import { ConfigRepository } from '../repositories/configRepository';
+import { PointRepository } from '../repositories/pointRepository';
 import { PointService } from '../services/pointService';
-import { TripRepository } from '../services/tripRepository';
+import { TripRepository } from '../repositories/tripRepository';
 import { TripService } from '../services/tripService';
 import { ImageFileStorage } from '../storage/imageFileStorage';
 import { cleanupTrips } from './testDatabase';

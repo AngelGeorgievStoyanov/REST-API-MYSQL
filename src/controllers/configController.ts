@@ -1,5 +1,5 @@
 import express from 'express';
-import { dynamicConfig } from '../config/dynamicConfig';
+import { dynamicConfig } from '../services/dynamicConfig';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { getErrorMessage } from '../utils/error';
 

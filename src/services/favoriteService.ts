@@ -2,9 +2,9 @@ import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { SocialState } from '../model/social';
 import { TripActor } from '../model/trip';
 import { parseTripGroupId } from '../utils/social';
-import { FavoriteRepository } from './favoriteRepository';
+import { FavoriteRepository } from '../repositories/favoriteRepository';
 import { SocialStateService } from './socialStateService';
-import { SocialTargetRepository } from './socialTargetRepository';
+import { SocialTargetRepository } from '../repositories/socialTargetRepository';
 
 export class FavoriteService {
     constructor(

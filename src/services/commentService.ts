@@ -7,9 +7,9 @@ import { canModifyTrip } from '../utils/authorization';
 import { parseCommentCreateBody, parseCommentPageQuery, parseCommentUpdateBody } from '../utils/social';
 import { toIsoString } from '../utils/utils';
 import { parsePositiveId } from '../utils/validation';
-import { CommentRepository, CommentRow } from './commentRepository';
-import { SocialTargetRepository } from './socialTargetRepository';
-import { TargetTypeRepository } from './targetTypeRepository';
+import { CommentRepository, CommentRow } from '../repositories/commentRepository';
+import { SocialTargetRepository } from '../repositories/socialTargetRepository';
+import { TargetTypeRepository } from '../repositories/targetTypeRepository';
 
 export function toCommentDto(row: CommentRow): CommentDto {
     return {

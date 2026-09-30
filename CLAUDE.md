@@ -12,7 +12,7 @@ HTTP down to the database. A typical slice looks like:
 ```text
 src/controllers/<slice>Controller.ts
 src/services/<slice>Service.ts
-src/services/<slice>Repository.ts
+src/repositories/<slice>Repository.ts
 src/model/<slice>.ts
 src/constants/<slice>.ts
 src/utils/<slice>.ts
