@@ -2,6 +2,7 @@ import express from 'express';
 import { tripService } from '../container';
 import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
+import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 
@@ -13,5 +14,6 @@ imagesController.delete('/:imageId', requireAuthentication, asyncHandler(async (
 }));
 
 imagesController.use(apiErrorMiddleware);
+imagesController.use(routeNotFoundLogsMiddleware);
 
 export default imagesController;

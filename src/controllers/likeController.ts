@@ -2,6 +2,7 @@ import express from 'express';
 import { likeService } from '../container';
 import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
+import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 
 /**
@@ -21,5 +22,6 @@ likeController.delete('/', requireAuthentication, asyncHandler(async (req, res) 
 }));
 
 likeController.use(apiErrorMiddleware);
+likeController.use(routeNotFoundLogsMiddleware);
 
 export default likeController;

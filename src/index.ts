@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import authController from './controllers/authController';
+import legacyAuthController from './controllers/legacyAuthController';
 import legacyPointController from './controllers/legacyPointController';
 import legacyCommentController from './controllers/legacyCommentController';
 import { initMySqlPool } from './db/mysqlPool';
@@ -12,7 +12,7 @@ import { VerifyTokenRepository } from './services/verifyTokenService';
 import dotenv from 'dotenv';
 import cloudController from './controllers/cloudController';
 import { CloudRepository } from './services/cloudService';
-import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
+import { RouteNotFoudLogsRepository } from './services/legacyRouteNotFoundLogsRepository';
 import configController from './controllers/configController';
 import { ConfigRepository } from './services/configRepository';
 import apiRouter from './routes/apiRouter';
@@ -34,7 +34,10 @@ const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
 
 const options: cors.CorsOptions = {
     origin: allowedOrigins,
-    methods: 'GET,POST,PUT,DELETE'
+    methods: 'GET,POST,PUT,DELETE',
+    // The refresh token travels in an HttpOnly cookie, which a browser only
+    // sends with a credentialed cross-origin request.
+    credentials: true
 };
 app.use(cors(options));
 
@@ -44,7 +47,7 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 1
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
 
-app.use('/users', authController);
+app.use('/users', legacyAuthController);
 app.use('/api', apiRouter);
 app.use('/data/points', legacyPointController);
 app.use('/data/comments', legacyCommentController);

@@ -1,6 +1,7 @@
 import express from 'express';
 import { pointService } from '../container';
 import { actorFrom, optionalActor, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
+import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { imageUpload, uploadedFileName } from '../storage/imageUpload';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -57,6 +58,7 @@ pointController.post(
 );
 
 pointController.use(apiErrorMiddleware);
+pointController.use(routeNotFoundLogsMiddleware);
 
 /** The reorder of a day's points is addressed through the day. */
 const dayPointController = express.Router();
@@ -67,6 +69,7 @@ dayPointController.put('/:dayId/points/reorder', requireAuthentication, asyncHan
 }));
 
 dayPointController.use(apiErrorMiddleware);
+dayPointController.use(routeNotFoundLogsMiddleware);
 
 export { dayPointController };
 export default pointController;

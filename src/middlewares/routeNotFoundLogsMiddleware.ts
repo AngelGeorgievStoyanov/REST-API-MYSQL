@@ -1,37 +1,62 @@
-import { Request, Response } from 'express';
-import { IRouteNotFoundLogsRepository } from '../interface/routeNotFoundLogs-repository';
+import { Request, RequestHandler, Response } from 'express';
 import os from 'os';
+import { routeNotFoundLogsService } from '../container';
+import { optionalActor } from './authBoundary';
+import { getErrorMessage } from '../utils/error';
 
-
-export const routeNotFoundLogsMiddleware = async (req: Request, res: Response) => {
-    const routeNotFoundLogsRepo: IRouteNotFoundLogsRepository = req.app.get('routeNotFoundLogsRepo');
-
+/**
+ * Route-not-found logger of a single mounted router. It is registered at the end
+ * of a router (never at application level), so it only records requests that
+ * reached a valid router but matched no endpoint of it. The response is always an
+ * empty 404: a logging failure must not change the answer or leak its cause.
+ */
+export const routeNotFoundLogsMiddleware: RequestHandler = async (req: Request, res: Response): Promise<void> => {
     try {
-        const clientIp = [
-            req.header('x-real-ip') ? `x-real-ip: ${req.header('x-real-ip')}` : null,
-            req.header('x-forwarded-for') ? `x-forwarded-for: ${req.header('x-forwarded-for')}` : null,
-            req.socket.remoteAddress ? `remoteAddress: ${req.socket.remoteAddress}` : null,
-            req.ip ? `req.ip: ${req.ip}` : null,
-            `server-ip: ${Object.values(os.networkInterfaces()).flat().find(network => network?.family === 'IPv4' && !network.internal)?.address ?? '127.0.0.1'}`
-        ].filter(Boolean).join(', ');
-      
-        await routeNotFoundLogsRepo.create(
-            req.originalUrl,
-            req.method,
-            req.headers,
-            req.query,
-            req.body,
-            req.params,
-            clientIp,
-            req['user']?.id,
-            req['user']?.email
-        );
-
-        console.log(req.originalUrl,'Route not found!');
-
-        res.status(404).json('Route not found!');
-    } catch (err) {
-        console.log(err.message);
-        res.status(404).json('Route not found!');
+        await routeNotFoundLogsService.recordEvent({
+            url: req.originalUrl,
+            method: req.method,
+            headers: req.headers,
+            query: req.query,
+            body: req.body,
+            params: req.params,
+            clientIp: clientIpDetails(req),
+            actorId: optionalActor(req)?.id,
+        });
+    } catch (error) {
+        // The query string is left out of the log line: it can carry one-time tokens.
+        console.log(`[404] route-not-found log failed for ${req.method} ${req.originalUrl.split('?')[0]}: ${getErrorMessage(error)}`);
     }
+
+    res.status(404).end();
 };
+
+/** Diagnostic client address: proxy headers, socket address, Express ip and the server address. */
+function clientIpDetails(req: Request): string {
+    const details: string[] = [];
+
+    const realIp = req.header('x-real-ip');
+    if (realIp) details.push(`x-real-ip: ${realIp}`);
+
+    const forwardedFor = req.header('x-forwarded-for');
+    if (forwardedFor) details.push(`x-forwarded-for: ${forwardedFor}`);
+
+    const remoteAddress = req.socket.remoteAddress;
+    if (remoteAddress) details.push(`remoteAddress: ${remoteAddress}`);
+
+    if (req.ip) details.push(`req.ip: ${req.ip}`);
+
+    details.push(`server-ip: ${serverIpv4()}`);
+
+    return details.join(', ');
+}
+
+function serverIpv4(): string {
+    for (const addresses of Object.values(os.networkInterfaces())) {
+        for (const address of addresses ?? []) {
+            if (address.family === 'IPv4' && !address.internal) return address.address;
+        }
+    }
+
+    return '127.0.0.1';
+}
+

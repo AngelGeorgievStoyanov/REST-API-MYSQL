@@ -104,8 +104,11 @@ model User {
   hashedPassword String     @db.VarChar(85)
   lastTimeLogin  String?    @db.VarChar(24)
   countOfLogs    BigInt?
-  role           UserRole   @default(user) @db.VarChar(8)
-  status         UserStatus @default(PENDING_VERIFICATION) @db.VarChar(20)
+  // Prisma enums carry no native type attribute: they exist for client
+  // type-safety only. The live columns stay VARCHAR(8)/VARCHAR(20) and no DDL
+  // is generated from this file.
+  role           UserRole   @default(user)
+  status         UserStatus @default(PENDING_VERIFICATION)
   verifyEmail    Int?       @default(0) @db.TinyInt
   // NULL = email not verified yet; a timestamp = verified. Set together with
   // status = ACTIVE by the verification flow. Replaces `verifyEmail` at cutover.

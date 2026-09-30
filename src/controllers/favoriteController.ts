@@ -2,6 +2,7 @@ import express from 'express';
 import { favoriteService } from '../container';
 import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
+import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 
 /** Favorites exist on trip groups only. */
@@ -18,5 +19,6 @@ favoriteController.delete('/', requireAuthentication, asyncHandler(async (req, r
 }));
 
 favoriteController.use(apiErrorMiddleware);
+favoriteController.use(routeNotFoundLogsMiddleware);
 
 export default favoriteController;
