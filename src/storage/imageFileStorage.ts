@@ -1,18 +1,29 @@
 import { BUCKET_NAME } from '../constants/common';
+import { THUMBNAIL_SUFFIX } from '../constants/imageStorage';
 
-/**
- * Storage layout of the flat single-bucket GCS image store: the original keeps
- * the uploaded name, its thumbnail is a `_thumb.webp` sidecar next to it.
- */
+/** A thumbnail is the `_thumb.webp` sidecar of its original in the flat bucket. */
 export function thumbnailFileName(filePath: string): string {
     const extensionIndex = filePath.lastIndexOf('.');
     const base = extensionIndex > -1 ? filePath.substring(0, extensionIndex) : filePath;
-    return `${base}_thumb.webp`;
+    return `${base}${THUMBNAIL_SUFFIX}`;
+}
+
+export function isThumbnailFileName(filePath: string): boolean {
+    return filePath.endsWith(THUMBNAIL_SUFFIX);
+}
+
+/** The original object a thumbnail sidecar belongs to. */
+export function originalFileName(filePath: string): string {
+    if (!isThumbnailFileName(filePath)) return filePath;
+
+    return filePath.substring(0, filePath.length - THUMBNAIL_SUFFIX.length);
 }
 
 export interface ImageFileStorage {
     remove(filePath: string): Promise<void>;
     removeMany(filePaths: string[]): Promise<void>;
+    /** Object names currently present in the bucket. */
+    list(): Promise<string[]>;
 }
 
 /**
@@ -30,6 +41,14 @@ async function removeFromGcs(filePath: string): Promise<void> {
     ]);
 }
 
+/** Bucket folders are not images, so only real objects are reported. */
+async function listFromGcs(): Promise<string[]> {
+    const { gcsClient } = await import('../clients/googleCloudStorage');
+    const [files] = await gcsClient.bucket(BUCKET_NAME).getFiles();
+
+    return files.filter((file) => !file.name.endsWith('/')).map((file) => file.name);
+}
+
 export const gcsImageFileStorage: ImageFileStorage = {
     remove: removeFromGcs,
     async removeMany(filePaths: string[]): Promise<void> {
@@ -37,4 +56,5 @@ export const gcsImageFileStorage: ImageFileStorage = {
             await removeFromGcs(filePath);
         }
     },
+    list: listFromGcs,
 };

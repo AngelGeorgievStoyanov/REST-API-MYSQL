@@ -3,7 +3,9 @@ import { authConfig } from './config/auth';
 import { AuthUserRepository } from './repositories/authUserRepository';
 import { CommentRepository } from './repositories/commentRepository';
 import { EmailVerificationTokenRepository } from './repositories/emailVerificationTokenRepository';
+import { FailedLogRepository } from './repositories/failedLogRepository';
 import { FavoriteRepository } from './repositories/favoriteRepository';
+import { ImageRepository } from './repositories/imageRepository';
 import { LikeRepository } from './repositories/likeRepository';
 import { PasswordResetTokenRepository } from './repositories/passwordResetTokenRepository';
 import { PointRepository } from './repositories/pointRepository';
@@ -14,9 +16,12 @@ import { SocialTargetRepository } from './repositories/socialTargetRepository';
 import { TargetTypeRepository } from './repositories/targetTypeRepository';
 import { TripRepository } from './repositories/tripRepository';
 import { AuthMailer } from './services/authMailer';
+import { AdminUserService } from './services/adminUserService';
 import { AuthService } from './services/authService';
 import { CommentService } from './services/commentService';
+import { FailedLogService } from './services/failedLogService';
 import { FavoriteService } from './services/favoriteService';
+import { ImageInventoryService } from './services/imageInventoryService';
 import { LikeService } from './services/likeService';
 import { PointService } from './services/pointService';
 import { ReportService } from './services/reportService';
@@ -55,6 +60,8 @@ const authUserRepository = new AuthUserRepository(prisma);
 const emailVerificationTokenRepository = new EmailVerificationTokenRepository(prisma);
 const passwordResetTokenRepository = new PasswordResetTokenRepository(prisma);
 const refreshTokenRepository = new RefreshTokenRepository(prisma);
+const failedLogRepository = new FailedLogRepository(prisma);
+const imageRepository = new ImageRepository(prisma);
 const authMailer = new AuthMailer(authConfig);
 
 const authService = new AuthService(
@@ -63,16 +70,26 @@ const authService = new AuthService(
     passwordResetTokenRepository,
     refreshTokenRepository,
     authMailer,
+    failedLogRepository,
+    imageRepository,
+    gcsImageFileStorage,
     authConfig,
 );
+
+const adminUserService = new AdminUserService(authUserRepository);
+const failedLogService = new FailedLogService(failedLogRepository);
+const imageInventoryService = new ImageInventoryService(imageRepository, gcsImageFileStorage);
 
 const routeNotFoundLogsRepository = new RouteNotFoundLogsRepository(prisma);
 const routeNotFoundLogsService = new RouteNotFoundLogsService(routeNotFoundLogsRepository);
 
 export {
+    adminUserService,
     authService,
     commentService,
+    failedLogService,
     favoriteService,
+    imageInventoryService,
     likeService,
     pointService,
     reportService,

@@ -1,18 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import legacyAuthController from './controllers/legacyAuthController';
-import legacyPointController from './controllers/legacyPointController';
-import legacyCommentController from './controllers/legacyCommentController';
-import { initMySqlPool } from './db/mysqlPool';
-import { UserRepository } from './repositories/legacyUserRepository';
-import { PointTripRepository } from './repositories/legacyPointRepository';
-import { CommentTripRepository } from './repositories/legacyCommentRepository';
-import { VerifyTokenRepository } from './repositories/legacyVerifyTokenRepository';
 import dotenv from 'dotenv';
-import cloudController from './controllers/cloudController';
-import { CloudRepository } from './repositories/legacyCloudRepository';
-import { RouteNotFoudLogsRepository } from './repositories/legacyRouteNotFoundLogsRepository';
 import configController from './controllers/configController';
 import { ConfigRepository } from './repositories/configRepository';
 import apiRouter from './routes/apiRouter';
@@ -47,11 +36,7 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 1
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
 
-app.use('/users', legacyAuthController);
 app.use('/api', apiRouter);
-app.use('/data/points', legacyPointController);
-app.use('/data/comments', legacyCommentController);
-app.use('/data/cloud', cloudController);
 app.use('/config', configController);
 
 
@@ -62,18 +47,11 @@ app.get('/', (req: express.Request, res: express.Response) => {
 
 
 (async () => {
-    const pool = initMySqlPool();
     app.use((req, res, next) => {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         next();
     });
     app.set("trust proxy", true);
-    app.set("usersRepo", new UserRepository(pool));
-    app.set("pointsRepo", new PointTripRepository(pool));
-    app.set("commentsRepo", new CommentTripRepository(pool));
-    app.set("verifyTokenRepo", new VerifyTokenRepository(pool));
-    app.set("imagesRepo", new CloudRepository(pool));
-    app.set("routeNotFoundLogsRepo", new RouteNotFoudLogsRepository(pool));
 
     try {
         const environment = loadEnvironmentConfig();

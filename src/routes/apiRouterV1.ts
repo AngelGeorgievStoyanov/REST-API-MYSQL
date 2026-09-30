@@ -1,4 +1,5 @@
 import express from 'express';
+import adminController from '../controllers/adminController';
 import authController from '../controllers/authController';
 import commentController from '../controllers/commentController';
 import favoriteController from '../controllers/favoriteController';
@@ -10,8 +11,7 @@ import reportController from '../controllers/reportController';
 import tripController from '../controllers/tripController';
 
 /**
- * Resource routers of API v1. Only migrated slices are mounted here — the legacy
- * `/data/*` routers are still mounted at application level.
+ * Resource routers of API v1.
  *
  * The comment collections live below the `/trip-groups`, `/trips`, `/points` and
  * `/images` prefixes, so that router is mounted before `tripController`, which
@@ -20,6 +20,7 @@ import tripController from '../controllers/tripController';
 const apiRouterV1 = express.Router();
 
 apiRouterV1.use('/auth', authController);
+apiRouterV1.use('/admin', adminController);
 apiRouterV1.use(commentController);
 // The comments router serves several prefixes from the v1 root, so it cannot host
 // the terminal logger itself (that would capture every unmatched v1 path). Its own

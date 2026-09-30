@@ -5,6 +5,7 @@ import {
     PASSWORD_RESET_TOKEN_TTL_SECONDS,
 } from '../constants/auth';
 import type { AuthActor, AuthSessionDto, AuthUserDto, AuthUserResponse, MessageResponse } from '../model/auth';
+import { ImageDto } from '../model/image';
 import { ApiError } from '../utils/apiError';
 import {
     generateOpaqueToken,
@@ -18,19 +19,33 @@ import {
     signAccessToken,
     verifyPassword,
 } from '../utils/auth';
+import { getErrorMessage } from '../utils/error';
+import { toImageDto } from '../utils/image';
 import { asRecord, requireTrimmedString } from '../utils/validation';
 import type { AuthUserRow } from '../repositories/authUserRepository';
 import { AuthUserRepository } from '../repositories/authUserRepository';
 import { EmailVerificationTokenRepository } from '../repositories/emailVerificationTokenRepository';
+import { FailedLogRepository } from '../repositories/failedLogRepository';
+import { ImageRepository } from '../repositories/imageRepository';
 import { AuthMailer } from './authMailer';
 import { PasswordResetTokenRepository } from '../repositories/passwordResetTokenRepository';
 import { RefreshTokenRepository } from '../repositories/refreshTokenRepository';
+import { ImageFileStorage } from '../storage/imageFileStorage';
 
 /** Session plus the raw refresh token the HTTP layer turns into a cookie. */
 export interface AuthSessionResult {
     session: AuthSessionDto;
     refreshToken: string;
     refreshTokenExpiresAt: Date;
+}
+
+/**
+ * HTTP facts of one login attempt. They are observability data for the
+ * failed-log table only and are never part of the authentication decision.
+ */
+export interface LoginContext {
+    ip: string;
+    userAgent: string;
 }
 
 /**
@@ -46,6 +61,9 @@ export class AuthService {
         private readonly resetTokens: PasswordResetTokenRepository,
         private readonly refreshTokens: RefreshTokenRepository,
         private readonly mailer: AuthMailer,
+        private readonly failedLogs: FailedLogRepository,
+        private readonly images: ImageRepository,
+        private readonly imageStorage: ImageFileStorage,
         private readonly config: AuthConfig,
     ) { }
 
@@ -103,19 +121,43 @@ export class AuthService {
         return { message: 'If the account exists and is not verified yet, a new verification email was sent.' };
     }
 
-    async login(body: unknown): Promise<AuthSessionResult> {
+    async login(body: unknown, context: LoginContext): Promise<AuthSessionResult> {
         const record = asRecord(body, 'Request body');
         const email = normalizeEmail(record['email']);
         const password = requireTrimmedString(record['password'], 'password', 200);
 
         const user = await this.users.findByEmail(email);
         const passwordMatches = await verifyPassword(password, user?.hashedPassword ?? ABSENT_USER_HASH);
-        if (!user || !passwordMatches) throw ApiError.invalidCredentials();
+        if (!user || !passwordMatches) {
+            await this.recordFailedLogin(email, context);
+            throw ApiError.invalidCredentials();
+        }
 
         this.assertAccountUsable(user);
         await this.users.touchLogin(user.id, new Date());
 
         return this.issueSession(user);
+    }
+
+    /** A failed attempt is recorded best effort: observability must never change the answer. */
+    private async recordFailedLogin(email: string, context: LoginContext): Promise<void> {
+        try {
+            await this.failedLogs.create({
+                date: new Date().toISOString(),
+                email,
+                ip: context.ip,
+                userAgent: context.userAgent,
+                countryCode: null,
+                countryName: null,
+                city: null,
+                postal: null,
+                latitude: null,
+                longitude: null,
+                state: null,
+            });
+        } catch (error) {
+            console.log(`[auth] failed-login record failed: ${getErrorMessage(error)}`);
+        }
     }
 
     async me(actorId: string): Promise<AuthUserResponse> {
@@ -224,6 +266,72 @@ export class AuthService {
         return { message: 'The password was changed. Please sign in with the new password.' };
     }
 
+    /** Re-authentication gate: only the account's own password is checked. */
+    async confirmPassword(actorId: string, body: unknown): Promise<{ valid: boolean }> {
+        const user = await this.users.findById(actorId);
+        if (!user) throw ApiError.accountGone();
+
+        const record = asRecord(body, 'Request body');
+        const password = typeof record['password'] === 'string' ? record['password'] : '';
+
+        return { valid: await verifyPassword(password, user.hashedPassword) };
+    }
+
+    /** The owner updates the profile fields; a new password ends the other sessions. */
+    async updateProfile(actorId: string, body: unknown): Promise<AuthUserResponse> {
+        const user = await this.users.findById(actorId);
+        if (!user) throw ApiError.accountGone();
+
+        const record = asRecord(body, 'Request body');
+        const firstName = normalizeName(record['firstName'], 'firstName');
+        const lastName = normalizeName(record['lastName'], 'lastName');
+        const password = record['password'] === undefined || record['password'] === null || record['password'] === ''
+            ? null
+            : normalizePassword(record['password']);
+
+        if (password === null) {
+            return { user: toAuthUserDto(await this.users.updateProfile(actorId, { firstName, lastName })) };
+        }
+
+        const updated = await this.users.updateProfile(actorId, {
+            firstName,
+            lastName,
+            hashedPassword: await hashPassword(password),
+        });
+        // Long-lived sessions must not survive a password change.
+        await this.refreshTokens.revokeAllForUser(actorId, new Date());
+
+        return { user: toAuthUserDto(updated) };
+    }
+
+    async getProfileImage(actorId: string): Promise<ImageDto | null> {
+        const image = await this.images.findProfileImage(actorId);
+
+        return image ? toImageDto(image) : null;
+    }
+
+    /** The replaced file is removed only once the new row exists. */
+    async setProfileImage(actorId: string, filePath: string): Promise<ImageDto> {
+        const user = await this.users.findById(actorId);
+        if (!user) throw ApiError.accountGone();
+
+        const previous = await this.images.findProfileImage(actorId);
+        const created = await this.images.createProfileImage(actorId, filePath);
+
+        if (previous) await this.imageStorage.remove(previous.filePath);
+
+        return toImageDto(created);
+    }
+
+    async removeProfileImage(actorId: string): Promise<void> {
+        const current = await this.images.findProfileImage(actorId);
+        if (!current) throw ApiError.notFound('This account has no profile image.');
+
+        // Storage first: the row is only dropped once the file is gone.
+        await this.imageStorage.remove(current.filePath);
+        await this.images.delete(current.id);
+    }
+
     private async issueVerificationToken(user: AuthUserRow): Promise<void> {
         const now = new Date();
         const rawToken = generateOpaqueToken();
@@ -265,7 +373,7 @@ export class AuthService {
     }
 }
 
-function toAuthUserDto(user: AuthUserRow): AuthUserDto {
+export function toAuthUserDto(user: AuthUserRow): AuthUserDto {
     return {
         id: user.id,
         email: user.email,

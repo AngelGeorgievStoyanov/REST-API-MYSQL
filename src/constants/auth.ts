@@ -15,7 +15,8 @@ export const REFRESH_COOKIE_NAME = 'hack_trip_refresh';
 /** The cookie is only sent to the auth endpoints that can use it. */
 export const REFRESH_COOKIE_PATH = '/api/v1/auth';
 
-/** Column widths of `users` (email/firstName/lastName VARCHAR(45)). */
+/** Column widths of `users` (id UUID / VARCHAR(36), the rest VARCHAR(45)). */
+export const MAX_USER_ID_LENGTH = 36;
 export const MAX_EMAIL_LENGTH = 45;
 export const MAX_NAME_LENGTH = 45;
 

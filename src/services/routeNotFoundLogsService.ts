@@ -1,3 +1,4 @@
+import { RouteNotFoundLogDto } from '../model/admin';
 import { RouteNotFoundLogRecord, RouteNotFoundLogsRepository } from '../repositories/routeNotFoundLogsRepository';
 
 /** Request context collected by the route-not-found middleware. */
@@ -33,5 +34,10 @@ export class RouteNotFoundLogsService {
         };
 
         await this.routeNotFoundLogsRepository.create(record);
+    }
+
+    /** The whole log of the terminal-404 logger, newest first. */
+    async listEvents(): Promise<RouteNotFoundLogDto[]> {
+        return this.routeNotFoundLogsRepository.listAll();
     }
 }

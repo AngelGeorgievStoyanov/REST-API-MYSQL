@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient, UserStatus } from '@prisma/client';
+import { Prisma, PrismaClient, UserRole, UserStatus } from '@prisma/client';
 
 export interface AuthUserRow {
     id: string;
@@ -9,6 +9,21 @@ export interface AuthUserRow {
     role: string;
     status: string;
     emailVerifiedAt: Date | null;
+}
+
+/** Fields an administrator may change on another account. */
+export interface AdminUserUpdate {
+    firstName?: string;
+    lastName?: string;
+    role?: UserRole;
+    status?: UserStatus;
+}
+
+/** Fields the owner of an account may change on their own profile. */
+export interface ProfileUpdate {
+    firstName: string;
+    lastName: string;
+    hashedPassword?: string;
 }
 
 const authUserSelect = {
@@ -89,5 +104,22 @@ export class AuthUserRepository {
             data: { lastTimeLogin: at.toISOString() },
             select: { id: true },
         });
+    }
+
+    /** Administrative account listing, ordered by email for a stable answer. */
+    async listAll(): Promise<AuthUserRow[]> {
+        return this.prisma.user.findMany({ orderBy: { email: 'asc' }, select: authUserSelect });
+    }
+
+    async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AuthUserRow> {
+        return this.prisma.user.update({ where: { id: userId }, data, select: authUserSelect });
+    }
+
+    async updateProfile(userId: string, data: ProfileUpdate): Promise<AuthUserRow> {
+        return this.prisma.user.update({ where: { id: userId }, data, select: authUserSelect });
+    }
+
+    async remove(userId: string): Promise<void> {
+        await this.prisma.user.delete({ where: { id: userId }, select: { id: true } });
     }
 }

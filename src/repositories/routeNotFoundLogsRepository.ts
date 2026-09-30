@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { RouteNotFoundLogDto } from '../model/admin';
 import {
     MAX_ACTOR_ID_LENGTH,
     MAX_BODY_LENGTH,
@@ -22,6 +23,20 @@ export interface RouteNotFoundLogRecord {
     actorId?: string;
 }
 
+const listSelect = {
+    id: true,
+    date: true,
+    reqUrl: true,
+    reqMethod: true,
+    reqHeaders: true,
+    reqQuery: true,
+    reqBody: true,
+    reqParams: true,
+    reqIp: true,
+    reqUserId: true,
+    reqUserEmail: true,
+};
+
 export class RouteNotFoundLogsRepository {
     constructor(private readonly prisma: PrismaClient) { }
 
@@ -43,6 +58,14 @@ export class RouteNotFoundLogsRepository {
                 reqUserEmail: '',
                 createdAt: new Date(),
             },
+        });
+    }
+
+    /** Newest first; `id` breaks ties because `date` is a stored string. */
+    async listAll(): Promise<RouteNotFoundLogDto[]> {
+        return this.prisma.routeNotFoundLog.findMany({
+            orderBy: [{ date: 'desc' }, { id: 'desc' }],
+            select: listSelect,
         });
     }
 }

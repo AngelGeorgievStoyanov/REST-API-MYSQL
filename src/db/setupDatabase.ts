@@ -1,5 +1,4 @@
-import mysql from 'mysql';
-import { getDbConnectionOptions } from './mysqlPool';
+import { createPool, PoolConfig } from 'mysql';
 import {
     comments,
     createuser,
@@ -14,9 +13,28 @@ import {
     users,
     verify,
 } from './createMySQL';
+import { DB_CONNECTION_LIMIT, MAX_TCP_PORT, MIN_TCP_PORT } from '../constants/database';
+
+/** Read at call time, after dotenv.config(). */
+function getDbConnectionOptions(): PoolConfig {
+    const rawPort = (process.env.MYSQL_PORT || process.env.MYSQOL_PORT || '').trim();
+    const port = rawPort === '' ? undefined : Number(rawPort);
+
+    if (port !== undefined && (!Number.isInteger(port) || port < MIN_TCP_PORT || port > MAX_TCP_PORT)) {
+        throw new Error(`Invalid MySQL port "${rawPort}".`);
+    }
+
+    return {
+        connectionLimit: DB_CONNECTION_LIMIT,
+        host: process.env.MYSQL_HOST,
+        port,
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_PASSWORD,
+    };
+}
 
 export async function setupDatabase(): Promise<void> {
-    const pool = mysql.createPool(getDbConnectionOptions());
+    const pool = createPool(getDbConnectionOptions());
 
     await new Promise<void>((resolve, reject) => {
         pool.getConnection(async (err, connection) => {

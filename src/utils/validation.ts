@@ -84,6 +84,15 @@ export function rejectOwnershipAndParentFields(record: Record<string, unknown>, 
     rejectClientControlledFields(record, [...CLIENT_OWNERSHIP_FIELDS, ...PARENT_FIELDS], what);
 }
 
+/** Restricts a value to a known set of string values, e.g. a Prisma enum. */
+export function requireEnumValue<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
+    const candidate = typeof value === 'string' ? value.trim() : '';
+    if (!(allowed as readonly string[]).includes(candidate)) {
+        throw ApiError.validation(`"${field}" must be one of: ${allowed.join(', ')}.`);
+    }
+    return candidate as T;
+}
+
 export function parsePositiveId(rawId: unknown, label: string): number {
     const value = Array.isArray(rawId) ? rawId[0] : rawId;
     const id = Number(value);

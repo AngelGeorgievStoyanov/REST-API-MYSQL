@@ -27,6 +27,10 @@ class FakeStorage implements ImageFileStorage {
     async removeMany(filePaths: string[]): Promise<void> {
         for (const filePath of filePaths) await this.remove(filePath);
     }
+
+    async list(): Promise<string[]> {
+        return [];
+    }
 }
 
 const storage = new FakeStorage();
