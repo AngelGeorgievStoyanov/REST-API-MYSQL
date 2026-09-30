@@ -1,362 +1,177 @@
-import { Pool } from "mysql";
-import { IPointTripRepository } from "../interface/point-repository";
-import { IdType } from "../interface/user-repository";
-import { Point } from "../model/point";
-import { v4 as uuid } from 'uuid';
-
-
-
-const createSql = `INSERT INTO hack_trip.points (
-    _id,
-    name,
-    description,
-    _ownerTripId,
-    lat,
-    lng,
-    pointNumber,
-    imageFile,
-    _ownerId,
-    timeCreated
-  )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`;
-
-
-const selectOne = `SELECT * FROM hack_trip.points WHERE _id =?`;
-
-const deleteOne = `DELETE from hack_trip.points WHERE _id =?`;
-
-const deleteByOTripId = `DELETE from hack_trip.points WHERE _ownerTripId =?`;
-
-const selectByOwnerId = `SELECT * FROM hack_trip.points WHERE _ownerTripId =?`;
-
-
-const updateSql = `UPDATE hack_trip.points SET name =?, description=?, lat=?, lng=?, pointNumber=?, imageFile =?, timeEdited =?, countEdited = countEdited + 1 WHERE _id =?`;
-
-const updatePositionSql = `UPDATE hack_trip.points SET pointNumber=? WHERE _id =?`;
-
-const updateSqlImages = `UPDATE hack_trip.points SET imageFile =? WHERE _id =?`;
-
-
-const findBytripIdOrderByPointPositionSql = `SELECT * FROM hack_trip.points  WHERE _ownerTripId=? ORDER BY pointNumber ASC`;
-
-export class PointTripRepository implements IPointTripRepository<Point> {
-    constructor(protected pool: Pool) { }
-
-    async create(point: Point): Promise<Point> {
-        point._id = uuid()
-        const timeCreated = new Date().toISOString()
-        return new Promise((resolve, reject) => {
-            let imagesNew = (point.imageFile || []).join();
-
-            this.pool.query(createSql,
-                [point._id, point.name, point.description, point._ownerTripId, point.lat, point.lng, point.pointNumber, imagesNew, point._ownerId, timeCreated],
-                (err) => {
-                    if (err) {
-
-                        console.log(err.message);
-                        reject(err);
-                        return;
-                    }
-
-                    resolve(point);
-                });
-        });
-
-
-    }
-
-
-
-    async findByTripId(id: IdType): Promise<Point[]> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.points WHERE _ownerTripId =? ORDER BY pointNumber ASC', [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows) {
-                    const points = rows;
-                    resolve(points.map(point => ({
-                        ...point,
-                        imageFile: point.imageFile ? point.imageFile.split(/[,\s]+/) : [],
-                        _ownerId: ''
-
-                    })));
-
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-
-    async deletePointById(id: IdType): Promise<Point> {
-
-        let pointDel;
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(selectOne, [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows.length === 1) {
-                    pointDel = rows[0];
-                    this.pool.query(deleteOne, [id], (err) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (!err) {
-                            resolve(pointDel);
-
-                        }
-
-                    });
-
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-    async deletePointByTripId(id: IdType): Promise<Point[]> {
-
-        let pointsDel;
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(selectByOwnerId, [id], (err, rows) => {
-                if (err) {
-                    console.log(err)
-                    reject(err);
-                    return;
-                }
-                if (rows.length > 0) {
-                    pointsDel = rows;
-                    this.pool.query(deleteByOTripId, [id], (err) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (!err) {
-                            resolve(pointsDel);
-                        }
-                    });
-                } else {
-                    return
-                }
-            });
-        });
-    }
-
-
-
-    async getPointById(id: IdType): Promise<Point> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.points WHERE _id =?', [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows.length == 1) {
-
-                    const point = rows[0];
-                    resolve({
-                        ...point,
-                        imageFile: point.imageFile ? point.imageFile.split(/[,\s]+/) : point.imageFile !== null && point.imageFile.length > 0 ? point.imageFile.split('') : [],
-
-                    });
-
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-
-    async updatePointById(id: IdType, point: Point): Promise<Point> {
-        let editedImg = point.imageFile.join();
-
-        return new Promise((resolve, reject) => {
-            const timeEdited = new Date().toISOString()
-            this.pool.query(updateSql, [point.name, point.description, point.lat, point.lng, point.pointNumber, editedImg, timeEdited, id], (err) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err)
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            const point = rows[0];
-                            resolve(point);
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-
-    async updatePointPositionById(id: IdType, pointPosition: IdType): Promise<Point> {
-
-        return new Promise((resolve, reject) => {
-
-            this.pool.query(updatePositionSql, [pointPosition, id], (err) => {
-                if (err) {
-                    console.log(err)
-
-                    reject(err);
-                    return;
-                }
-
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err)
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            const point = rows[0];
-                            resolve(point);
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-
-        });
-
-    }
-
-    async editImagesByPointId(id: IdType, data: Point): Promise<Point> {
-
-        let editedImages = data.imageFile.join();
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlImages, [editedImages, id], (err) => {
-                if (err) {
-
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-
-                            const point = rows.map(row => ({
-                                ...row,
-                                imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-                            }))
-
-
-                            resolve(point[0]);
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-
-
-    async findBytripIdOrderByPointPosition(id: IdType): Promise<Point[]> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(findBytripIdOrderByPointPositionSql, [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows) {
-
-                    resolve(rows.map(row => ({
-                        ...row,
-                        imageFile: row.imageFile ? row.imageFile.split(/[,\s]+/) : [],
-
-                    })));
-
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
-    async findById(id): Promise<Point> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.points WHERE _id =?', [id], (err, rows) => {
-
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows.length == 1) {
-
-                    const point = rows[0];
-                    resolve({ ...point });
-                } else {
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-
-    }
-
+import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { ImageDto } from '../model/image';
+import { SocialStates, SocialTargetRef } from '../model/social';
+import { PointCreateRequest, PointUpdateRequest, TripActor, TripPoint } from '../model/trip';
+import { ImageFileStorage } from '../storage/imageFileStorage';
+import { ApiError } from '../utils/apiError';
+import { canModifyTrip } from '../utils/authorization';
+import { toImageDto, toSocialImageDto } from '../utils/image';
+import { parsePointCreateBody, parsePointUpdateBody } from '../utils/point';
+import { parseIdList, parsePositiveId } from '../utils/validation';
+import { toNumberOrNull } from '../utils/utils';
+import { PointContext, PointDayContext, PointRepository, PointRow, PointWriteFields } from './pointRepository';
+import { SocialStateService } from './socialStateService';
+
+export function toPointDto(row: PointRow, states: SocialStates): TripPoint {
+    return {
+        id: row.id,
+        title: row.name,
+        description: row.description,
+        latitude: toNumberOrNull(row.lat),
+        longitude: toNumberOrNull(row.lng),
+        images: row.images.map((image) => toSocialImageDto(image, states)),
+        social: states.get(SOCIAL_TARGET_TYPE.POINT, row.id),
+    };
 }
 
+/** Targets of a batch of point rows: the points themselves and their images. */
+function toPointTargets(rows: PointRow[]): SocialTargetRef[] {
+    const targets: SocialTargetRef[] = [];
 
+    for (const row of rows) {
+        targets.push({ targetType: SOCIAL_TARGET_TYPE.POINT, targetId: row.id });
+        for (const image of row.images) {
+            targets.push({ targetType: SOCIAL_TARGET_TYPE.IMAGE, targetId: image.id });
+        }
+    }
+    return targets;
+}
 
+function toPointFields(request: PointCreateRequest): PointWriteFields {
+    return {
+        name: request.title,
+        description: request.description,
+        latitude: String(request.latitude),
+        longitude: String(request.longitude),
+    };
+}
+
+function toPointPatch(request: PointUpdateRequest): Partial<PointWriteFields> {
+    const patch: Partial<PointWriteFields> = {};
+
+    if (request.title !== undefined) patch.name = request.title;
+    if (request.description !== undefined) patch.description = request.description;
+    if (request.latitude !== undefined) {
+        patch.latitude = request.latitude === null ? null : String(request.latitude);
+    }
+    if (request.longitude !== undefined) {
+        patch.longitude = request.longitude === null ? null : String(request.longitude);
+    }
+    return patch;
+}
+
+export class PointService {
+    constructor(
+        private readonly repository: PointRepository,
+        private readonly imageStorage: ImageFileStorage,
+        private readonly socialStates: SocialStateService,
+    ) { }
+
+    async getPoint(rawPointId: string, actor: TripActor | null): Promise<TripPoint> {
+        const row = await this.repository.findRow(parsePositiveId(rawPointId, 'Point id'));
+        if (!row) throw ApiError.notFound('Point not found.');
+
+        return (await this.mapRows([row], actor))[0];
+    }
+
+    async createPoint(actor: TripActor, body: unknown): Promise<TripPoint> {
+        const request = parsePointCreateBody(body);
+        const day = await this.assertDayAccess(actor, request.dayId);
+
+        const pointNumber = (await this.repository.findMaxNumber(day.id)) + 1;
+        const pointId = await this.repository.create(day.id, actor.id, toPointFields(request), pointNumber);
+
+        return this.getPoint(String(pointId), actor);
+    }
+
+    async updatePoint(actor: TripActor, rawPointId: string, body: unknown): Promise<TripPoint> {
+        const pointId = parsePositiveId(rawPointId, 'Point id');
+        await this.assertPointAccess(actor, pointId);
+
+        const request = parsePointUpdateBody(body);
+        await this.repository.update(pointId, toPointPatch(request));
+
+        return this.getPoint(String(pointId), actor);
+    }
+
+    async deletePoint(actor: TripActor, rawPointId: string): Promise<void> {
+        const pointId = parsePositiveId(rawPointId, 'Point id');
+        const point = await this.assertPointAccess(actor, pointId);
+
+        // Storage is cleared before the row, so a storage failure leaves the
+        // database untouched instead of pointing at missing files.
+        await this.imageStorage.removeMany(await this.repository.listImagePaths(pointId));
+        await this.repository.deleteAndCompact(point.dayId, pointId, toNumberOrNull(point.pointNumber) ?? 0);
+    }
+
+    /** `pointIds` is the complete, ordered list of the points of one day. */
+    async reorderPoints(actor: TripActor, rawDayId: string, body: unknown): Promise<TripPoint[]> {
+        const dayId = parsePositiveId(rawDayId, 'Day id');
+        await this.assertDayAccess(actor, dayId);
+
+        const pointIds = parseIdList(body, 'pointIds', 0);
+        const existing = await this.repository.listIds(dayId);
+        if (existing.length !== pointIds.length || pointIds.some((pointId) => !existing.includes(pointId))) {
+            throw ApiError.validation('"pointIds" must contain exactly all points of this day.');
+        }
+
+        await this.repository.reorder(dayId, pointIds);
+
+        return this.mapRows(await this.repository.listRows(dayId), actor);
+    }
+
+    async assertPointImageUpload(actor: TripActor, rawPointId: string): Promise<void> {
+        await this.assertPointAccess(actor, parsePositiveId(rawPointId, 'Point id'));
+    }
+
+    async addPointImage(actor: TripActor, rawPointId: string, filePath: string): Promise<ImageDto> {
+        const pointId = parsePositiveId(rawPointId, 'Point id');
+        await this.assertPointAccess(actor, pointId);
+
+        const imageId = await this.repository.createImage(pointId, actor.id, filePath);
+        return toImageDto({ id: imageId, filePath });
+    }
+
+    async deletePointImage(actor: TripActor, rawPointId: string, rawImageId: string): Promise<void> {
+        const pointId = parsePositiveId(rawPointId, 'Point id');
+        await this.assertPointAccess(actor, pointId);
+
+        const image = await this.repository.findImage(pointId, parsePositiveId(rawImageId, 'Image id'));
+        if (!image) throw ApiError.notFound('Image not found.');
+
+        // Original and thumbnail go first: the row is only dropped once storage succeeded.
+        await this.imageStorage.remove(image.filePath);
+        await this.repository.deleteImage(image.id);
+    }
+
+    /** One social batch for all given points and their images. */
+    private async mapRows(rows: PointRow[], actor: TripActor | null): Promise<TripPoint[]> {
+        const states = await this.socialStates.statesFor(actor?.id ?? null, toPointTargets(rows));
+
+        return rows.map((row) => toPointDto(row, states));
+    }
+
+    private async assertDayAccess(actor: TripActor, dayId: number): Promise<PointDayContext> {
+        const day = await this.repository.findDayContext(dayId);
+        if (!day) throw ApiError.notFound('Day not found.');
+
+        this.assertCanModify(actor, day);
+        return day;
+    }
+
+    private async assertPointAccess(actor: TripActor, pointId: number): Promise<PointContext> {
+        const point = await this.repository.findContext(pointId);
+        if (!point) throw ApiError.notFound('Point not found.');
+
+        this.assertCanModify(actor, point);
+        return point;
+    }
+
+    private assertCanModify(actor: TripActor, context: { groupOwnerId: string | null }): void {
+        if (context.groupOwnerId === null) throw ApiError.tripNotFound();
+
+        if (!canModifyTrip(actor, context.groupOwnerId)) {
+            throw ApiError.forbidden('Only the trip owner can modify this trip.');
+        }
+    }
+}

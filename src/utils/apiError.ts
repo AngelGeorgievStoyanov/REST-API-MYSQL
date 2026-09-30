@@ -3,6 +3,7 @@ export type ApiErrorCode =
     | 'VALIDATION_ERROR'
     | 'UNAUTHORIZED'
     | 'FORBIDDEN'
+    | 'NOT_FOUND'
     | 'TRIP_NOT_FOUND'
     | 'CONFLICT'
     | 'INTERNAL_SERVER_ERROR';
@@ -39,6 +40,10 @@ export class ApiError extends Error {
 
     static tripNotFound(message = 'Trip not found.'): ApiError {
         return new ApiError(404, 'TRIP_NOT_FOUND', message);
+    }
+
+    static notFound(message = 'Resource not found.'): ApiError {
+        return new ApiError(404, 'NOT_FOUND', message);
     }
 
     static conflict(message: string): ApiError {

@@ -2,12 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import authController from './controllers/authController';
-import pointController from './controllers/pointController';
-import commentController from './controllers/commentController';
+import legacyPointController from './controllers/legacyPointController';
+import legacyCommentController from './controllers/legacyCommentController';
 import { initMySqlPool } from './db/mysqlPool';
 import { UserRepository } from './services/userService';
-import { PointTripRepository } from './services/pointService';
-import { CommentTripRepository } from './services/commentService';
+import { PointTripRepository } from './services/legacyPointRepository';
+import { CommentTripRepository } from './services/legacyCommentRepository';
 import { VerifyTokenRepository } from './services/verifyTokenService';
 import dotenv from 'dotenv';
 import cloudController from './controllers/cloudController';
@@ -46,8 +46,8 @@ app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
 
 app.use('/users', authController);
 app.use('/api', apiRouter);
-app.use('/data/points', pointController);
-app.use('/data/comments', commentController);
+app.use('/data/points', legacyPointController);
+app.use('/data/comments', legacyCommentController);
 app.use('/data/cloud', cloudController);
 app.use('/config', configController);
 

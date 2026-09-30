@@ -3,23 +3,18 @@ import {
     DEFAULT_LIMIT,
     DEFAULT_PAGE,
     GROUP_SELECT_TYPE,
-    IMAGE_BASE_URL_KEY,
     MAX_DESCRIPTION_LENGTH,
-    MAX_IMAGE_PATH_LENGTH,
     MAX_LIMIT,
-    MAX_POINT_DESCRIPTION_LENGTH,
-    MAX_POINT_NAME_LENGTH,
     MAX_SEARCH_LENGTH,
     MAX_SELECT_VALUE_LENGTH,
     MAX_TITLE_LENGTH,
     TRANSPORT_SELECT_TYPE,
     TRIP_SORTS,
-    VISUAL_SERVICE,
 } from '../constants/trip';
 import {
-    TripDayInput,
+    DayCreateRequest,
+    DayUpdateRequest,
     TripListQuery,
-    TripPointInput,
     TripSelectValue,
     TripSort,
     TripWriteRequest,
@@ -27,11 +22,11 @@ import {
 import { ApiError } from './apiError';
 import { firstValue } from './utils';
 import {
-    asArray,
     asRecord,
-    optionalNumberInRange,
     optionalPositiveInt,
     optionalString,
+    rejectClientControlledFields,
+    rejectOwnershipAndParentFields,
     requireTrimmedString,
 } from './validation';
 
@@ -127,63 +122,46 @@ export function resolveSelectFilterValues(typeKey: string, value: string, field:
 }
 
 
-function readImageBaseUrl(): string | null {
-    const service = dynamicConfig.getServiceConfig(VISUAL_SERVICE);
-    const entry = service?.configs.find((config) => config.key === IMAGE_BASE_URL_KEY);
-
-    if (!entry || entry.value.length === 0) return null;
-    return entry.value.replace(/\/+$/, '');
-}
-
-/** `images.filePath` stores a bare filename; legacy rows may already hold a URL. */
-export function toImageUrl(filePath: string): string {
-    if (/^https?:\/\//i.test(filePath)) return filePath;
-
-    const baseUrl = readImageBaseUrl();
-    return baseUrl ? `${baseUrl}/${filePath}` : filePath;
-}
-
-function parsePointBody(rawPoint: unknown, day: number, position: number): TripPointInput {
-    const record = asRecord(rawPoint, `"days[${day}].points[${position}]"`);
-    const field = `days[${day}].points[${position}]`;
-
-    return {
-        title: requireTrimmedString(record.title, `${field}.title`, MAX_POINT_NAME_LENGTH),
-        description: optionalString(record.description, `${field}.description`, MAX_POINT_DESCRIPTION_LENGTH),
-        latitude: optionalNumberInRange(record.latitude, `${field}.latitude`, -90, 90),
-        longitude: optionalNumberInRange(record.longitude, `${field}.longitude`, -180, 180),
-        images: asArray(record.images, `${field}.images`).map((rawImage, index) =>
-            requireTrimmedString(rawImage, `${field}.images[${index}]`, MAX_IMAGE_PATH_LENGTH)),
-    };
-}
-
-function parseDayBody(rawDay: unknown, position: number): TripDayInput {
-    const record = asRecord(rawDay, `"days[${position}]"`);
-    const day = optionalPositiveInt(record.day, `days[${position}].day`) ?? position;
-
-    return {
-        day,
-        title: optionalString(record.title, `days[${day}].title`, MAX_TITLE_LENGTH),
-        points: asArray(record.points, `days[${day}].points`).map((rawPoint, index) =>
-            parsePointBody(rawPoint, day, index + 1)),
-    };
-}
-
 export function parseTripBody(body: unknown): TripWriteRequest {
     const record = asRecord(body, 'Request body');
-    const days = asArray(record.days, 'days').map((rawDay, index) => parseDayBody(rawDay, index + 1));
-
-    for (const day of days) {
-        if (days.filter((other) => other.day === day.day).length > 1) {
-            throw ApiError.validation(`Duplicate day "${day.day}" in "days".`);
-        }
-    }
+    rejectClientControlledFields(record, ['days', 'points'], 'Trip');
 
     return {
         title: requireTrimmedString(record.title, 'title', MAX_TITLE_LENGTH),
         description: optionalString(record.description, 'description', MAX_DESCRIPTION_LENGTH),
         group: resolveSelectKey(GROUP_SELECT_TYPE, record.group, 'group'),
         transport: resolveSelectKey(TRANSPORT_SELECT_TYPE, record.transport, 'transport'),
-        days,
     };
 }
+
+export function parseDayCreateBody(body: unknown): DayCreateRequest {
+    const record = asRecord(body === undefined || body === null ? {} : body, 'Request body');
+    rejectOwnershipAndParentFields(record, 'Day');
+
+    return {
+        dayNumber: optionalPositiveInt(record.dayNumber, 'dayNumber'),
+        title: optionalString(record.title, 'title', MAX_TITLE_LENGTH),
+        description: optionalString(record.description, 'description', MAX_DESCRIPTION_LENGTH),
+    };
+}
+
+export function parseDayUpdateBody(body: unknown): DayUpdateRequest {
+    const record = asRecord(body, 'Request body');
+    rejectOwnershipAndParentFields(record, 'Day');
+
+    if (record.dayNumber !== undefined) {
+        throw ApiError.validation('"dayNumber" cannot be changed here; use the day reorder endpoint.');
+    }
+
+    const request: DayUpdateRequest = {};
+    if (record.title !== undefined) request.title = requireTrimmedString(record.title, 'title', MAX_TITLE_LENGTH);
+    if (record.description !== undefined) {
+        request.description = optionalString(record.description, 'description', MAX_DESCRIPTION_LENGTH);
+    }
+
+    if (record.title === undefined && record.description === undefined) {
+        throw ApiError.validation('Provide at least one of: title, description.');
+    }
+    return request;
+}
+

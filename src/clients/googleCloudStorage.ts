@@ -8,6 +8,7 @@ import {
     STORAGE_MAX_RETRIES,
     STORAGE_TOTAL_TIMEOUT,
 } from '../constants/common';
+import { thumbnailFileName } from '../storage/imageFileStorage';
 
 const KEY_FILENAME = path.join(
     __dirname,
@@ -97,14 +98,7 @@ export class GoogleCloudStorage implements StorageEngine {
                             })
                             .toBuffer();
 
-                        const extensionIndex = destination.lastIndexOf('.');
-                        const thumbnailDestination =
-                            extensionIndex > -1
-                                ? `${destination.substring(
-                                    0,
-                                    extensionIndex
-                                )}_thumb.webp`
-                                : `${destination}_thumb.webp`;
+                        const thumbnailDestination = thumbnailFileName(destination);
 
                         const thumbnailFile =
                             this.selectedBucket.file(thumbnailDestination);

@@ -1,319 +1,152 @@
-import { Pool } from "mysql";
-import { ICommentTripRepository } from "../interface/comment-repository";
-import { IdType } from "../interface/user-repository";
-import { Comment } from "../model/comment";
-import { v4 as uuid } from 'uuid';
+import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { CommentDto, CommentListResponse } from '../model/comment';
+import { SocialTargetRef, SocialTargetType } from '../model/social';
+import { TripActor } from '../model/trip';
+import { ApiError } from '../utils/apiError';
+import { canModifyTrip } from '../utils/authorization';
+import { parseCommentCreateBody, parseCommentPageQuery, parseCommentUpdateBody } from '../utils/social';
+import { toIsoString } from '../utils/utils';
+import { parsePositiveId } from '../utils/validation';
+import { CommentRepository, CommentRow } from './commentRepository';
+import { SocialTargetRepository } from './socialTargetRepository';
+import { TargetTypeRepository } from './targetTypeRepository';
 
+export function toCommentDto(row: CommentRow): CommentDto {
+    return {
+        id: row.id,
+        author: { id: row.ownerId, name: row.nameAuthor },
+        text: row.comment,
+        editCount: row.countEdited ?? 0,
+        createdAt: toIsoString(row.createdAt),
+        updatedAt: toIsoString(row.updatedAt),
+    };
+}
 
+export class CommentService {
+    constructor(
+        private readonly repository: CommentRepository,
+        private readonly targets: SocialTargetRepository,
+        private readonly targetTypes: TargetTypeRepository,
+    ) { }
 
-const createSql = `INSERT INTO hack_trip.comments (
-    _id,
-    nameAuthor,
-    comment,
-    _tripId,
-    _ownerId,
-    reportComment,
-    timeCreated
-  )
-  VALUES (?, ?, ?, ?, ?, ?, ?);`;
+    async listForTarget(targetType: SocialTargetType, rawId: string, query: unknown): Promise<CommentListResponse> {
+        const target = await this.resolveTarget(targetType, rawId);
+        const page = parseCommentPageQuery(query);
+        const typeId = await this.targetTypes.requireId(target.targetType);
 
+        const [rows, total] = await Promise.all([
+            this.repository.listPage(typeId, target.targetId, (page.page - 1) * page.limit, page.limit),
+            this.repository.countByTarget(typeId, target.targetId),
+        ]);
 
-const updateSql = `UPDATE hack_trip.comments SET comment =?, timeEdited =?, countEdited = countEdited + 1  WHERE _id =?`;
+        return { items: rows.map(toCommentDto), page: page.page, limit: page.limit, total };
+    }
 
-const selectOne = `SELECT * FROM hack_trip.comments WHERE _id =?`;
+    /** The day must belong to the trip from the URL; the day resource is a `trips` row. */
+    async listForDay(rawTripId: string, rawDayId: string, query: unknown): Promise<CommentListResponse> {
+        const dayId = await this.resolveDay(rawTripId, rawDayId);
 
-const deleteOne = `DELETE from hack_trip.comments WHERE _id =?`
+        return this.listForTarget(SOCIAL_TARGET_TYPE.DAY, String(dayId), query);
+    }
 
-const deleteByOTripId = `DELETE from hack_trip.comments WHERE _tripId =?`;
+    async create(
+        actor: TripActor,
+        targetType: SocialTargetType,
+        rawId: string,
+        body: unknown,
+    ): Promise<CommentDto> {
+        const target = await this.resolveTarget(targetType, rawId);
+        const request = parseCommentCreateBody(body);
 
-const selectByOwnerId = `SELECT * FROM hack_trip.comments WHERE _tripId =?`;
+        const [typeId, nameAuthor] = await Promise.all([
+            this.targetTypes.requireId(target.targetType),
+            this.repository.findAuthorName(actor.id),
+        ]);
 
-const updateSqlReports = `UPDATE hack_trip.comments SET reportComment =? WHERE _id =?`;
-
-
-export class CommentTripRepository implements ICommentTripRepository<Comment> {
-    constructor(protected pool: Pool) { }
-
-
-    async create(comment: Comment): Promise<Comment> {
-        comment._id = uuid()
-        const timeCreated = new Date().toISOString()
-        return new Promise((resolve, reject) => {
-            this.pool.query(createSql,
-                [comment._id, comment.nameAuthor, comment.comment, comment._tripId, comment._ownerId, comment.reportComment, timeCreated],
-                (err) => {
-                    if (err) {
-
-                        console.log(err.message);
-                        reject(err);
-                        return;
-                    }
-
-                    resolve(comment);
-                });
+        const row = await this.repository.create({
+            targetTypeId: typeId,
+            targetId: target.targetId,
+            ownerId: actor.id,
+            nameAuthor,
+            text: request.text,
         });
 
-
+        return toCommentDto(row);
     }
 
+    async createForDay(
+        actor: TripActor,
+        rawTripId: string,
+        rawDayId: string,
+        body: unknown,
+    ): Promise<CommentDto> {
+        const dayId = await this.resolveDay(rawTripId, rawDayId);
 
-
-    async getCommentById(id: IdType): Promise<Comment> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.comments WHERE _id =?', [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows.length == 1) {
-
-                    const comment = rows[0];
-                    resolve({
-                        ...comment,
-                        reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : [],
-                    });
-
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            })
-        })
+        return this.create(actor, SOCIAL_TARGET_TYPE.DAY, String(dayId), body);
     }
 
+    /** Only the author rewrites a comment; deleting is a moderation action. */
+    async update(actor: TripActor, rawCommentId: string, body: unknown): Promise<CommentDto> {
+        const comment = await this.findComment(rawCommentId);
+        if (comment.ownerId !== actor.id) {
+            throw ApiError.forbidden('Only the author can edit a comment.');
+        }
 
-    async getCommentsByTripId(id: IdType): Promise<Comment[]> {
+        const request = parseCommentUpdateBody(body);
+        const row = await this.repository.update(comment.id, request.text, (comment.countEdited ?? 0) + 1);
 
-        return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.comments WHERE _tripId =?', [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows) {
-
-                    const comments = rows;
-                    resolve(comments.map(comment => ({
-                        ...comment,
-                        reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : []
-                    })));
-
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            })
-        })
+        return toCommentDto(row);
     }
 
+    async delete(actor: TripActor, rawCommentId: string): Promise<void> {
+        const comment = await this.findComment(rawCommentId);
+        await this.assertCanDelete(actor, comment);
 
-    async updateCommentById(id: IdType, comment: Comment): Promise<Comment> {
-
-        return new Promise((resolve, reject) => {
-            const timeEdited = new Date().toISOString()
-            this.pool.query(updateSql, [comment.comment, timeEdited, id], (err) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err)
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            const comment = rows[0];
-                            resolve({
-                                ...comment,
-                                reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : [],
-                            });
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            })
-        })
+        await this.repository.delete(comment.id);
     }
 
+    private async findComment(rawCommentId: string): Promise<CommentRow> {
+        const comment = await this.repository.findById(parsePositiveId(rawCommentId, 'Comment id'));
+        if (!comment) throw ApiError.notFound('Comment not found.');
 
-    async deleteCommentById(id: IdType): Promise<Comment> {
-
-        let commentDel;
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(selectOne, [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-                if (rows.length > 0) {
-                    commentDel = rows.map(row => ({
-                        ...row
-                    }));
-                    this.pool.query(deleteOne, [id], (err) => {
-                        if (err) {
-                            console.log(err)
-                            reject(err);
-                            return;
-                        }
-                        if (!err) {
-                            resolve(commentDel);
-
-                        }
-
-                    });
-
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            })
-        })
+        return comment;
     }
 
+    private async resolveTarget(targetType: SocialTargetType, rawId: string): Promise<SocialTargetRef> {
+        const target: SocialTargetRef = {
+            targetType,
+            targetId: parsePositiveId(rawId, 'Target id'),
+        };
+        await this.targets.requireContext(target);
 
-    async deleteCommentByOwnerId(id: IdType): Promise<Comment[]> {
+        return target;
+    }
 
-        let commentDel = [];
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(selectByOwnerId, [id], (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-
-                if (rows.length > 0) {
-
-                    commentDel = rows.map(row => ({
-                        ...row
-                    }));
-
-                    this.pool.query(deleteByOTripId, [id], (err) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (!err) {
-                            resolve(commentDel);
-
-                        }
-
-                    });
-                } else {
-                    resolve([]);
-                }
-            });
+    private async resolveDay(rawTripId: string, rawDayId: string): Promise<number> {
+        const tripId = parsePositiveId(rawTripId, 'Trip id');
+        const context = await this.targets.findContext({
+            targetType: SOCIAL_TARGET_TYPE.DAY,
+            targetId: parsePositiveId(rawDayId, 'Day id'),
         });
+        if (!context || context.tripGroupId !== tripId) throw ApiError.notFound('Day not found.');
+
+        return context.targetId;
     }
 
+    /**
+     * The author, the owner of the trip group the target belongs to, or a moderator
+     * may delete a comment — the polymorphic target carries the ownership context.
+     */
+    private async assertCanDelete(actor: TripActor, comment: CommentRow): Promise<void> {
+        if (comment.ownerId === actor.id) return;
 
-    async reportCommentByuserId(id: IdType, comment: Comment): Promise<Comment> {
+        const names = await this.targetTypes.loadNames();
+        const targetType = names.get(comment.targetTypeId);
+        if (!targetType) throw ApiError.internal('The target type of this comment is unknown.');
 
-        let reportsNew = comment.reportComment.join();
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlReports, [reportsNew, id], (err) => {
-                if (err) {
-
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            resolve({
-                                ...rows[0],
-                                reportComment: rows[0].reportComment ? rows[0].reportComment.split(/[,\s]+/) : [],
-
-                            });
-
-                        }
-
-                    })
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
+        const context = await this.targets.requireContext({ targetType, targetId: comment.targetId });
+        if (!canModifyTrip(actor, context.tripGroupOwnerId)) {
+            throw ApiError.forbidden('Only the author, the trip owner or a moderator can delete this comment.');
+        }
     }
-
-
-    async getAllReports(): Promise<Comment[]> {
-        return new Promise((resolve, reject) => {
-            this.pool.query('SELECT * FROM hack_trip.comments WHERE (reportComment IS NOT NULL AND reportComment NOT LIKE "")', (err, rows) => {
-                if (err) {
-                    console.log(err);
-                    reject(err);
-                    return;
-                }
-
-
-                const comments = rows;
-                resolve(comments.map(comment => ({
-                    ...comment,
-                    reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : []
-                })));
-            });
-        });
-    }
-
-    async deleteReportCommentByuserId(id: IdType, trip: Comment): Promise<Comment> {
-
-        return new Promise((resolve, reject) => {
-            this.pool.query(updateSqlReports, [trip.reportComment, id], (err) => {
-                if (err) {
-
-                    reject(err);
-                    return;
-                }
-                if (!err) {
-                    this.pool.query(selectOne, [id], (err, rows) => {
-                        if (err) {
-                            console.log(err);
-                            reject(err);
-                            return;
-                        }
-                        if (rows) {
-                            const comment = rows[0];
-                            resolve({
-                                ...comment,
-                                reportComment: comment.reportComment ? comment.reportComment.split(/[,\s]+/) : comment.reportComment !== null && comment.reportComment.length > 0 ? comment.reportComment.split('') : [],
-                            });
-
-                        }
-
-                    });
-
-                } else {
-
-                    reject(new Error(`Error finding new document in database`));
-                }
-            });
-        });
-    }
-
 }

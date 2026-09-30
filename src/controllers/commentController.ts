@@ -1,275 +1,105 @@
 import express from 'express';
-import { ICommentTripRepository } from '../interface/comment-repository';
-import { IUserRepository } from '../interface/user-repository';
-import { Comment } from '../model/comment';
-import { User } from '../model/user';
-import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
-import { authenticateToken } from '../guard/jwt.middleware';
+import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { commentService } from '../container';
+import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
+import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
+import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 
-
+/**
+ * Comment routes of API v1. Reading is public (a trip is public), writing needs
+ * the authenticated author. The collection endpoints mirror the resource tree —
+ * trip group, day, point and image — and are mounted at the v1 root because they
+ * span several prefixes.
+ */
 const commentController = express.Router();
 
-
-commentController.get('/reports/:id', authenticateToken, async (req, res) => {
-
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-
-    try {
-
-        const user = await userRepo.findById(routeParam(req.params.id));
-
-        if (user.role !== 'admin' && user.role !== 'manager') {
-            throw new Error(`Error finding new document in database`)
-        }
-
-        try {
-
-            const comments = await commentRepo.getAllReports();
-
-            res.status(200).json(comments);
-        } catch (err) {
-            throw new Error(err.message, { cause: err });
-        }
-
-    } catch (err) {
-
-        console.log(err.message)
-        res.status(400).json(err.message);
-    }
-})
-
-
-commentController.post('/', authenticateToken, async (req, res) => {
-
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-    try {
-
-        const comment = await commentRepo.create(req.body);
-
-        res.status(200).json(comment);
-    } catch (err) {
-        res.json(err.message);
-    }
-})
-
-
-
-commentController.get('/:id', authenticateToken, async (req, res) => {
-
-
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-    try {
-
-        const comment = await commentRepo.getCommentById(routeParam(req.params.id));
-        res.status(200).json(comment);
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-
-
-})
-
-
-commentController.get('/trip/:id/:userId', authenticateToken, async (req, res) => {
-
-    const tripId = routeParam(req.params.id);
-    const userId = routeParam(req.params.userId);
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-    try {
-
-        const comments = await commentRepo.getCommentsByTripId(tripId);
-
-        comments.map((comment) => ({
-            ...comment,
-            _ownerId: comment._ownerId === userId ? comment._ownerId = userId : comment._ownerId = '',
-            reportComment: comment.reportComment.includes(userId) ? comment.reportComment = [userId] : comment.reportComment = []
-        }))
-
-        res.status(200).json(comments);
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-
-
-})
-
-
-commentController.put('/:id', authenticateToken, async (req, res) => {
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-    try {
-
-        const result = await commentRepo.updateCommentById(routeParam(req.params.id), req.body);
-        res.json(result);
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-
-})
-
-
-commentController.delete('/trip/:id/:userId', authenticateToken, async (req, res) => {
-
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-    try {
-
-        const result = await commentRepo.deleteCommentByOwnerId(routeParam(req.params.id));
-        res.status(200).json(result);
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-})
-
-
-commentController.delete('/:id', authenticateToken, async (req, res) => {
-
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-    try {
-
-        const result = await commentRepo.deleteCommentById(routeParam(req.params.id));
-
-        res.status(200).json(result);
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-
-    }
-})
-
-
-commentController.put('/report/:id', authenticateToken, async (req, res) => {
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-
-    try {
-
-        await commentRepo.getCommentById(routeParam(req.params.id));
-
-        try {
-            await commentRepo.reportCommentByuserId(routeParam(req.params.id), req.body);
-
-
-            try {
-
-                const comments = await commentRepo.getCommentsByTripId(req.body._tripId)
-                res.status(200).json(comments);
-            } catch (err) {
-                console.log(err.message);
-                res.status(400).json(err.message);
-            }
-        } catch (err) {
-            console.log(err.message);
-            res.status(400).json(err.message);
-        }
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-});
-
-
-commentController.put('/admin/report/:id', authenticateToken, async (req, res) => {
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-
-    try {
-
-        await commentRepo.getCommentById(routeParam(req.params.id));
-
-        try {
-            await commentRepo.reportCommentByuserId(routeParam(req.params.id), req.body);
-
-
-            try {
-
-                const comments = await commentRepo.getAllReports()
-                res.json(comments);
-            } catch (err) {
-                console.log(err.message);
-                res.status(400).json(err.message);
-            }
-        } catch (err) {
-            console.log(err.message);
-            res.status(400).json(err.message);
-        }
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-});
-
-
-
-commentController.put('/admin/delete-report/:id', authenticateToken, async (req, res) => {
-
-
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-
-
-    try {
-
-        await commentRepo.getCommentById(routeParam(req.params.id));
-
-        try {
-            const result = await commentRepo.deleteReportCommentByuserId(routeParam(req.params.id), req.body);
-
-            res.json(result);
-        } catch (err) {
-            console.log(err.message);
-            res.status(400).json(err.message);
-        }
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-})
-
-
-commentController.get('/image-user/:id', authenticateToken, async (req, res) => {
-
-    const commentId = routeParam(req.params.id)
-
-    const userRepo: IUserRepository<User> = req.app.get('usersRepo');
-
-    const commentRepo: ICommentTripRepository<Comment> = req.app.get('commentsRepo');
-
-
-    try {
-
-        const comment = await commentRepo.getCommentById(commentId)
-
-        if (comment._ownerId !== undefined && comment._ownerId !== null) {
-            try {
-                const userId = comment._ownerId
-                const user = await userRepo.findById(userId)
-
-                res.status(200).json(user.imageFile);
-
-            } catch (err) {
-                console.log(err.message);
-                res.status(400).json(err.message);
-            }
-        }
-    } catch (err) {
-        console.log(err.message);
-        res.status(400).json(err.message);
-    }
-
-
-})
-
-commentController.use(routeNotFoundLogsMiddleware);
-
-export default commentController
+commentController.get('/trip-groups/:tripGroupId/comments', asyncHandler(async (req, res) => {
+    const comments = await commentService.listForTarget(
+        SOCIAL_TARGET_TYPE.TRIP_GROUP,
+        routeParam(req.params.tripGroupId),
+        req.query,
+    );
+    res.status(200).json(comments);
+}));
+
+commentController.post('/trip-groups/:tripGroupId/comments', requireAuthentication, asyncHandler(async (req, res) => {
+    const comment = await commentService.create(
+        actorFrom(req),
+        SOCIAL_TARGET_TYPE.TRIP_GROUP,
+        routeParam(req.params.tripGroupId),
+        req.body,
+    );
+    res.status(201).json(comment);
+}));
+
+commentController.get('/trips/:tripId/days/:dayId/comments', asyncHandler(async (req, res) => {
+    const comments = await commentService.listForDay(
+        routeParam(req.params.tripId),
+        routeParam(req.params.dayId),
+        req.query,
+    );
+    res.status(200).json(comments);
+}));
+
+commentController.post('/trips/:tripId/days/:dayId/comments', requireAuthentication, asyncHandler(async (req, res) => {
+    const comment = await commentService.createForDay(
+        actorFrom(req),
+        routeParam(req.params.tripId),
+        routeParam(req.params.dayId),
+        req.body,
+    );
+    res.status(201).json(comment);
+}));
+
+commentController.get('/points/:pointId/comments', asyncHandler(async (req, res) => {
+    const comments = await commentService.listForTarget(
+        SOCIAL_TARGET_TYPE.POINT,
+        routeParam(req.params.pointId),
+        req.query,
+    );
+    res.status(200).json(comments);
+}));
+
+commentController.post('/points/:pointId/comments', requireAuthentication, asyncHandler(async (req, res) => {
+    const comment = await commentService.create(
+        actorFrom(req),
+        SOCIAL_TARGET_TYPE.POINT,
+        routeParam(req.params.pointId),
+        req.body,
+    );
+    res.status(201).json(comment);
+}));
+
+commentController.get('/images/:imageId/comments', asyncHandler(async (req, res) => {
+    const comments = await commentService.listForTarget(
+        SOCIAL_TARGET_TYPE.IMAGE,
+        routeParam(req.params.imageId),
+        req.query,
+    );
+    res.status(200).json(comments);
+}));
+
+commentController.post('/images/:imageId/comments', requireAuthentication, asyncHandler(async (req, res) => {
+    const comment = await commentService.create(
+        actorFrom(req),
+        SOCIAL_TARGET_TYPE.IMAGE,
+        routeParam(req.params.imageId),
+        req.body,
+    );
+    res.status(201).json(comment);
+}));
+
+commentController.put('/comments/:commentId', requireAuthentication, asyncHandler(async (req, res) => {
+    const comment = await commentService.update(actorFrom(req), routeParam(req.params.commentId), req.body);
+    res.status(200).json(comment);
+}));
+
+commentController.delete('/comments/:commentId', requireAuthentication, asyncHandler(async (req, res) => {
+    await commentService.delete(actorFrom(req), routeParam(req.params.commentId));
+    res.status(204).send();
+}));
+
+commentController.use(apiErrorMiddleware);
+
+export default commentController;

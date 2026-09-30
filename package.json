@@ -15,7 +15,9 @@
     "migration:phase4:verify": "ts-node src/migration/run-main.ts --verify",
     "db:clone-test": "ts-node src/db/cloneTestDatabase.ts",
     "db:clone-test:dry-run": "ts-node src/db/cloneTestDatabase.ts --dry-run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build:tests": "tsc --noEmitOnError false",
+    "test:api": "node --test --test-concurrency=1 \"build/tests/*.test.js\""
   },
   "author": "Angel Stoyanov",
   "license": "ISC",

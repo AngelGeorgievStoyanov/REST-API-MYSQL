@@ -1,3 +1,6 @@
+import { SocialImageDto } from './image';
+import { SocialState } from './social';
+
 /**
  * Persistence notes for these DTOs (prisma/schema.prisma is the source of truth):
  *  - one Trip = one `trip_groups` row; one Day = one `trips` row of that group;
@@ -28,26 +31,23 @@ export interface TripAuthor {
     lastName: string;
 }
 
-export interface TripStats {
-    likes: number;
-    favorites: number;
-    comments: number;
-}
-
 export interface TripPoint {
     id: number;
     title: string;
     description: string | null;
     latitude: number | null;
     longitude: number | null;
-    images: string[];
+    images: SocialImageDto[];
+    social: SocialState;
 }
 
 export interface TripDay {
     id: number;
     day: number;
     title: string | null;
+    images: SocialImageDto[];
     points: TripPoint[];
+    social: SocialState;
 }
 
 export interface TripListItem {
@@ -58,7 +58,6 @@ export interface TripListItem {
     transport: TripSelectValue;
     author: TripAuthor;
     coverImage: string | null;
-    stats: TripStats;
     createdAt: string | null;
 }
 
@@ -71,7 +70,7 @@ export interface TripDetails {
     author: TripAuthor;
     coverImage: string | null;
     days: TripDay[];
-    stats: TripStats;
+    social: SocialState;
     createdAt: string | null;
     updatedAt: string | null;
 }
@@ -99,24 +98,36 @@ export interface TripListQuery {
     sort: TripSort;
 }
 
-export interface TripPointInput {
-    title: string;
-    description: string | null;
-    latitude: number | null;
-    longitude: number | null;
-    images: string[];
-}
-
-export interface TripDayInput {
-    day: number;
-    title: string | null;
-    points: TripPointInput[];
-}
-
 export interface TripWriteRequest {
     title: string;
     description: string | null;
     group: string;
     transport: string;
-    days: TripDayInput[];
+}
+
+export interface PointCreateRequest {
+    /** The day (a `trips` row) the point is created in; the trip follows from it. */
+    dayId: number;
+    title: string;
+    description: string | null;
+    latitude: number;
+    longitude: number;
+}
+
+export interface PointUpdateRequest {
+    title?: string;
+    description?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+}
+
+export interface DayCreateRequest {
+    dayNumber: number | null;
+    title: string | null;
+    description: string | null;
+}
+
+export interface DayUpdateRequest {
+    title?: string;
+    description?: string | null;
 }

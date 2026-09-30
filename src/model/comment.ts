@@ -1,16 +1,30 @@
-import { IdType } from "../interface/user-repository";
+export interface CommentAuthor {
+    id: string;
+    /** `comments.nameAuthor` snapshot taken when the comment was written. */
+    name: string;
+}
 
+export interface CommentDto {
+    id: number;
+    author: CommentAuthor;
+    text: string;
+    editCount: number;
+    createdAt: string | null;
+    updatedAt: string | null;
+}
 
-export class Comment {
-    _id?: IdType
-    constructor(
-        public nameAuthor: string,
-        public comment: string,
-        public _tripId: string,
-        public _ownerId: string,
-        public reportComment: string[], 
-        public timeCreated: string,
-        public timeEdited: string,
-        public countEdited: number
-    ) { }
+export interface CommentCreateRequest {
+    text: string;
+}
+
+export interface CommentUpdateRequest {
+    text: string;
+}
+
+/** One page of the comments of a single target. */
+export interface CommentListResponse {
+    items: CommentDto[];
+    page: number;
+    limit: number;
+    total: number;
 }

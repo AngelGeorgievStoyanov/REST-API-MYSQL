@@ -6,12 +6,8 @@ export const TRANSPORT_SELECT_TYPE = 'transport';
 export const VISUAL_SERVICE = 'visual';
 export const IMAGE_BASE_URL_KEY = 'image_base_url';
 
-/**
- * `target_types.name` values of the polymorphic like/comment targets.
- * `trip` is a single `trips` row, i.e. one day of a trip, not the whole trip.
- */
-export const TRIP_GROUP_TARGET_TYPE = 'tripGroup';
-export const TRIP_DAY_TARGET_TYPE = 'trip';
+/** The first day row of a new trip; it also carries the trip metadata. */
+export const FIRST_DAY_NUMBER = 1;
 
 /** `trips.countPeoples` is NOT NULL in the live schema while the API has no people count. */
 export const DEFAULT_COUNT_PEOPLES = 1;

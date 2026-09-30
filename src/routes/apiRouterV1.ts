@@ -1,12 +1,29 @@
 import express from 'express';
+import commentController from '../controllers/commentController';
+import favoriteController from '../controllers/favoriteController';
+import imagesController from '../controllers/imagesController';
+import likeController from '../controllers/likeController';
+import pointController, { dayPointController } from '../controllers/pointController';
+import reportController from '../controllers/reportController';
 import tripController from '../controllers/tripController';
 
 /**
  * Resource routers of API v1. Only migrated slices are mounted here — the legacy
  * `/data/*` routers are still mounted at application level.
+ *
+ * The comment collections live below the `/trip-groups`, `/trips`, `/points` and
+ * `/images` prefixes, so that router is mounted before `tripController`, which
+ * ends with a catch-all 404.
  */
 const apiRouterV1 = express.Router();
 
+apiRouterV1.use(commentController);
+apiRouterV1.use('/likes', likeController);
+apiRouterV1.use('/favorites', favoriteController);
+apiRouterV1.use('/reports', reportController);
 apiRouterV1.use('/trips', tripController);
+apiRouterV1.use('/points', pointController);
+apiRouterV1.use('/days', dayPointController);
+apiRouterV1.use('/images', imagesController);
 
 export default apiRouterV1;
