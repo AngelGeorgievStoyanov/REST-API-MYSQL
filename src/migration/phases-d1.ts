@@ -3,7 +3,7 @@
  * `_id` before the finalization rename and `id` after — resolved at runtime.
  */
 import { PrismaClient } from '@prisma/client';
-import { DbExecutor, columnExists, inTx, isUuid, qi, qtable, timestampForWrite, userExistsById } from './db';
+import { DbExecutor, columnExists, inTx, isUuid, keepOrFill, qi, qtable, timestampFallback, userExistsById } from './db';
 import { quarantineDryAware } from './state';
 import { Counters } from './types';
 
@@ -17,7 +17,10 @@ export async function phaseVerify(prisma: PrismaClient, db: string, runId: numbe
       const uid = String(r['userId'] ?? '');
       if (!isUuid(uid)) { if (await quarantineDryAware(exec, db, dryRun, runId, 'Verify', id, 'INVALID_USER', 'verify.userId is not a canonical UUID.', { userId: r['userId'] })) c.quarantined++; continue; }
       if (!(await userExistsById(exec, db, uid))) { if (await quarantineDryAware(exec, db, dryRun, runId, 'Verify', id, 'ORPHAN_USER', 'No surviving user for verify row.', { userId: uid })) c.quarantined++; continue; }
-      const created = timestampForWrite(r['timeVerifyToken'] ?? r['timeVerifyTokenForgotPassword']);
+      // The token timestamp is the only legacy date; the target table also has
+      // updatedAt (never written before), which falls back to createdAt and then
+      // to the migration clock. A missing legacy date must not become NULL.
+      const { createdAt, updatedAt } = timestampFallback(r['timeVerifyToken'] ?? r['timeVerifyTokenForgotPassword'], null);
       if (dryRun) { c.migrated++; continue; }
       // verify._id is already INT AUTO_INCREMENT (only the name changes at
       // finalize). Guard the cast: a non-numeric key would write WHERE _id = NaN.
@@ -27,7 +30,7 @@ export async function phaseVerify(prisma: PrismaClient, db: string, runId: numbe
         continue;
       }
       await exec.$executeRawUnsafe(
-        `UPDATE ${qtable(db, 'verify')} SET ${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'} WHERE ${qi(keyCol)} = ${numericId}`,
+        `UPDATE ${qtable(db, 'verify')} SET ${keepOrFill('createdAt', createdAt)}, ${keepOrFill('updatedAt', updatedAt)} WHERE ${qi(keyCol)} = ${numericId}`,
       );
       c.migrated++;
     }

@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { DbExecutor, columnExists, esc, inTx, isUuid, legacyGroupColumn, ownerColumn, qi, qtable, timestampForWrite, toCount, userKeyColumn } from './db';
+import { DbExecutor, backfillTimestamps, columnExists, createdNow, esc, inTx, isUuid, keepOrFill, legacyGroupColumn, ownerColumn, qi, qtable, timestampFallback, toCount, userKeyColumn } from './db';
 import { lookupStateOrPending, quarantineDryAware, recordState } from './state';
 import { Counters } from './types';
 
@@ -36,7 +36,9 @@ export async function phaseUsers(prisma: PrismaClient, db: string, runId: number
     `SELECT ${qi(keyCol)}, ${qi('email')}, ${qi('role')}, ${qi('status')}, ${qi('timeCreated')}, ${qi('timeEdited')} FROM ${qtable(db, 'users')}`,
   )) as Array<Record<string, unknown>>;
   const validRoles = new Set(['user', 'admin', 'manager']);
-  const validStatus = new Set(['ACTIVE', 'SUSPENDED', 'DEACTIVATED']);
+  // PENDING_VERIFICATION is the target status of a user that has not confirmed
+  // the email yet; legacy rows are ACTIVE/SUSPENDED/DEACTIVATED only.
+  const validStatus = new Set(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED']);
   return runBody(prisma, db, runId, dryRun, 'User', async (exec) => {
     const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
     const seenEmail = new Set<string>();
@@ -50,11 +52,10 @@ export async function phaseUsers(prisma: PrismaClient, db: string, runId: number
         if (await quarantineDryAware(exec, db, dryRun, runId, 'User', id, 'INVALID_ENUM', 'role/status outside confirmed enum values.', r)) c.quarantined++;
         continue;
       }
-      const created = timestampForWrite(r['timeCreated']);
-      const updated = timestampForWrite(r['timeEdited']);
+      const { createdAt, updatedAt } = timestampFallback(r['timeCreated'], r['timeEdited']);
       if (!dryRun) {
         await exec.$executeRawUnsafe(
-          `UPDATE ${qtable(db, 'users')} SET ${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'}, ${qi('updatedAt')} = ${updated ? `'${updated}'` : 'NULL'} WHERE ${qi(keyCol)} = '${esc(id)}'`,
+          `UPDATE ${qtable(db, 'users')} SET ${keepOrFill('createdAt', createdAt)}, ${keepOrFill('updatedAt', updatedAt)} WHERE ${qi(keyCol)} = '${esc(id)}'`,
         );
       }
       c.migrated++;
@@ -85,6 +86,9 @@ export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: n
   const userKeyCol = (await userKeyColumn(prisma, db)) || '_id';
   return runBody(prisma, db, runId, dryRun, 'TripGroup', async (exec) => {
     const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
+    // Groups created by an earlier (pre-fallback) run must not stay date-less:
+    // fill only NULL columns, so a rerun is a no-op.
+    if (!dryRun) await backfillTimestamps(exec, db, 'trip_groups', { updatedAt: true });
     for (const r of rows) {
       const g = r.g === null || r.g === undefined ? '' : String(r.g);
       if (g.trim() === '') {
@@ -114,7 +118,12 @@ export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: n
         await quarantineDryAware(exec, db, dryRun, runId, 'TripGroup', g, 'MULTI_OWNER', 'Several surviving owners; deterministic lowest-UUID chosen, needs review.', { owners: usable, chosen: owner });
       }
       if (dryRun) { c.migrated++; continue; }
-      await exec.$executeRawUnsafe(`INSERT INTO ${qtable(db, 'trip_groups')} (${qi('ownerId')}) VALUES ('${esc(owner)}')`);
+      // A group is a new concept: it has no legacy timestamp at all, so the
+      // migration clock is the only truthful date (the columns have no DB default).
+      const stamp = createdNow();
+      await exec.$executeRawUnsafe(
+        `INSERT INTO ${qtable(db, 'trip_groups')} (${qi('ownerId')}, ${qi('createdAt')}, ${qi('updatedAt')}) VALUES ('${esc(owner)}', '${stamp}', '${stamp}')`,
+      );
       const idRows = (await exec.$queryRawUnsafe(`SELECT LAST_INSERT_ID() AS id`)) as Array<{ id: number | bigint }>;
       await recordState(exec, db, 'TripGroup', g, Number(idRows[0].id), runId);
       c.migrated++;

@@ -1,16 +1,19 @@
 ﻿import { PrismaClient } from '@prisma/client';
 import {
   DbExecutor,
+  backfillTimestamps,
+  columnExists,
   esc,
   inTx,
   isUuid,
+  keepOrFill,
   legacyGroupColumn,
   legacyKeyColumn,
   ownerColumn,
   parentPointerColumn,
   qi,
   qtable,
-  timestampForWrite,
+  timestampFallback,
 } from './db';
 import { isStateUnavailable, lookupState, lookupStateOrPending, quarantineDryAware, recordState } from './state';
 import { Counters } from './types';
@@ -107,6 +110,9 @@ export async function phaseTrips(prisma: PrismaClient, db: string, runId: number
       if (!ownerOk) {
         if (await quarantineDryAware(exec, db, dryRun, runId, 'Trip', legacy, 'ORPHAN_USER', 'Trip owner is not a surviving user; owner not invented.', { owner })) c.quarantined++; continue;
       }
+      // Legacy dates win; a missing/blank one becomes the write clock, and
+      // updatedAt falls back to createdAt before the clock (never NULL).
+      const { createdAt, updatedAt } = timestampFallback(r['timeCreated'], r['timeEdited']);
       // Parked WITH identity: legacyId + Trip state row (new_id=0),
       // tripGroupNewId stays NULL. pkswap assigns the real INT id;
       // groupfinalize excludes NULL-group rows from scope.
@@ -116,7 +122,7 @@ export async function phaseTrips(prisma: PrismaClient, db: string, runId: number
         await exec.$executeRawUnsafe(
           `UPDATE ${qtable(db, 'trips')} SET ${qi('legacyId')} = '${esc(legacy)}', ` +
           `${qi(groupIntCol)} = NULL, ${qi('dayNumber')} = ${Number(day)}, ` +
-          `${qi('createdAt')} = ${timestampForWrite(r['timeCreated']) ? `'${timestampForWrite(r['timeCreated'])}'` : 'NULL'}, ${qi('updatedAt')} = ${timestampForWrite(r['timeEdited']) ? `'${timestampForWrite(r['timeEdited'])}'` : 'NULL'} ` +
+          `${keepOrFill('createdAt', createdAt)}, ${keepOrFill('updatedAt', updatedAt)} ` +
           `WHERE ${swapped ? `${qi('legacyId')} = '${esc(legacy)}'` : `${qi('_id')} = '${esc(legacy)}' AND ${qi('legacyId')} IS NULL`}`,
         );
         await recordState(exec, db, 'Trip', legacy, 0, runId);
@@ -128,15 +134,13 @@ export async function phaseTrips(prisma: PrismaClient, db: string, runId: number
         if (await quarantineDryAware(exec, db, dryRun, runId, 'Trip', legacy, 'DUPLICATE', 'Duplicate (tripGroupId, dayNumber) blocks the UNIQUE constraint.', { group: g, dayNumber: day })) c.quarantined++; continue;
       }
       seenDay.add(pair);
-      const created = timestampForWrite(r['timeCreated']);
-      const updated = timestampForWrite(r['timeEdited']);
       if (dryRun || !groupIntPresent) { c.migrated++; continue; }
       // Quarantined trips `continue` above before ANY write: no legacyId,
       // no tripGroupNewId, no state row — pkswap only sees legacyId-bearing rows.
       await exec.$executeRawUnsafe(
         `UPDATE ${qtable(db, 'trips')} SET ${qi('legacyId')} = '${esc(legacy)}', ` +
         `${qi(groupIntCol)} = ${gid}, ${qi('dayNumber')} = ${Number(day)}, ` +
-        `${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'}, ${qi('updatedAt')} = ${updated ? `'${updated}'` : 'NULL'} ` +
+        `${keepOrFill('createdAt', createdAt)}, ${keepOrFill('updatedAt', updatedAt)} ` +
         `WHERE ${swapped ? `${qi('legacyId')} = '${esc(legacy)}'` : `${qi('_id')} = '${esc(legacy)}'`}`,
       );
       // trips keeps its UUID `_id` PK until pkswap; migration_state records
@@ -147,6 +151,13 @@ export async function phaseTrips(prisma: PrismaClient, db: string, runId: number
       // Child phases cannot resolve a Trip INT id pre-PK-swap, so they
       // quarantine as ORPHAN_TRIP until pkswap assigns real ids.
       c.migrated++;
+    }
+    // Trips already mapped by an earlier (pre-fallback) run are skipped by the
+    // state guard above, so their NULL timestamps need a repair pass. It is
+    // scoped to rows the migration owns (legacyId); quarantined trips are never
+    // written by design and keep the NULL marker for review.
+    if (!dryRun && (await columnExists(exec, db, 'trips', 'legacyId'))) {
+      await backfillTimestamps(exec, db, 'trips', { updatedAt: true, where: `${qi('legacyId')} IS NOT NULL` });
     }
     return c;
   });
@@ -226,13 +237,11 @@ async function phaseChild(
         }
         tripPending = true;
       }
-      // Point-only: a missing legacy date falls back to the write clock (one
-      // instant per row). Passed as ISO text: timestampForWrite() rejects Date objects.
-      const missingPointStamp = entity === 'Point'
-        ? timestampForWrite(new Date().toISOString())
-        : '';
-      const created = timestampForWrite(r['timeCreated']) || missingPointStamp;
-      const updated = timestampForWrite(r['timeEdited']) || missingPointStamp;
+      // Legacy dates win; a missing/blank one becomes the write clock for BOTH
+      // children (comments used to stay NULL), updatedAt falling back to
+      // createdAt first. timestampForWrite() rejects Date objects, so the clock
+      // is passed as ISO text.
+      const { createdAt, updatedAt } = timestampFallback(r['timeCreated'], r['timeEdited']);
       if (dryRun) { c.migrated++; continue; }
       if (!parentIntPresent) {
         throw new Error(`${table}.${parentIntCol} column missing; re-run the ddl phase before migrating ${entity}.`);
@@ -250,11 +259,17 @@ async function phaseChild(
       await exec.$executeRawUnsafe(
         `UPDATE ${qtable(db, table)} SET ${qi('legacyId')} = '${esc(legacy)}', ` +
         `${parentAssign}` +
-        `${qi('createdAt')} = ${created ? `'${created}'` : 'NULL'}, ${qi('updatedAt')} = ${updated ? `'${updated}'` : 'NULL'} ` +
+        `${keepOrFill('createdAt', createdAt)}, ${keepOrFill('updatedAt', updatedAt)} ` +
         `WHERE ${where}`,
       );
       await recordState(exec, db, entity, legacy, swapped ? (already ?? 0) : 0, runId);
       c.migrated++;
+    }
+    // Same repair as trips: rows mapped by an earlier run are skipped by the
+    // state guard, so only their NULL timestamps are filled, and only for rows
+    // the migration owns (legacyId).
+    if (!dryRun && (await columnExists(exec, db, table, 'legacyId'))) {
+      await backfillTimestamps(exec, db, table, { updatedAt: true, where: `${qi('legacyId')} IS NOT NULL` });
     }
     return c;
   });

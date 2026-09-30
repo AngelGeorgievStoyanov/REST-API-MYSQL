@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { TARGET_TYPES, columnExists, dbCollation, esc, qi, qtable, tableExists } from './db';
+import { TARGET_TYPES, columnDefault, columnExists, columnType, dbCollation, esc, qi, qtable, tableExists } from './db';
 import { ensureControlTables } from './state';
 
 async function addColumn(
@@ -15,12 +15,21 @@ async function addColumn(
 export interface DdlReport {
   createdTables: string[];
   addedColumns: string[];
+  alteredColumns: string[];
   seededTargetTypes: string[];
   skipped: string[];
 }
 
+/**
+ * Target definition of `users.status`: it must hold PENDING_VERIFICATION (20
+ * chars) and must not default to ACTIVE — a new user starts unverified.
+ */
+const STATUS_TYPE = 'varchar(20)';
+const STATUS_DEFAULT = 'PENDING_VERIFICATION';
+const STATUS_DEFINITION = `VARCHAR(20) NOT NULL DEFAULT '${STATUS_DEFAULT}'`;
+
 export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: boolean): Promise<DdlReport> {
-  const report: DdlReport = { createdTables: [], addedColumns: [], seededTargetTypes: [], skipped: [] };
+  const report: DdlReport = { createdTables: [], addedColumns: [], alteredColumns: [], seededTargetTypes: [], skipped: [] };
   const co = await dbCollation(prisma, db);
   // Legacy VARCHARs have no explicit charset and inherit utf8mb4/utf8mb4_0900_ai_ci;
   // new objects declare it explicitly to avoid ER-1267. failedlogs/routenotfoundlogs
@@ -35,6 +44,16 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
     { name: 'favorites', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tripGroupId\` INT NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_fav_user_group\` (\`userId\`, \`tripGroupId\`), KEY \`ix_fav_u\` (\`userId\`), KEY \`ix_fav_tg\` (\`tripGroupId\`)) ENGINE=InnoDB` },
     { name: 'reports', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`targetTypeId\` INT NOT NULL, \`targetId\` INT NOT NULL, \`reason\` ${vc(1000, true)}, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_reports_user_target\` (\`userId\`, \`targetTypeId\`, \`targetId\`), KEY \`ix_reports_user\` (\`userId\`), KEY \`ix_reports_target\` (\`targetId\`), KEY \`ix_reports_target_type\` (\`targetTypeId\`)) ENGINE=InnoDB` },
     { name: 'images', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`ownerId\` ${vc(36, true)}, \`tripId\` INT NULL DEFAULT NULL, \`pointId\` INT NULL DEFAULT NULL, \`filePath\` ${vc(1000, false)}, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, \`updatedAt\` DATETIME(3) NULL DEFAULT NULL, KEY \`ix_img_o\` (\`ownerId\`), KEY \`ix_img_t\` (\`tripId\`), KEY \`ix_img_p\` (\`pointId\`)) ENGINE=InnoDB` },
+    // One-time email verification tokens: only the hash is stored, never the raw
+    // token. `tokenHash` is the lookup key (sha256 hex, 64 chars) and is UNIQUE,
+    // so a token can never be replayed into a second row.
+    { name: 'email_verification_tokens', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tokenHash\` ${vc(64, false)}, \`expiresAt\` DATETIME(3) NOT NULL, \`usedAt\` DATETIME(3) NULL DEFAULT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_evt_token\` (\`tokenHash\`), KEY \`ix_evt_user\` (\`userId\`), KEY \`ix_evt_expires\` (\`expiresAt\`)) ENGINE=InnoDB` },
+    // Same shape for password resets; kept separate on purpose (different
+    // lifetime and different verification rules than email confirmation).
+    { name: 'password_reset_tokens', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tokenHash\` ${vc(64, false)}, \`expiresAt\` DATETIME(3) NOT NULL, \`usedAt\` DATETIME(3) NULL DEFAULT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_prt_token\` (\`tokenHash\`), KEY \`ix_prt_user\` (\`userId\`), KEY \`ix_prt_expires\` (\`expiresAt\`)) ENGINE=InnoDB` },
+    // Refresh tokens are revoked instead of consumed, so `revokedAt` replaces
+    // `usedAt`; the hash is the single lookup key of the refresh flow.
+    { name: 'refresh_tokens', ddl: () => `(\`id\` INT NOT NULL PRIMARY KEY AUTO_INCREMENT, \`userId\` ${vc(36, false)}, \`tokenHash\` ${vc(64, false)}, \`expiresAt\` DATETIME(3) NOT NULL, \`createdAt\` DATETIME(3) NULL DEFAULT NULL, \`revokedAt\` DATETIME(3) NULL DEFAULT NULL, UNIQUE KEY \`uq_rt_token\` (\`tokenHash\`), KEY \`ix_rt_user\` (\`userId\`), KEY \`ix_rt_expires\` (\`expiresAt\`)) ENGINE=InnoDB` },
   ];
   for (const t of tables) {
     if (await tableExists(prisma, db, t.name)) report.skipped.push('table ' + t.name + ' exists');
@@ -84,6 +103,9 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
     { table: 'comments', column: 'updatedAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'users', column: 'createdAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'users', column: 'updatedAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
+    // NULL = email not verified yet; a timestamp = verified (the application
+    // sets it together with status = ACTIVE). Replaces legacy `verifyEmail`.
+    { table: 'users', column: 'emailVerifiedAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'verify', column: 'createdAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'verify', column: 'updatedAt', definition: () => 'DATETIME(3) NULL DEFAULT NULL' },
     { table: 'failedlogs', column: 'id', definition: () => 'INT NULL DEFAULT NULL' },
@@ -99,6 +121,24 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
       if (!dryRun) await addColumn(prisma, db, c.table, c.column, c.definition());
       report.addedColumns.push(c.table + '.' + c.column);
     }
+  }
+  // `users.status` must be able to hold PENDING_VERIFICATION and must not default
+  // to ACTIVE: a new user starts unverified until the email is confirmed.
+  // Widening + changing the default keeps every existing value ('ACTIVE' rows
+  // stay ACTIVE), and the check makes reruns no-ops.
+  const statusType = (await columnType(prisma, db, 'users', 'status')).toLowerCase();
+  const statusDefault = await columnDefault(prisma, db, 'users', 'status');
+  if (statusType === '') {
+    report.skipped.push('column users.status does not exist');
+  } else if (statusType === STATUS_TYPE && statusDefault === STATUS_DEFAULT) {
+    report.skipped.push('users.status already accepts PENDING_VERIFICATION and defaults to it');
+  } else {
+    if (!dryRun) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, 'users')} MODIFY COLUMN ${qi('status')} ${STATUS_DEFINITION}`,
+      );
+    }
+    report.alteredColumns.push('users.status');
   }
   if (!dryRun) await ensureControlTables(prisma, db);
   else report.skipped.push('control tables (dry-run: not created)');

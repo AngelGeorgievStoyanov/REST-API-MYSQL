@@ -102,6 +102,23 @@ export async function columnNullable(
 }
 
 /**
+ * Live COLUMN_DEFAULT of a column; `null` when the column has no default and
+ * `undefined` when the column does not exist at all.
+ */
+export async function columnDefault(
+  prisma: DbExecutor,
+  db: string,
+  table: string,
+  column: string,
+): Promise<string | null | undefined> {
+  const rows = (await prisma.$queryRawUnsafe(
+    `SELECT COLUMN_DEFAULT AS d FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}'`,
+  )) as Array<{ d: string | null }>;
+  if (rows.length === 0) return undefined;
+  return rows[0].d === null || rows[0].d === undefined ? null : String(rows[0].d);
+}
+
+/**
  * Live owner-FK column: `ownerId` after the activate rename, `_ownerId`
  * before. Resolved at runtime so reruns work in either shape; '' when the
  * table has neither.
@@ -252,6 +269,60 @@ export function isValidTimestamp(value: unknown): boolean {
 export function timestampForWrite(value: unknown): string {
   if (!isValidTimestamp(value)) return '';
   return new Date(String(value).trim()).toISOString().slice(0, 23).replace('T', ' ');
+}
+
+/**
+ * The migration clock for rows whose legacy date is missing/blank. The target
+ * timestamp columns are NULL-able with no DB default (prisma: `DateTime?`, no
+ * `@default(now())`), so a missing legacy date must become a real value instead
+ * of NULL:
+ *   createdAt: legacy created value, else NOW(3)
+ *   updatedAt: legacy edited value, else legacy created value, else NOW(3)
+ * An existing historical date is never replaced by the clock.
+ */
+export function timestampFallback(createdRaw: unknown, updatedRaw: unknown): { createdAt: string; updatedAt: string } {
+  const created = createdNow(createdRaw);
+  const updated = timestampForWrite(updatedRaw) || created;
+  return { createdAt: created, updatedAt: updated };
+}
+
+/** Target `createdAt` for a legacy date: the legacy value wins, else NOW(3). */
+export function createdNow(raw?: unknown): string {
+  return timestampForWrite(raw) || timestampForWrite(new Date().toISOString());
+}
+
+/**
+ * SQL fragment for an idempotent timestamp write: an already valid value is kept
+ * untouched, only a NULL column is filled. Never rewrites history on a rerun.
+ */
+export function keepOrFill(column: string, literal: string): string {
+  return `${qi(column)} = COALESCE(${qi(column)}, '${literal}')`;
+}
+
+/**
+ * Repair pass for rows an earlier (pre-fallback) run migrated without a
+ * timestamp. Only NULL columns are filled, so valid dates are preserved and a
+ * rerun is a no-op. `where` narrows the pass to the rows the migration owns —
+ * quarantined rows are never written by the phases and keep their NULL marker.
+ * MySQL evaluates SET left to right, so `updatedAt` sees the `createdAt` already
+ * written above it.
+ */
+export async function backfillTimestamps(
+  exec: DbExecutor,
+  db: string,
+  table: string,
+  opts: { updatedAt?: boolean; where?: string } = {},
+): Promise<void> {
+  const set = [`${qi('createdAt')} = COALESCE(${qi('createdAt')}, NOW(3))`];
+  const where = [`${qi('createdAt')} IS NULL`];
+  if (opts.updatedAt) {
+    set.push(`${qi('updatedAt')} = COALESCE(${qi('updatedAt')}, ${qi('createdAt')}, NOW(3))`);
+    where.push(`${qi('updatedAt')} IS NULL`);
+  }
+  const scope = opts.where ? `(${opts.where}) AND ` : '';
+  await exec.$executeRawUnsafe(
+    `UPDATE ${qtable(db, table)} SET ${set.join(', ')} WHERE ${scope}(${where.join(' OR ')})`,
+  );
 }
 
 export function dbName(): string {

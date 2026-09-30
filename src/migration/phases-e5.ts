@@ -45,6 +45,11 @@ export const FKS: Array<[string, string, string, string, string, 'CASCADE' | 'RE
   ['fk_img_owner', 'images', 'ownerId', 'users', '', 'SET NULL'],
   ['fk_img_trip', 'images', 'tripId', 'trips', 'id', 'CASCADE'],
   ['fk_img_point', 'images', 'pointId', 'points', 'id', 'CASCADE'],
+  // User/auth tokens: a deleted user must not leave usable credentials behind,
+  // so the token rows cascade with their user.
+  ['fk_evt_user', 'email_verification_tokens', 'userId', 'users', '', 'CASCADE'],
+  ['fk_prt_user', 'password_reset_tokens', 'userId', 'users', '', 'CASCADE'],
+  ['fk_rt_user', 'refresh_tokens', 'userId', 'users', '', 'CASCADE'],
 ];
 
 const INDEXES: Array<[string, string, string[], boolean]> = [
@@ -77,6 +82,18 @@ const INDEXES: Array<[string, string, string[], boolean]> = [
   ['ix_verify_token', 'verify', ['verifyToken'], false],
   ['ix_failed_email', 'failedlogs', ['email'], false],
   ['ix_rnf_user', 'routenotfoundlogs', ['reqUserId'], false],
+  // One-time auth tokens: the hash is the only lookup key of the flow, and
+  // UNIQUE makes a replay impossible. The user index serves the FK and the
+  // "invalidate all tokens of this user" sweep, the expiry index the cleanup.
+  ['uq_evt_token', 'email_verification_tokens', ['tokenHash'], true],
+  ['ix_evt_user', 'email_verification_tokens', ['userId'], false],
+  ['ix_evt_expires', 'email_verification_tokens', ['expiresAt'], false],
+  ['uq_prt_token', 'password_reset_tokens', ['tokenHash'], true],
+  ['ix_prt_user', 'password_reset_tokens', ['userId'], false],
+  ['ix_prt_expires', 'password_reset_tokens', ['expiresAt'], false],
+  ['uq_rt_token', 'refresh_tokens', ['tokenHash'], true],
+  ['ix_rt_user', 'refresh_tokens', ['userId'], false],
+  ['ix_rt_expires', 'refresh_tokens', ['expiresAt'], false],
 ];
 
 /** Legacy-only columns the final schema does not have. `failedlogs.date` /

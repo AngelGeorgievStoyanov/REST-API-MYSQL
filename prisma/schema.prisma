@@ -1,9 +1,12 @@
-// Prisma schema — CURRENT database structure (aligned to the live DB)
+// Prisma schema — current database structure + the user/auth security target.
 //
-// This file mirrors the tables, columns, indexes and foreign keys that exist
-// in the live database TODAY. It is NOT a future/target schema and NOT a
-// migration plan: nothing is generated from it, no migration has been run and
-// the database is not modified by it.
+// This file mirrors the tables, columns, indexes and foreign keys that exist in
+// the live database TODAY. On top of that it declares the user/auth security
+// target of the migration: `users.emailVerifiedAt`, the `users.status`
+// definition and the three token tables (`email_verification_tokens`,
+// `password_reset_tokens`, `refresh_tokens`). The migration tooling
+// (src/migration) applies those additions IN PLACE; nothing is generated from
+// this file and the database is not modified by it.
 //
 // ID policy:
 //  - users.id stays VARCHAR(36) UUID. It is NEVER converted to INT.
@@ -41,11 +44,18 @@
 //    column, not as a relation.
 //  - role/status are declared as Prisma enums for client type-safety only.
 //    The live MySQL columns are VARCHAR(8)/VARCHAR(12) with defaults
-//    'user'/'ACTIVE'; do not generate DDL from this file.
+//    'user'/'ACTIVE'; the target widens `status` to VARCHAR(20) with the
+//    default PENDING_VERIFICATION (a new user is unverified until the email is
+//    confirmed). Do not generate DDL from this file.
 //  - createdAt/updatedAt are NULL-able DATETIME(3) with no DB default, so no
 //    @default(now()) is declared. @updatedAt is client-side only (no DDL).
 //  - target_types currently holds: 1 tripGroup, 2 trip, 3 point, 4 image,
 //    5 comment.
+//  - the auth token tables store only a sha256 hex `tokenHash`: the raw token
+//    never reaches the database. `expiresAt` is NOT NULL; `usedAt`/`revokedAt`
+//    mark consumption. `refresh_tokens` carries no `usedAt` (rotation revokes).
+//  - the legacy mixed `verify` table stays until the verified cleanup step
+//    after application cutover; it is not replaced destructively.
 //  - Legacy VARCHAR request/log columns (failedlogs.date, routenotfoundlogs.*)
 //    are kept as-is; they are part of the live structure.
 
@@ -65,6 +75,8 @@ enum UserRole {
 }
 
 enum UserStatus {
+  // New users start unverified: the email verification flow flips this to ACTIVE.
+  PENDING_VERIFICATION
   ACTIVE
   SUSPENDED
   DEACTIVATED
@@ -92,9 +104,12 @@ model User {
   hashedPassword String     @db.VarChar(85)
   lastTimeLogin  String?    @db.VarChar(24)
   countOfLogs    BigInt?
-  role           UserRole   @default(user)
-  status         UserStatus @default(ACTIVE)
+  role           UserRole   @default(user) @db.VarChar(8)
+  status         UserStatus @default(PENDING_VERIFICATION) @db.VarChar(20)
   verifyEmail    Int?       @default(0) @db.TinyInt
+  // NULL = email not verified yet; a timestamp = verified. Set together with
+  // status = ACTIVE by the verification flow. Replaces `verifyEmail` at cutover.
+  emailVerifiedAt DateTime?
   createdAt      DateTime?
   updatedAt      DateTime?  @updatedAt
 
@@ -106,6 +121,10 @@ model User {
   favorites  Favorite[]
   reports    Report[]
   images     Image[]
+
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  refreshTokens           RefreshToken[]
 
   @@index([role], map: "ix_users_role")
   @@index([status], map: "ix_users_status")
@@ -225,6 +244,58 @@ model Verify {
   @@index([verifyToken], map: "ix_verify_token")
   @@index([userId], map: "ix_verify_user")
   @@map("verify")
+}
+
+// ---------------------------------------------------------------------------
+// User/auth security tokens (migration target): only the token hash is stored,
+// the raw token never reaches the database. Every token is one-time and
+// expiring; `refresh_tokens` is revoked instead of consumed.
+// ---------------------------------------------------------------------------
+
+model EmailVerificationToken {
+  id        Int       @id @default(autoincrement())
+  userId    String    @db.VarChar(36)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_evt_user")
+  // sha256 hex of the token sent to the user.
+  tokenHash String    @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime?
+
+  @@unique([tokenHash], map: "uq_evt_token")
+  @@index([userId], map: "ix_evt_user")
+  @@index([expiresAt], map: "ix_evt_expires")
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    String    @db.VarChar(36)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_prt_user")
+  tokenHash String    @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime?
+
+  @@unique([tokenHash], map: "uq_prt_token")
+  @@index([userId], map: "ix_prt_user")
+  @@index([expiresAt], map: "ix_prt_expires")
+  @@map("password_reset_tokens")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  userId    String    @db.VarChar(36)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_rt_user")
+  tokenHash String    @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime?
+  revokedAt DateTime?
+
+  @@unique([tokenHash], map: "uq_rt_token")
+  @@index([userId], map: "ix_rt_user")
+  @@index([expiresAt], map: "ix_rt_expires")
+  @@map("refresh_tokens")
 }
 
 model FailedLog {

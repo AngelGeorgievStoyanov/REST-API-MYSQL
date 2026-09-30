@@ -13,6 +13,8 @@ import { phaseImages } from './phases-c3';
 import { phaseVerify } from './phases-d1';
 import { phaseLogs } from './phases-d2';
 import { phaseConstraints } from './phases-d3';
+import { phaseSecurity } from './phases-f1';
+import { phaseLookups } from './phases-f2';
 import { phasePkswap } from './phases-e1';
 import { phaseBackfill } from './phases-e2';
 import { phaseGroupfinalize } from './phases-e3';
@@ -31,10 +33,12 @@ async function runPhase(
     case 'ddl': {
       const ddl = await runDdlPhase(prisma, db, dryRun);
       report['ddl'] = ddl;
-      console.log(`[ddl] tables=${ddl.createdTables.length} columns=${ddl.addedColumns.length} target_types_seeded=${ddl.seededTargetTypes.length} skipped=${ddl.skipped.length}`);
+      console.log(`[ddl] tables=${ddl.createdTables.length} columns=${ddl.addedColumns.length} altered=${ddl.alteredColumns.length} target_types_seeded=${ddl.seededTargetTypes.length} skipped=${ddl.skipped.length}`);
       break;
     }
     case 'users': report['users'] = await phaseUsers(prisma, db, runId, dryRun); break;
+    case 'security': report['security'] = await phaseSecurity(prisma, db, runId, dryRun); break;
+    case 'lookups': report['lookups'] = await phaseLookups(prisma, db, runId, dryRun); break;
     case 'tripGroups': report['tripGroups'] = await phaseTripGroups(prisma, db, runId, dryRun); break;
     case 'trips': report['trips'] = await phaseTrips(prisma, db, runId, dryRun); break;
     case 'points': report['points'] = await phasePoints(prisma, db, runId, dryRun); break;

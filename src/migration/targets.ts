@@ -7,7 +7,9 @@
 import { PrismaClient } from '@prisma/client';
 import {
   DbExecutor,
+  backfillTimestamps,
   columnExists,
+  createdNow,
   esc,
   inTx,
   isUuid,
@@ -99,6 +101,10 @@ export async function migrateUserTokenList(
 
   return runBody(prisma, dryRun, async (exec) => {
     const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
+    // likes/favorites/reports have no legacy timestamp column: every migrated row
+    // carries the migration clock, and a row an earlier run created date-less is
+    // repaired here (existing dates are never touched).
+    if (!dryRun) await backfillTimestamps(exec, db, cfg.targetTable);
     for (const r of rows) {
       const legacy = String(r.legacy ?? '');
       const tokens = splitList(r.raw);
@@ -150,6 +156,10 @@ export async function migrateUserTokenList(
         }
         cols.push(qi(cfg.targetColumn));
         vals.push(String(parent.id));
+        // No legacy date exists for a like/favorite/report relation: the migration
+        // clock is the only truthful `createdAt` (the column has no DB default).
+        cols.push(qi('createdAt'));
+        vals.push(`'${createdNow()}'`);
         await exec.$executeRawUnsafe(
           `INSERT IGNORE INTO ${qtable(db, cfg.targetTable)} (${cols.join(', ')}) VALUES (${vals.join(', ')})`,
         );

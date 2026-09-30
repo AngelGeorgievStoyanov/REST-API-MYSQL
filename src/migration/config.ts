@@ -3,7 +3,9 @@ export const MIGRATION_VERSION = '1.0.0';
 
 export const PHASES = [
   'ddl',
+  'lookups',
   'users',
+  'security',
   'tripGroups',
   'trips',
   'points',
@@ -82,8 +84,8 @@ export function helpText(): string {
     '',
     'The migration rewrites the database named in DATABASE_URL IN PLACE into the',
     'structure declared by prisma/schema.prisma (target_types / likes / favorites /',
-    'reports / comments+targetId, renamed id columns, final FK/index set) and drops',
-    'the migration control tables at the end.',
+    'reports / comments+targetId / the user auth token tables, renamed id columns,',
+    'final FK/index set) and drops the migration control tables at the end.',
     '',
     'Production safety:',
     '  Non-localhost DATABASE_URL requires BOTH:',

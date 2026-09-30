@@ -6,6 +6,7 @@
 import { PrismaClient } from '@prisma/client';
 import {
   TARGET_TYPE,
+  columnDefault,
   esc,
   legacyGroupColumn,
   legacyKeyColumn,
@@ -54,6 +55,12 @@ const FINAL_TABLE: Record<string, string> = {
   Report: 'reports',
   Image: 'images',
 };
+
+/** Longest target `users.status` value (`PENDING_VERIFICATION`). */
+const PENDING_STATUS_LENGTH = 'PENDING_VERIFICATION'.length;
+
+/** Target auth token tables of the user/security contract. */
+const TOKEN_TABLES = ['email_verification_tokens', 'password_reset_tokens', 'refresh_tokens'];
 
 /** Polymorphic `targetTypeId` -> the table its bare `targetId` points at. */
 const POLYMORPHIC_PARENT: Record<number, string> = {
@@ -372,10 +379,119 @@ export async function verifyMigration(
     );
   }
 
+  // User/security contract: the verified-at column, a status column that accepts
+  // PENDING_VERIFICATION without defaulting to ACTIVE, and the three token tables
+  // that keep only a hash. Their FKs/indexes are reported by the FK block below.
+  const emailVerifiedAt = await columnType(prisma, db, 'users', 'emailVerifiedAt');
+  push(
+    'users.emailVerifiedAt present',
+    emailVerifiedAt !== '',
+    emailVerifiedAt !== ''
+      ? `column type ${emailVerifiedAt}`
+      : 'pending — users.emailVerifiedAt not created yet (ddl phase not applied)',
+  );
+
+  const statusType = (await columnType(prisma, db, 'users', 'status')).toLowerCase();
+  const statusLength = /^varchar\((\d+)\)/.exec(statusType);
+  const statusFits = statusType.startsWith('enum(')
+    ? statusType.includes('pending_verification')
+    : statusLength !== null && Number(statusLength[1]) >= PENDING_STATUS_LENGTH;
+  push(
+    'users.status accepts PENDING_VERIFICATION',
+    statusFits,
+    statusType === ''
+      ? 'pending — users.status not readable'
+      : statusFits
+        ? `column type ${statusType}`
+        : `column type ${statusType} cannot hold a ${PENDING_STATUS_LENGTH}-char status`,
+  );
+
+  const statusDefault = await columnDefault(prisma, db, 'users', 'status');
+  push(
+    "users.status does not default to 'ACTIVE'",
+    statusDefault !== undefined && statusDefault !== 'ACTIVE',
+    statusDefault === undefined
+      ? 'pending — users.status not readable'
+      : statusDefault === null
+        ? 'no column default, the application must set the status'
+        : `default ${statusDefault}`,
+  );
+
+  const missingTokenTables: string[] = [];
+  for (const table of TOKEN_TABLES) {
+    if (!(await tableExists(prisma, db, table))) missingTokenTables.push(table);
+  }
+  push(
+    'auth token tables present',
+    missingTokenTables.length === 0,
+    missingTokenTables.length === 0
+      ? TOKEN_TABLES.join(', ')
+      : `pending — missing: ${missingTokenTables.join(', ')} (ddl phase not applied)`,
+  );
+
+  const missingHashes: string[] = [];
+  for (const table of TOKEN_TABLES) {
+    if ((await columnType(prisma, db, table, 'tokenHash')) === '') missingHashes.push(table);
+  }
+  push(
+    'token tables store a token hash, never the raw token',
+    missingHashes.length === 0,
+    missingHashes.length === 0
+      ? 'tokenHash present on every token table'
+      : `pending — tokenHash missing on: ${missingHashes.join(', ')}`,
+  );
+
+
   push(
     'FK constraints exist in schema',
     fkCount > 0,
     fkCount > 0 ? `${fkCount} FOREIGN KEY constraint(s) present` : 'no FOREIGN KEY constraints yet (activate phase not applied)',
   );
+  // Timestamp completeness: the target columns are NULL-able with no DB default,
+  // so a migrated row must always carry a date (legacy value, else the migration
+  // clock). Rows a phase refused (quarantine) are never written and stay NULL.
+  const stampTables: Array<{ table: string; cols: string[] }> = [
+    { table: 'users', cols: ['createdAt', 'updatedAt'] },
+    { table: 'trip_groups', cols: ['createdAt', 'updatedAt'] },
+    { table: 'trips', cols: ['createdAt', 'updatedAt'] },
+    { table: 'points', cols: ['createdAt', 'updatedAt'] },
+    { table: 'comments', cols: ['createdAt', 'updatedAt'] },
+    { table: 'images', cols: ['createdAt', 'updatedAt'] },
+    { table: 'verify', cols: ['createdAt', 'updatedAt'] },
+    { table: 'failedlogs', cols: ['createdAt'] },
+    { table: 'routenotfoundlogs', cols: ['createdAt'] },
+    { table: 'likes', cols: ['createdAt'] },
+    { table: 'favorites', cols: ['createdAt'] },
+    { table: 'reports', cols: ['createdAt'] },
+    { table: 'email_verification_tokens', cols: ['createdAt'] },
+    { table: 'password_reset_tokens', cols: ['createdAt'] },
+    { table: 'refresh_tokens', cols: ['createdAt'] },
+    // Legacy lookup/config tables carried over unchanged: they have no legacy
+    // timestamp field at all, so the migration clock is the only date they carry.
+    { table: 'select_types', cols: ['createdAt', 'updatedAt'] },
+    { table: 'select_options', cols: ['createdAt', 'updatedAt'] },
+    { table: 'service_types', cols: ['createdAt', 'updatedAt'] },
+    { table: 'service_configs', cols: ['createdAt', 'updatedAt'] },
+  ];
+  for (const t of stampTables) {
+    if (!(await tableExists(prisma, db, t.table)) || (await columnType(prisma, db, t.table, t.cols[0])) === '') {
+      push(`${t.table} timestamps populated`, false, `pending — ${t.table}.${t.cols[0]} not created yet (ddl phase not applied)`);
+      continue;
+    }
+    const nullStamps = await safeCount(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, t.table)} WHERE ${t.cols.map((c) => `${qi(c)} IS NULL`).join(' OR ')}`,
+    );
+    push(
+      `${t.table} timestamps populated`,
+      nullStamps === 0,
+      nullStamps === null
+        ? `pending — ${t.table} not readable`
+        : nullStamps === 0
+          ? `no NULL ${t.cols.join('/')}`
+          : `${nullStamps} row(s) with NULL ${t.cols.join('/')} (rows refused by the phases keep their NULL marker)`,
+    );
+  }
+
+
   return { lines, finalization };
 }
