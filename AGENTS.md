@@ -7,15 +7,19 @@ This document describes the current backend and the rules for changing it. The s
 - Node.js `>=22`, TypeScript, Express 4, Prisma Client, and MySQL.
 - Application source is under `src/`; `src/index.ts` is the HTTP entry point. TypeScript emits to `build/`.
 - The HTTP request path is `Controller -> Service -> Repository -> shared Prisma client -> MySQL`.
+- The request path is `Controller -> Service -> Repository -> shared Prisma client -> MySQL`; prepared response data returns through the service to the controller.
 - `src/container.ts` is the composition root. It wires repositories and services; do not put business logic or configuration loading there.
 - The app uses one shared Prisma client from `src/clients/prisma.ts`. Do not create another client or a slice-specific database connection.
 
 ## Project structure
 
-- `src/controllers/`: Express route handlers, input boundary, status codes, response shaping.
-- `src/services/`: business rules, authorization/ownership checks, orchestration, and mapping to API DTOs.
+- `src/controllers/`: Express route handlers, input boundary, status codes, and HTTP response delivery.
+- `src/controllers/`: Express route handlers, input boundary, status codes, and HTTP response delivery.
+- `src/controllers/`: Express route handlers, input boundary, status codes, and HTTP response delivery.
+- `src/services/`: business rules, authorization/ownership checks, orchestration, and calls to API mappers at the service boundary.
 - `src/repositories/`: Prisma queries and database-specific persistence for each slice.
-- `src/model/`: domain, request, response, and API DTO types; do not expose Prisma rows directly.
+- `src/model/`: domain/application contracts, request types, response types, and API DTOs; do not expose Prisma rows directly.
+- `src/mappers/`: API/resource mapping and explicitly named persistence-to-application mapping; mapper files do not belong in `src/services/`.
 - `src/validation/` and `src/validation/schemas/`: request parsing and Zod schemas. Keep generic parsing primitives separate from domain rules.
 - `src/middlewares/`: authentication boundary, request marker, rate limits, error handling, and route-not-found diagnostics.
 - `src/routes/`: `/api` and `/v1` router composition.
@@ -33,11 +37,11 @@ A slice with persistence or business logic normally has its own controller, serv
 
 ### Controller
 
-Controllers parse HTTP inputs through validation middleware, apply authentication/role middleware, call the service, and shape the HTTP response. They must not contain Prisma queries, SQL, business rules, repository/service construction, or complex validation.
+Controllers parse HTTP inputs through validation middleware, apply authentication/role middleware, call the service, and pass its prepared result to the HTTP response (for example, `res.json(result)`). They must not map domain/application values to DTOs or perform response-specific transformations. They must not contain Prisma queries, SQL, business rules, repository/service construction, or complex validation.
 
 ### Service
 
-Services own business validation, authorization and ownership rules, orchestration, DTO mapping, and request-to-repository mapping. Keep service dependencies constructor-injected. Do not instantiate repositories, Prisma clients, or other dependencies inside a service. Keep one-use service-local helpers next to their consumer.
+Services own business validation, authorization and ownership rules, orchestration, and the API boundary: API-facing services call API mappers and return the prepared response DTO/result. Keep service dependencies constructor-injected. Do not instantiate repositories, Prisma clients, or other dependencies inside a service. Keep one-use service-local helpers next to their consumer when they are not mapping functions.
 
 ### Repository
 
@@ -46,9 +50,30 @@ Repositories use the shared Prisma client and own persistence queries. Do not in
 ### Models and validation
 
 - API DTOs and domain/application types must not expose Prisma model types.
-- Map Prisma rows to API DTOs within the owning service/slice.
+- Keep reusable domain/application boundary contracts in `src/model/` when needed; do not create duplicate types solely for formal layering.
 - New domain identifiers use `id`, `ownerId`, `tripId`, `pointId`, `targetId`, and `targetTypeId`; do not add legacy underscore-prefixed identifiers.
 - Use strict Zod schemas for request bodies/queries/params where the slice already follows that convention. Generic string/number parsing stays generic; business rules stay in services.
+
+### Mapping boundaries
+
+The normal response flow is:
+
+```text
+Prisma / Repository
+	-> persistence-to-application mapping (when required)
+	-> Service
+	-> API mapper
+	-> Controller
+	-> res.json(preparedResult)
+```
+
+- Put mapper modules in `src/mappers/`, never in `src/services/`.
+- API mappers accept model/domain/application contracts from `src/model/`; they must not import repository-owned `*Row`, repository DTO/input types, controllers, services, Express, or Prisma Client.
+- API mappers perform transformation only. They must not query a database, call a service/repository, read service runtime state, perform side effects, validate requests, or make business, authorization, or ownership decisions.
+- Repositories may invoke an explicitly persistence-oriented mapper to convert Prisma persistence shapes into application contracts. `configMapper` is Prisma-to-domain/application mapping; `pointPersistenceMapper` converts persisted point columns into `PointRecord`. These are not API mappers.
+- API-oriented mapper examples currently include `tripMapper`, `pointMapper`, `commentMapper`, `imageMapper`, `reportMapper`, `userMapper`, `socialMapper`, `adminMapper`, `routeNotFoundLogMapper`, and `imageInventoryMapper`; persistence-oriented examples are `configMapper` and `pointPersistenceMapper`.
+- Write mapping targets an application/domain input contract, not a repository-private shape. Repositories translate that contract into Prisma field names/types where persistence requires it. Keep validation and business rules outside mappers.
+- This mapping refactor preserves the API contract: it must not itself change endpoints, HTTP methods/status codes, response JSON shape, or business behavior.
 
 ## Routing and middleware
 

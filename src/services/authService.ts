@@ -6,7 +6,7 @@ import {
     PASSWORD_RESET_TOKEN_TTL_SECONDS,
 } from '../constants/auth';
 import { VALIDATION_LIMITS } from '../constants/validation/limits';
-import type { AuthActor, AuthSessionDto, AuthUserDto, AuthUserResponse, MessageResponse } from '../model/auth';
+import type { AuthActor, AuthSessionDto, AuthUserResponse, MessageResponse } from '../model/auth';
 import { ImageDto } from '../model/image';
 import { ApiError } from '../utils/apiError';
 import {
@@ -22,9 +22,17 @@ import {
     verifyPassword,
 } from '../utils/auth';
 import { getErrorMessage } from '../utils/error';
-import { toImageDto } from '../utils/image';
+import { getImageBaseUrl } from '../utils/image';
+import { toImageDto } from '../mappers/imageMapper';
+import {
+    toAuthActor,
+    toAuthSessionDto,
+    toAuthUserResponse,
+    toMessageResponse,
+    toPasswordCheckResponse,
+} from '../mappers/userMapper';
 import { asRecord, requireTrimmedString } from '../utils/validation';
-import type { AuthUserRow } from '../repositories/authUserRepository';
+import type { AuthUserRecord } from '../model/auth';
 import { AuthUserRepository } from '../repositories/authUserRepository';
 import { EmailVerificationTokenRepository } from '../repositories/emailVerificationTokenRepository';
 import { FailedLogRepository } from '../repositories/failedLogRepository';
@@ -75,7 +83,7 @@ export class AuthService {
             return registrationAccepted();
         }
 
-        let user: AuthUserRow;
+        let user: AuthUserRecord;
         try {
             user = await this.users.create({
                 id: generateUserId(),
@@ -110,7 +118,7 @@ export class AuthService {
         const verified = user.emailVerifiedAt === null ? await this.users.markEmailVerified(user.id, now) : user;
         await this.verificationTokens.markUsed(row.id, now);
 
-        return { user: toAuthUserDto(verified) };
+        return toAuthUserResponse(verified);
     }
 
     /** Unknown and already verified accounts answer exactly like a real resend. */
@@ -120,7 +128,7 @@ export class AuthService {
         const user = await this.users.findByEmail(email);
         if (user && user.emailVerifiedAt === null) await this.issueVerificationToken(user);
 
-        return { message: 'If the account exists and is not verified yet, a new verification email was sent.' };
+        return toMessageResponse('If the account exists and is not verified yet, a new verification email was sent.');
     }
 
     async login(body: unknown, context: LoginContext): Promise<AuthSessionResult> {
@@ -167,7 +175,7 @@ export class AuthService {
         if (!user) throw ApiError.accountGone();
 
         this.assertAccountUsable(user);
-        return { user: toAuthUserDto(user) };
+        return toAuthUserResponse(user);
     }
 
     /**
@@ -180,7 +188,7 @@ export class AuthService {
         if (!user) throw ApiError.accountGone();
 
         this.assertAccountUsable(user);
-        return { id: user.id, role: user.role };
+        return toAuthActor(user);
     }
 
     async refresh(rawRefreshToken: string | null): Promise<AuthSessionResult> {
@@ -222,7 +230,7 @@ export class AuthService {
             if (row && row.revokedAt === null) await this.refreshTokens.revoke(row.id, new Date());
         }
 
-        return { message: 'Logged out.' };
+        return toMessageResponse('Logged out.');
     }
 
     async forgotPassword(body: unknown): Promise<MessageResponse> {
@@ -242,7 +250,7 @@ export class AuthService {
             await this.mailer.sendPasswordResetEmail(user.email, rawToken);
         }
 
-        return { message: 'If the account exists, a password reset email was sent.' };
+        return toMessageResponse('If the account exists, a password reset email was sent.');
     }
 
     async resetPassword(body: unknown): Promise<MessageResponse> {
@@ -265,7 +273,7 @@ export class AuthService {
         // Long-lived sessions must not survive a password change.
         await this.refreshTokens.revokeAllForUser(user.id, now);
 
-        return { message: 'The password was changed. Please sign in with the new password.' };
+        return toMessageResponse('The password was changed. Please sign in with the new password.');
     }
 
     /** Re-authentication gate: only the account's own password is checked. */
@@ -276,7 +284,7 @@ export class AuthService {
         const record = asRecord(body, 'Request body');
         const password = typeof record['password'] === 'string' ? record['password'] : '';
 
-        return { valid: await verifyPassword(password, user.hashedPassword) };
+        return toPasswordCheckResponse(await verifyPassword(password, user.hashedPassword));
     }
 
     /** The owner updates the profile fields; a new password ends the other sessions. */
@@ -287,7 +295,7 @@ export class AuthService {
         const record = asRecord(body, 'Request body');
         const firstName = normalizeName(record['firstName'], 'firstName');
         const lastName = normalizeName(record['lastName'], 'lastName');
-        return { user: toAuthUserDto(await this.users.updateProfile(actorId, { firstName, lastName })) };
+        return toAuthUserResponse(await this.users.updateProfile(actorId, { firstName, lastName }));
     }
 
     async changePassword(actorId: string, body: unknown): Promise<void> {
@@ -314,7 +322,7 @@ export class AuthService {
     async getProfileImage(actorId: string): Promise<ImageDto | null> {
         const image = await this.images.findProfileImage(actorId);
 
-        return image ? toImageDto(image) : null;
+        return image ? toImageDto(image, getImageBaseUrl()) : null;
     }
 
     /** The replaced file is removed only once the new row exists. */
@@ -340,7 +348,7 @@ export class AuthService {
             await this.images.delete(previous.id);
         }
 
-        return toImageDto(created);
+        return toImageDto(created, getImageBaseUrl());
     }
 
     async removeProfileImage(actorId: string): Promise<void> {
@@ -352,7 +360,7 @@ export class AuthService {
         await this.images.delete(current.id);
     }
 
-    private async issueVerificationToken(user: AuthUserRow, deliverInBackground = false): Promise<void> {
+    private async issueVerificationToken(user: AuthUserRecord, deliverInBackground = false): Promise<void> {
         const now = new Date();
         const rawToken = generateOpaqueToken();
         await this.verificationTokens.invalidateOutstanding(user.id, now);
@@ -371,7 +379,7 @@ export class AuthService {
         await this.mailer.sendVerificationEmail(user.email, rawToken);
     }
 
-    private async issueSession(user: AuthUserRow): Promise<AuthSessionResult> {
+    private async issueSession(user: AuthUserRecord): Promise<AuthSessionResult> {
         const rawRefreshToken = generateOpaqueToken();
         const refreshTokenExpiresAt = new Date(Date.now() + this.config.refreshTokenTtlSeconds * 1000);
         await this.refreshTokens.create({
@@ -381,19 +389,18 @@ export class AuthService {
         });
 
         return {
-            session: {
-                accessToken: signAccessToken(user.id, this.config.accessTokenSecret, this.config.accessTokenTtlSeconds),
-                tokenType: 'Bearer',
-                expiresIn: this.config.accessTokenTtlSeconds,
-                user: toAuthUserDto(user),
-            },
+            session: toAuthSessionDto(
+                user,
+                signAccessToken(user.id, this.config.accessTokenSecret, this.config.accessTokenTtlSeconds),
+                this.config.accessTokenTtlSeconds,
+            ),
             refreshToken: rawRefreshToken,
             refreshTokenExpiresAt,
         };
     }
 
     /** The database is the only authority on whether an account may be used. */
-    private assertAccountUsable(user: AuthUserRow): void {
+    private assertAccountUsable(user: AuthUserRecord): void {
         if (user.status === UserStatus.SUSPENDED) throw ApiError.accountSuspended();
         if (user.status === UserStatus.DEACTIVATED) throw ApiError.accountDeactivated();
         if (user.status !== UserStatus.ACTIVE || user.emailVerifiedAt === null) throw ApiError.emailNotVerified();
@@ -401,17 +408,5 @@ export class AuthService {
 }
 
 function registrationAccepted(): MessageResponse {
-    return { message: 'If the address can be registered, verification instructions will be sent.' };
-}
-
-export function toAuthUserDto(user: AuthUserRow): AuthUserDto {
-    return {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        status: user.status,
-        emailVerified: user.emailVerifiedAt !== null,
-    };
+    return toMessageResponse('If the address can be registered, verification instructions will be sent.');
 }

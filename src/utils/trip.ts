@@ -15,7 +15,6 @@ import {
     DayCreateRequest,
     DayUpdateRequest,
     TripListQuery,
-    TripSelectValue,
     TripSort,
     TripWriteRequest,
 } from '../model/trip';
@@ -97,12 +96,6 @@ function matchesSelectValue(option: SelectOptionLookup, value: string): boolean 
     return option.key.toLowerCase() === requested || option.value.toLowerCase() === requested;
 }
 
-export function resolveSelectValue(typeKey: string, storedValue: string | null): TripSelectValue {
-    if (!storedValue) return { key: '', name: '' };
-
-    const option = readSelectOptions(typeKey).find((candidate) => matchesSelectValue(candidate, storedValue));
-    return option ? { key: option.key, name: option.value } : { key: storedValue, name: storedValue };
-}
 
 function resolveSelectKey(typeKey: string, value: unknown, field: string): string {
     const requested = requireTrimmedString(value, field, MAX_SELECT_VALUE_LENGTH);

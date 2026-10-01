@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { RouteNotFoundLogDto } from '../model/admin';
+import { RouteNotFoundLogSummary } from '../model/admin';
 import {
     MAX_ACTOR_ID_LENGTH,
     MAX_BODY_LENGTH,
@@ -22,6 +22,7 @@ export interface RouteNotFoundLogRecord {
     clientIp: string;
     actorId?: string;
 }
+
 
 const listSelect = {
     id: true,
@@ -57,7 +58,7 @@ export class RouteNotFoundLogsRepository {
     }
 
     /** Newest first; `id` breaks ties because `date` is a stored string. */
-    async listPage(skip: number, take: number): Promise<RouteNotFoundLogDto[]> {
+    async listPage(skip: number, take: number): Promise<RouteNotFoundLogSummary[]> {
         const rows = await this.prisma.routeNotFoundLog.findMany({
             orderBy: [{ date: 'desc' }, { id: 'desc' }],
             skip,
@@ -65,14 +66,7 @@ export class RouteNotFoundLogsRepository {
             select: listSelect,
         });
 
-        return rows.map((row) => ({
-            ...row,
-            reqUrl: null,
-            reqHeaders: null,
-            reqQuery: null,
-            reqBody: null,
-            reqParams: null,
-        }));
+        return rows;
     }
 
     async countAll(): Promise<number> {

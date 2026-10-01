@@ -1,19 +1,12 @@
-import { SocialTargetType } from '../model/social';
 import { TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
+import { ReportDto } from '../model/report';
+import { toReportDto } from '../mappers/reportMapper';
 import { parseReportBody, parseSocialTargetBody } from '../utils/social';
-import { toIsoString } from '../utils/utils';
 import { ReportRepository } from '../repositories/reportRepository';
 import { SocialTargetRepository } from '../repositories/socialTargetRepository';
 import { TargetTypeRepository } from '../repositories/targetTypeRepository';
 
-export interface ReportDto {
-    id: number;
-    targetType: SocialTargetType;
-    targetId: number;
-    reason: string | null;
-    createdAt: string | null;
-}
 
 export class ReportService {
     constructor(
@@ -38,12 +31,6 @@ export class ReportService {
         });
         if (!created) throw ApiError.conflict('You have already reported this resource.');
 
-        return {
-            id: created.id,
-            targetType: target.targetType,
-            targetId: target.targetId,
-            reason,
-            createdAt: toIsoString(created.createdAt),
-        };
+        return toReportDto(created, target.targetType, target.targetId, reason);
     }
 }

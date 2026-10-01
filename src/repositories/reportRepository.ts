@@ -1,9 +1,5 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-
-export interface CreatedReport {
-    id: number;
-    createdAt: Date | null;
-}
+import { CreatedReportRecord } from '../model/report';
 
 export class ReportRepository {
     constructor(private readonly prisma: PrismaClient) { }
@@ -14,7 +10,7 @@ export class ReportRepository {
         targetTypeId: number;
         targetId: number;
         reason: string | null;
-    }): Promise<CreatedReport | null> {
+    }): Promise<CreatedReportRecord | null> {
         try {
             return await this.prisma.report.create({
                 data: {

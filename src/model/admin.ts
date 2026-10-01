@@ -1,5 +1,5 @@
 /** One `failedlogs` row; the columns the admin surface exposes. */
-export interface FailedLogDto {
+export interface FailedLogEntry {
     id: number;
     date: string | null;
     email: string;
@@ -14,6 +14,8 @@ export interface FailedLogDto {
     state: string | null;
 }
 
+export type FailedLogDto = FailedLogEntry;
+
 /** One `routenotfoundlogs` row; the columns the admin surface exposes. */
 export interface RouteNotFoundLogDto {
     id: number;
@@ -27,6 +29,19 @@ export interface RouteNotFoundLogDto {
     reqIp: string | null;
     reqUserId: string | null;
     reqUserEmail: string | null;
+}
+
+export interface RouteNotFoundLogSummary {
+    id: number;
+    date: string | null;
+    reqMethod: string | null;
+    reqIp: string | null;
+    reqUserId: string | null;
+    reqUserEmail: string | null;
+}
+
+export interface DeleteCountResponse {
+    deleted: number;
 }
 
 export interface AdminPage<T> {

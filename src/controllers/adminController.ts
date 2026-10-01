@@ -63,7 +63,7 @@ adminController.delete(
     validateRequest({ body: failedLogDeleteSchema }),
     adminOrModerator,
     asyncHandler(async (req, res) => {
-        res.status(200).json({ deleted: await failedLogService.deleteByIds(req.body) });
+        res.status(200).json(await failedLogService.deleteByIds(req.body));
     }),
 );
 

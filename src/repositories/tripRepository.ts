@@ -1,7 +1,17 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { DEFAULT_COUNT_PEOPLES, FIRST_DAY_NUMBER } from '../constants/trip';
+import {
+    DayUpdateInput,
+    DayWriteInput,
+    TripDayRecord,
+    TripGroupDetailsRecord,
+    TripGroupListRecord,
+    TripListDayRecord,
+    TripMetadataInput,
+} from '../model/trip';
 import { sortPointsByNumber } from '../utils/point';
+import { toPointRecord } from '../mappers/pointPersistenceMapper';
 import { clearPolymorphicTargets } from './polymorphicTargets';
 import { attachImageWithinLimit } from './imageAttachment';
 import { pointInclude } from './pointRepository';
@@ -22,26 +32,7 @@ import { pointInclude } from './pointRepository';
  * Day-row parameters are therefore named `tripId` here.
  */
 
-/** Trip/group level write input; day and point rows have their own endpoints. */
-export interface TripMetadataInput {
-    ownerId: string;
-    title: string;
-    description: string | null;
-    /** Stored value of `trips.typeOfPeople` (dynamic config select key). */
-    group: string;
-    /** Stored value of `trips.transport` (dynamic config select key). */
-    transport: string;
-}
-
-export interface DayWriteFields {
-    title: string | null;
-    description: string | null;
-}
-
-export interface DayUpdateFields {
-    title?: string;
-    description?: string | null;
-}
+// Cleaned up stale comments and imports.
 
 export interface DayContext {
     id: number;
@@ -98,20 +89,62 @@ const detailsInclude = {
     },
 } satisfies Prisma.TripGroupInclude;
 
-export type TripGroupListRow = Prisma.TripGroupGetPayload<{ include: typeof listInclude }>;
-export type TripGroupDetailsRow = Prisma.TripGroupGetPayload<{ include: typeof detailsInclude }>;
+type TripGroupListRow = Prisma.TripGroupGetPayload<{ include: typeof listInclude }>;
+type TripGroupDetailsRow = Prisma.TripGroupGetPayload<{ include: typeof detailsInclude }>;
 
 const dayInclude = {
     images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
     points: { include: pointInclude },
 } satisfies Prisma.TripInclude;
 
-export type DayRow = Prisma.TripGetPayload<{ include: typeof dayInclude }>;
+type DayRow = Prisma.TripGetPayload<{ include: typeof dayInclude }>;
+
+function toTripListRecord(row: TripGroupListRow): TripGroupListRecord {
+    return {
+        id: row.id,
+        createdAt: row.createdAt,
+        owner: row.owner,
+        trips: row.trips.map((trip): TripListDayRecord => ({
+            id: trip.id,
+            title: trip.title,
+            description: trip.description,
+            transport: trip.transport,
+            typeOfPeople: trip.typeOfPeople,
+            dayNumber: trip.dayNumber,
+            createdAt: trip.createdAt,
+        })),
+    };
+}
+
+function toTripDayRecord(row: DayRow | TripGroupDetailsRow['trips'][number]): TripDayRecord {
+    return {
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        transport: row.transport,
+        typeOfPeople: row.typeOfPeople,
+        dayNumber: row.dayNumber,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        images: row.images.map((image) => ({ id: image.id, filePath: image.filePath })),
+        points: sortPointsByNumber(row.points).map(toPointRecord),
+    };
+}
+
+function toTripDetailsRecord(row: TripGroupDetailsRow): TripGroupDetailsRecord {
+    return {
+        id: row.id,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        owner: row.owner,
+        trips: row.trips.map((trip) => toTripDayRecord(trip)),
+    };
+}
 
 export class TripRepository {
     constructor(private readonly prisma: PrismaClient) { }
 
-    async findPage(criteria: TripListCriteria): Promise<{ rows: TripGroupListRow[]; total: number }> {
+    async findPage(criteria: TripListCriteria): Promise<{ rows: TripGroupListRecord[]; total: number }> {
         const dayFilters: Prisma.TripWhereInput[] = [];
 
         if (criteria.search) {
@@ -148,18 +181,18 @@ export class TripRepository {
             this.prisma.tripGroup.count({ where }),
         ]);
 
-        return { rows, total };
+        return { rows: rows.map(toTripListRecord), total };
     }
 
     /**
      * `points` are handed over in `pointNumber` order. The column is a VARCHAR, so
      * the numeric sort happens in code instead of in the query.
      */
-    async findById(id: number): Promise<TripGroupDetailsRow | null> {
+    async findById(id: number): Promise<TripGroupDetailsRecord | null> {
         const row = await this.prisma.tripGroup.findUnique({ where: { id }, include: detailsInclude });
         if (!row) return null;
 
-        return { ...row, trips: row.trips.map((trip) => ({ ...trip, points: sortPointsByNumber(trip.points) })) };
+        return toTripDetailsRecord(row);
     }
 
     async findOwnerId(id: number): Promise<string | null> {
@@ -288,7 +321,7 @@ export class TripRepository {
     async createDay(
         groupId: number,
         dayNumber: number,
-        fields: DayWriteFields,
+        fields: DayWriteInput,
         ownerId: string,
         group: string | null,
         transport: string | null,
@@ -305,7 +338,7 @@ export class TripRepository {
         }
     }
 
-    async updateDay(tripId: number, fields: DayUpdateFields): Promise<void> {
+    async updateDay(tripId: number, fields: DayUpdateInput): Promise<void> {
         await this.prisma.trip.update({
             where: { id: tripId },
             data: {
@@ -331,18 +364,18 @@ export class TripRepository {
         });
     }
 
-    async findDayRow(tripId: number): Promise<DayRow | null> {
+    async findDayRow(tripId: number): Promise<TripDayRecord | null> {
         const day = await this.prisma.trip.findUnique({ where: { id: tripId }, include: dayInclude });
-        return day ? { ...day, points: sortPointsByNumber(day.points) } : null;
+        return day ? toTripDayRecord(day) : null;
     }
 
-    async listDayRows(groupId: number): Promise<DayRow[]> {
+    async listDayRows(groupId: number): Promise<TripDayRecord[]> {
         const days = await this.prisma.trip.findMany({
             where: { tripGroupId: groupId },
             orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
             include: dayInclude,
         });
-        return days.map((day) => ({ ...day, points: sortPointsByNumber(day.points) }));
+        return days.map((day) => toTripDayRecord(day));
     }
 
     /**

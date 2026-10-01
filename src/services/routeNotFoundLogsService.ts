@@ -1,6 +1,8 @@
 import { AdminPage, RouteNotFoundLogDto } from '../model/admin';
 import { RouteNotFoundLogRecord, RouteNotFoundLogsRepository } from '../repositories/routeNotFoundLogsRepository';
-import { adminPage, parseAdminPagination } from '../utils/adminPagination';
+import { toAdminPageDto } from '../mappers/adminMapper';
+import { parseAdminPagination } from '../utils/adminPagination';
+import { toRouteNotFoundLogDtoList } from '../mappers/routeNotFoundLogMapper';
 
 /** Request context collected by the route-not-found middleware. */
 export interface RouteNotFoundLogEvent {
@@ -40,11 +42,11 @@ export class RouteNotFoundLogsService {
     /** The whole log of the terminal-404 logger, newest first. */
     async listEvents(query: unknown): Promise<AdminPage<RouteNotFoundLogDto>> {
         const pagination = parseAdminPagination(query);
-        const [items, total] = await Promise.all([
+        const [rows, total] = await Promise.all([
             this.routeNotFoundLogsRepository.listPage(pagination.skip, pagination.pageSize),
             this.routeNotFoundLogsRepository.countAll(),
         ]);
 
-        return adminPage(items, total, pagination.page, pagination.pageSize);
+        return toAdminPageDto(toRouteNotFoundLogDtoList(rows), total, pagination.page, pagination.pageSize);
     }
 }

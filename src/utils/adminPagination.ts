@@ -18,15 +18,3 @@ export function parseAdminPagination(query: unknown): AdminPagination {
     const { page, pageSize } = result.data;
     return { page, pageSize, skip: (page - 1) * pageSize };
 }
-
-export function adminPage<T>(items: T[], total: number, page: number, pageSize: number) {
-    return {
-        items,
-        pagination: {
-            page,
-            pageSize,
-            total,
-            totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
-        },
-    };
-}

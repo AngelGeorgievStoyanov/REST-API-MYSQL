@@ -11,6 +11,25 @@ export interface ImageDto {
     thumbnailUrl: string;
 }
 
+export interface ImageRecord {
+    id: number;
+    filePath: string;
+}
+
+/** Image DTO of a social-aware response, such as the trip read model. */
+export interface ImageInventoryComparison {
+    cloudOnly: string[];
+    databaseOnly: string[];
+    pagination: {
+        page: number;
+        pageSize: number;
+        cloudHasNext: boolean;
+        databaseHasNext: boolean;
+        databaseTotal: number;
+        databaseTotalPages: number;
+    };
+}
+
 /** Image DTO of a social-aware response, such as the trip read model. */
 export interface SocialImageDto extends ImageDto {
     social: SocialState;

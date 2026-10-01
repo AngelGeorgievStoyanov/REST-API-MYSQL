@@ -1,19 +1,9 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { MAX_COMMENT_AUTHOR_LENGTH } from '../constants/social';
+import { CommentRecord } from '../model/comment';
 import { ApiError } from '../utils/apiError';
 import { socialTargetKey } from '../utils/social';
 
-export interface CommentRow {
-    id: number;
-    nameAuthor: string;
-    comment: string;
-    ownerId: string;
-    countEdited: number | null;
-    targetTypeId: number;
-    targetId: number;
-    createdAt: Date | null;
-    updatedAt: Date | null;
-}
 
 const commentSelect = {
     id: true,
@@ -27,18 +17,35 @@ const commentSelect = {
     updatedAt: true,
 } satisfies Prisma.CommentSelect;
 
+type CommentRow = Prisma.CommentGetPayload<{ select: typeof commentSelect }>;
+
+function toCommentRecord(row: CommentRow): CommentRecord {
+    return {
+        id: row.id,
+        authorId: row.ownerId,
+        authorName: row.nameAuthor,
+        text: row.comment,
+        editCount: row.countEdited,
+        targetTypeId: row.targetTypeId,
+        targetId: row.targetId,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+    };
+}
+
 export class CommentRepository {
     constructor(private readonly prisma: PrismaClient) { }
 
     /** Newest first; `id` breaks ties because the live `createdAt` is nullable. */
-    async listPage(targetTypeId: number, targetId: number, skip: number, take: number): Promise<CommentRow[]> {
-        return this.prisma.comment.findMany({
+    async listPage(targetTypeId: number, targetId: number, skip: number, take: number): Promise<CommentRecord[]> {
+        const rows = await this.prisma.comment.findMany({
             where: { targetTypeId, targetId },
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             skip,
             take,
             select: commentSelect,
         });
+        return rows.map(toCommentRecord);
     }
 
     async countByTarget(targetTypeId: number, targetId: number): Promise<number> {
@@ -58,8 +65,9 @@ export class CommentRepository {
         return new Map(rows.map((row) => [socialTargetKey(row.targetTypeId, row.targetId), row._count._all]));
     }
 
-    async findById(commentId: number): Promise<CommentRow | null> {
-        return this.prisma.comment.findUnique({ where: { id: commentId }, select: commentSelect });
+    async findById(commentId: number): Promise<CommentRecord | null> {
+        const row = await this.prisma.comment.findUnique({ where: { id: commentId }, select: commentSelect });
+        return row ? toCommentRecord(row) : null;
     }
 
     async create(data: {
@@ -68,8 +76,8 @@ export class CommentRepository {
         ownerId: string;
         nameAuthor: string;
         text: string;
-    }): Promise<CommentRow> {
-        return this.prisma.comment.create({
+    }): Promise<CommentRecord> {
+        const row = await this.prisma.comment.create({
             data: {
                 targetTypeId: data.targetTypeId,
                 targetId: data.targetId,
@@ -80,14 +88,16 @@ export class CommentRepository {
             },
             select: commentSelect,
         });
+        return toCommentRecord(row);
     }
 
-    async update(commentId: number, text: string, editCount: number): Promise<CommentRow> {
-        return this.prisma.comment.update({
+    async update(commentId: number, text: string, editCount: number): Promise<CommentRecord> {
+        const row = await this.prisma.comment.update({
             where: { id: commentId },
             data: { comment: text, countEdited: editCount },
             select: commentSelect,
         });
+        return toCommentRecord(row);
     }
 
     async delete(commentId: number): Promise<void> {

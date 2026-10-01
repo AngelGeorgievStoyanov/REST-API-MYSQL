@@ -1,6 +1,7 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { SocialState, SocialStates, SocialTargetRef, SocialTargetType } from '../model/social';
 import { socialTargetKey } from '../utils/social';
+import { toSocialState } from '../mappers/socialMapper';
 import { CommentRepository } from '../repositories/commentRepository';
 import { FavoriteRepository } from '../repositories/favoriteRepository';
 import { LikeRepository } from '../repositories/likeRepository';
@@ -44,17 +45,14 @@ export class SocialStateService {
                 const typeId = typeIds.get(targetType);
                 const key = typeId === undefined ? '' : socialTargetKey(typeId, targetId);
 
-                const state: SocialState = {
+                return toSocialState({
+                    targetType,
                     likes: likeCounts.get(key) ?? 0,
                     likedByMe: likedKeys.has(key),
-                    comments: { count: commentCounts.get(key) ?? 0 },
-                };
-
-                if (targetType === SOCIAL_TARGET_TYPE.TRIP_GROUP) {
-                    state.favorites = favoriteCounts.get(targetId) ?? 0;
-                    state.favoritedByMe = favoritedGroups.has(targetId);
-                }
-                return state;
+                    commentCount: commentCounts.get(key) ?? 0,
+                    favorites: favoriteCounts.get(targetId) ?? 0,
+                    favoritedByMe: favoritedGroups.has(targetId),
+                });
             },
         };
     }

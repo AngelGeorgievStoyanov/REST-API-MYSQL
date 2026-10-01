@@ -1,26 +1,16 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { CommentDto, CommentListResponse } from '../model/comment';
+import { CommentDto, CommentListResponse, CommentRecord } from '../model/comment';
 import { SocialTargetRef, SocialTargetType } from '../model/social';
 import { TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip } from '../utils/authorization';
 import { parseCommentCreateBody, parseCommentPageQuery, parseCommentUpdateBody } from '../utils/social';
-import { toIsoString } from '../utils/utils';
 import { parsePositiveId } from '../utils/validation';
-import { CommentRepository, CommentRow } from '../repositories/commentRepository';
+import { CommentRepository } from '../repositories/commentRepository';
+import { toCommentDto, toCommentListResponse } from '../mappers/commentMapper';
 import { SocialTargetRepository } from '../repositories/socialTargetRepository';
 import { TargetTypeRepository } from '../repositories/targetTypeRepository';
 
-export function toCommentDto(row: CommentRow): CommentDto {
-    return {
-        id: row.id,
-        author: { id: row.ownerId, name: row.nameAuthor },
-        text: row.comment,
-        editCount: row.countEdited ?? 0,
-        createdAt: toIsoString(row.createdAt),
-        updatedAt: toIsoString(row.updatedAt),
-    };
-}
 
 export class CommentService {
     constructor(
@@ -39,7 +29,7 @@ export class CommentService {
             this.repository.countByTarget(typeId, target.targetId),
         ]);
 
-        return { items: rows.map(toCommentDto), page: page.page, limit: page.limit, total };
+        return toCommentListResponse(rows, page.page, page.limit, total);
     }
 
     /** The day must belong to the trip from the URL; the day resource is a `trips` row. */
@@ -88,12 +78,12 @@ export class CommentService {
     /** Only the author rewrites a comment; deleting is a moderation action. */
     async update(actor: TripActor, rawCommentId: string, body: unknown): Promise<CommentDto> {
         const comment = await this.findComment(rawCommentId);
-        if (comment.ownerId !== actor.id) {
+        if (comment.authorId !== actor.id) {
             throw ApiError.forbidden('Only the author can edit a comment.');
         }
 
         const request = parseCommentUpdateBody(body);
-        const row = await this.repository.update(comment.id, request.text, (comment.countEdited ?? 0) + 1);
+        const row = await this.repository.update(comment.id, request.text, (comment.editCount ?? 0) + 1);
 
         return toCommentDto(row);
     }
@@ -105,7 +95,7 @@ export class CommentService {
         await this.repository.delete(comment.id);
     }
 
-    private async findComment(rawCommentId: string): Promise<CommentRow> {
+    private async findComment(rawCommentId: string): Promise<CommentRecord> {
         const comment = await this.repository.findById(parsePositiveId(rawCommentId, 'Comment id'));
         if (!comment) throw ApiError.notFound('Comment not found.');
 
@@ -137,8 +127,8 @@ export class CommentService {
      * The author, the owner of the trip group the target belongs to, or a moderator
      * may delete a comment — the polymorphic target carries the ownership context.
      */
-    private async assertCanDelete(actor: TripActor, comment: CommentRow): Promise<void> {
-        if (comment.ownerId === actor.id) return;
+    private async assertCanDelete(actor: TripActor, comment: CommentRecord): Promise<void> {
+        if (comment.authorId === actor.id) return;
 
         const names = await this.targetTypes.loadNames();
         const targetType = names.get(comment.targetTypeId);

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { FailedLogEntry } from '../model/admin';
 import {
     MAX_FAILED_LOG_DATE_LENGTH,
     MAX_FAILED_LOG_EMAIL_LENGTH,
@@ -7,7 +8,6 @@ import {
     MAX_FAILED_LOG_STATE_LENGTH,
     MAX_FAILED_LOG_USER_AGENT_LENGTH,
 } from '../constants/failedLogs';
-import { FailedLogDto } from '../model/admin';
 
 /** One failed authentication attempt, as accepted by the repository. */
 export interface FailedLogRecord {
@@ -23,6 +23,7 @@ export interface FailedLogRecord {
     longitude: number | null;
     state: string | null;
 }
+
 
 const failedLogSelect = {
     id: true,
@@ -63,7 +64,7 @@ export class FailedLogRepository {
     }
 
     /** Newest first; `id` breaks ties because `date` is a stored string. */
-    async listPage(skip: number, take: number): Promise<FailedLogDto[]> {
+    async listPage(skip: number, take: number): Promise<FailedLogEntry[]> {
         return this.prisma.failedLog.findMany({
             orderBy: [{ date: 'desc' }, { id: 'desc' }],
             skip,

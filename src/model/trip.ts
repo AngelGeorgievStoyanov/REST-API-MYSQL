@@ -1,4 +1,4 @@
-import { SocialImageDto } from './image';
+import { ImageRecord, SocialImageDto } from './image';
 import { SocialState } from './social';
 
 /**
@@ -29,6 +29,72 @@ export interface TripAuthor {
     id: string;
     firstName: string;
     lastName: string;
+}
+
+/** Application read shape returned by point/trip repositories. */
+export interface PointRecord {
+    id: number;
+    title: string;
+    description: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    images: ImageRecord[];
+}
+
+export interface TripListDayRecord {
+    id: number;
+    title: string;
+    description: string | null;
+    transport: string | null;
+    typeOfPeople: string | null;
+    dayNumber: number | null;
+    createdAt: Date | null;
+}
+
+export interface TripDayRecord extends TripListDayRecord {
+    updatedAt: Date | null;
+    images: ImageRecord[];
+    points: PointRecord[];
+}
+
+export interface TripGroupListRecord {
+    id: number;
+    createdAt: Date | null;
+    owner: TripAuthor;
+    trips: TripListDayRecord[];
+}
+
+export interface TripGroupDetailsRecord {
+    id: number;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    owner: TripAuthor;
+    trips: TripDayRecord[];
+}
+
+export interface PointWriteInput {
+    title: string;
+    description: string | null;
+    latitude: number | null;
+    longitude: number | null;
+}
+
+export interface TripMetadataInput {
+    ownerId: string;
+    title: string;
+    description: string | null;
+    group: string;
+    transport: string;
+}
+
+export interface DayWriteInput {
+    title: string | null;
+    description: string | null;
+}
+
+export interface DayUpdateInput {
+    title?: string;
+    description?: string | null;
 }
 
 export interface TripPoint {

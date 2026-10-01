@@ -1,17 +1,12 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { PointRecord, PointWriteInput } from '../model/trip';
+import { toPointRecord } from '../mappers/pointPersistenceMapper';
 import { sortPointsByNumber } from '../utils/point';
 import { toNumberOrNull } from '../utils/utils';
 import { clearPolymorphicTargets } from './polymorphicTargets';
 import { attachImageWithinLimit } from './imageAttachment';
 
-export interface PointWriteFields {
-    name: string;
-    description: string | null;
-    /** `points.lat` / `points.lng` are VARCHAR(45) in the live schema. */
-    latitude: string | null;
-    longitude: string | null;
-}
 
 export interface PointContext {
     id: number;
@@ -40,8 +35,6 @@ export interface PointImageRef {
 export const pointInclude = {
     images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
 } satisfies Prisma.PointInclude;
-
-export type PointRow = Prisma.PointGetPayload<{ include: typeof pointInclude }>;
 
 export class PointRepository {
     constructor(private readonly prisma: PrismaClient) { }
@@ -78,13 +71,14 @@ export class PointRepository {
         };
     }
 
-    async findRow(pointId: number): Promise<PointRow | null> {
-        return this.prisma.point.findUnique({ where: { id: pointId }, include: pointInclude });
+    async findRow(pointId: number): Promise<PointRecord | null> {
+        const row = await this.prisma.point.findUnique({ where: { id: pointId }, include: pointInclude });
+        return row ? toPointRecord(row) : null;
     }
 
-    async listRows(tripId: number): Promise<PointRow[]> {
+    async listRows(tripId: number): Promise<PointRecord[]> {
         const points = await this.prisma.point.findMany({ where: { tripId }, include: pointInclude });
-        return sortPointsByNumber(points);
+        return sortPointsByNumber(points).map(toPointRecord);
     }
 
     async listIds(tripId: number): Promise<number[]> {
@@ -100,13 +94,13 @@ export class PointRepository {
         }, 0);
     }
 
-    async create(tripId: number, ownerId: string, fields: PointWriteFields, pointNumber: number): Promise<number> {
+    async create(tripId: number, ownerId: string, fields: PointWriteInput, pointNumber: number): Promise<number> {
         const point = await this.prisma.point.create({
             data: {
-                name: fields.name,
+                name: fields.title,
                 description: fields.description,
-                lat: fields.latitude,
-                lng: fields.longitude,
+                lat: fields.latitude === null ? null : String(fields.latitude),
+                lng: fields.longitude === null ? null : String(fields.longitude),
                 pointNumber: String(pointNumber),
                 ownerId,
                 tripId,
@@ -117,14 +111,14 @@ export class PointRepository {
         return point.id;
     }
 
-    async update(pointId: number, fields: Partial<PointWriteFields>): Promise<void> {
+    async update(pointId: number, fields: Partial<PointWriteInput>): Promise<void> {
         await this.prisma.point.update({
             where: { id: pointId },
             data: {
-                ...(fields.name !== undefined ? { name: fields.name } : {}),
+                ...(fields.title !== undefined ? { name: fields.title } : {}),
                 ...(fields.description !== undefined ? { description: fields.description } : {}),
-                ...(fields.latitude !== undefined ? { lat: fields.latitude } : {}),
-                ...(fields.longitude !== undefined ? { lng: fields.longitude } : {}),
+                ...(fields.latitude !== undefined ? { lat: fields.latitude === null ? null : String(fields.latitude) } : {}),
+                ...(fields.longitude !== undefined ? { lng: fields.longitude === null ? null : String(fields.longitude) } : {}),
             },
         });
     }

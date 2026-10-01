@@ -1,33 +1,23 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { ImageDto } from '../model/image';
-import { SocialStates, SocialTargetRef } from '../model/social';
-import { PointCreateRequest, PointUpdateRequest, TripActor, TripPoint } from '../model/trip';
+import { SocialTargetRef } from '../model/social';
+import { PointRecord, TripActor, TripPoint } from '../model/trip';
 import { ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip } from '../utils/authorization';
-import { toImageDto, toSocialImageDto } from '../utils/image';
+import { getImageBaseUrl } from '../utils/image';
+import { toImageDto } from '../mappers/imageMapper';
+import { toPointDtoList, toPointUpdateInput, toPointWriteInput } from '../mappers/pointMapper';
 import { parsePointCreateBody, parsePointUpdateBody } from '../utils/point';
 import { parseIdList, parsePositiveId } from '../utils/validation';
 import { toNumberOrNull } from '../utils/utils';
 import { attachUploadedImage } from './imageAttachment';
-import { PointContext, PointDayContext, PointRepository, PointRow, PointWriteFields } from '../repositories/pointRepository';
+import { PointContext, PointDayContext, PointRepository } from '../repositories/pointRepository';
 import { SocialStateService } from './socialStateService';
 
-export function toPointDto(row: PointRow, states: SocialStates): TripPoint {
-    return {
-        id: row.id,
-        title: row.name,
-        description: row.description,
-        latitude: toNumberOrNull(row.lat),
-        longitude: toNumberOrNull(row.lng),
-        images: row.images.map((image) => toSocialImageDto(image, states)),
-        social: states.get(SOCIAL_TARGET_TYPE.POINT, row.id),
-    };
-}
-
 /** Targets of a batch of point rows: the points themselves and their images. */
-function toPointTargets(rows: PointRow[]): SocialTargetRef[] {
+function toPointTargets(rows: PointRecord[]): SocialTargetRef[] {
     const targets: SocialTargetRef[] = [];
 
     for (const row of rows) {
@@ -37,29 +27,6 @@ function toPointTargets(rows: PointRow[]): SocialTargetRef[] {
         }
     }
     return targets;
-}
-
-function toPointFields(request: PointCreateRequest): PointWriteFields {
-    return {
-        name: request.title,
-        description: request.description,
-        latitude: String(request.latitude),
-        longitude: String(request.longitude),
-    };
-}
-
-function toPointPatch(request: PointUpdateRequest): Partial<PointWriteFields> {
-    const patch: Partial<PointWriteFields> = {};
-
-    if (request.title !== undefined) patch.name = request.title;
-    if (request.description !== undefined) patch.description = request.description;
-    if (request.latitude !== undefined) {
-        patch.latitude = request.latitude === null ? null : String(request.latitude);
-    }
-    if (request.longitude !== undefined) {
-        patch.longitude = request.longitude === null ? null : String(request.longitude);
-    }
-    return patch;
 }
 
 export class PointService {
@@ -82,7 +49,7 @@ export class PointService {
         const day = await this.assertDayAccess(actor, request.dayId);
 
         const pointNumber = (await this.repository.findMaxNumber(day.tripId)) + 1;
-        const pointId = await this.repository.create(day.tripId, actor.id, toPointFields(request), pointNumber);
+        const pointId = await this.repository.create(day.tripId, actor.id, toPointWriteInput(request), pointNumber);
 
         return this.getPoint(String(pointId), actor);
     }
@@ -92,7 +59,7 @@ export class PointService {
         await this.assertPointAccess(actor, pointId);
 
         const request = parsePointUpdateBody(body);
-        await this.repository.update(pointId, toPointPatch(request));
+        await this.repository.update(pointId, toPointUpdateInput(request));
 
         return this.getPoint(String(pointId), actor);
     }
@@ -149,7 +116,7 @@ export class PointService {
             () => this.repository.createImage(pointId, actor.id, filePath),
         );
 
-        return toImageDto({ id: imageId, filePath });
+        return toImageDto({ id: imageId, filePath }, getImageBaseUrl());
     }
 
     /** The cap is per point; it is re-checked in the repository to stay authoritative. */
@@ -172,10 +139,10 @@ export class PointService {
     }
 
     /** One social batch for all given points and their images. */
-    private async mapRows(rows: PointRow[], actor: TripActor | null): Promise<TripPoint[]> {
+    private async mapRows(rows: PointRecord[], actor: TripActor | null): Promise<TripPoint[]> {
         const states = await this.socialStates.statesFor(actor?.id ?? null, toPointTargets(rows));
 
-        return rows.map((row) => toPointDto(row, states));
+        return toPointDtoList(rows, states, getImageBaseUrl());
     }
 
     /** The day row the points live in: `tripId` is that row's `Trip.id`. */

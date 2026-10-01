@@ -9,6 +9,18 @@ export interface AuthUserDto {
     emailVerified: boolean;
 }
 
+/** Internal authenticated account record; password hashes never reach the API mapper output. */
+export interface AuthUserRecord {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    hashedPassword: string;
+    role: string;
+    status: string;
+    emailVerifiedAt: Date | null;
+}
+
 /** Identity of the authenticated actor, always resolved from the database row. */
 export interface AuthActor {
     id: string;

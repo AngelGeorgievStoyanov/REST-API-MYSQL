@@ -13,6 +13,18 @@ export interface CommentDto {
     updatedAt: string | null;
 }
 
+export interface CommentRecord {
+    id: number;
+    authorId: string;
+    authorName: string;
+    text: string;
+    editCount: number | null;
+    targetTypeId: number;
+    targetId: number;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+}
+
 export interface CommentCreateRequest {
     text: string;
 }

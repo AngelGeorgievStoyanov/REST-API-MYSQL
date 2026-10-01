@@ -2,21 +2,27 @@ import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { GROUP_SELECT_TYPE, TRANSPORT_SELECT_TYPE } from '../constants/trip';
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { ImageDto } from '../model/image';
-import { SocialStates, SocialTargetRef } from '../model/social';
+import { SocialTargetRef } from '../model/social';
 import {
     TripActor,
-    TripAuthor,
     TripDay,
     TripDetails,
-    TripGroupInfo,
-    TripListItem,
     TripListResponse,
-    TripWriteRequest,
 } from '../model/trip';
 import { ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip } from '../utils/authorization';
-import { toImageDto, toImageUrl, toSocialImageDto } from '../utils/image';
+import { getImageBaseUrl } from '../utils/image';
+import { toImageDto } from '../mappers/imageMapper';
+import {
+    toDayWriteInput,
+    toTripDayDto,
+    toTripDayDtoList,
+    toTripDetailsDto,
+    toTripListItemList,
+    toTripListResponse,
+    toTripMetadataInput,
+} from '../mappers/tripMapper';
 import {
     parseDayCreateBody,
     parseDayUpdateBody,
@@ -24,21 +30,13 @@ import {
     parseTripBody,
     parseTripId,
     resolveSelectFilterValues,
-    resolveSelectValue,
 } from '../utils/trip';
-import { toIsoString } from '../utils/utils';
+import { dynamicConfig } from './dynamicConfig';
 import { parseIdList, parsePositiveId } from '../utils/validation';
-import { toPointDto } from './pointService';
 import { attachUploadedImage } from './imageAttachment';
 import { SocialStateService } from './socialStateService';
-import {
-    DayContext,
-    DayRow,
-    TripGroupDetailsRow,
-    TripGroupListRow,
-    TripMetadataInput,
-    TripRepository,
-} from '../repositories/tripRepository';
+import { DayContext, TripRepository } from '../repositories/tripRepository';
+import { TripGroupDetailsRecord } from '../model/trip';
 
 /** Social targets of one day row: the day itself, its images, its points and their images. */
 function toDayTargets(day: {
@@ -60,82 +58,11 @@ function toDayTargets(day: {
     return targets;
 }
 
-function toDayDto(row: DayRow, states: SocialStates): TripDay {
-    return {
-        id: row.id,
-        day: row.dayNumber ?? 0,
-        title: row.title,
-        images: row.images.map((image) => toSocialImageDto(image, states)),
-        points: row.points.map((point) => toPointDto(point, states)),
-        social: states.get(SOCIAL_TARGET_TYPE.DAY, row.id),
-    };
-}
 
-function toMetadataInput(ownerId: string, request: TripWriteRequest): TripMetadataInput {
-    return {
-        ownerId,
-        title: request.title,
-        description: request.description,
-        group: request.group,
-        transport: request.transport,
-    };
-}
 
-function toAuthor(owner: { id: string; firstName: string; lastName: string }): TripAuthor {
-    return { id: owner.id, firstName: owner.firstName, lastName: owner.lastName };
-}
 
-function latestDayUpdate(trips: { updatedAt: Date | null }[]): Date | null {
-    return trips.reduce<Date | null>((latest, trip) => {
-        if (!trip.updatedAt) return latest;
-        return !latest || trip.updatedAt > latest ? trip.updatedAt : latest;
-    }, null);
-}
 
-function toListItem(row: TripGroupListRow, covers: Map<number, string>): TripListItem {
-    const canonicalDay = row.trips[0];
-    const coverFilePath = canonicalDay ? covers.get(canonicalDay.id) : undefined;
 
-    return {
-        id: row.id,
-        title: canonicalDay?.title ?? '',
-        description: canonicalDay?.description ?? null,
-        group: resolveSelectValue(GROUP_SELECT_TYPE, canonicalDay?.typeOfPeople ?? null),
-        transport: resolveSelectValue(TRANSPORT_SELECT_TYPE, canonicalDay?.transport ?? null),
-        author: toAuthor(row.owner),
-        coverImage: coverFilePath ? toImageUrl(coverFilePath) : null,
-        createdAt: toIsoString(row.createdAt ?? canonicalDay?.createdAt ?? null),
-    };
-}
-
-function toDetailsDto(row: TripGroupDetailsRow, states: SocialStates): TripDetails {
-    const canonicalDay = row.trips[0];
-    const groupValue = resolveSelectValue(GROUP_SELECT_TYPE, canonicalDay?.typeOfPeople ?? null);
-    const group: TripGroupInfo = { id: row.id, key: groupValue.key, name: groupValue.name };
-
-    const days: TripDay[] = row.trips.map((trip) => ({
-        id: trip.id,
-        day: trip.dayNumber ?? 0,
-        title: trip.title,
-        images: trip.images.map((image) => toSocialImageDto(image, states)),
-        points: trip.points.map((point) => toPointDto(point, states)),
-        social: states.get(SOCIAL_TARGET_TYPE.DAY, trip.id),
-    }));
-
-    return {
-        id: row.id,
-        title: canonicalDay?.title ?? '',
-        description: canonicalDay?.description ?? null,
-        group,
-        transport: resolveSelectValue(TRANSPORT_SELECT_TYPE, canonicalDay?.transport ?? null),
-        author: toAuthor(row.owner),
-        coverImage: canonicalDay?.images[0] ? toImageUrl(canonicalDay.images[0].filePath) : null,
-        days,
-        social: states.get(SOCIAL_TARGET_TYPE.TRIP_GROUP, row.id),
-        createdAt: toIsoString(row.createdAt ?? canonicalDay?.createdAt ?? null),
-        updatedAt: toIsoString(row.updatedAt ?? latestDayUpdate(row.trips)),
-    };
-}
 
 export class TripService {
     constructor(
@@ -165,17 +92,15 @@ export class TripService {
             .filter((tripId): tripId is number => tripId !== undefined);
 
         const covers = await this.repository.findCoverImages(coverTripIds);
-        const items = rows.map((row) => toListItem(row, covers));
+        const items = toTripListItemList(
+            rows,
+            covers,
+            getImageBaseUrl(),
+            dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
+            dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
+        );
 
-        return {
-            items,
-            pagination: {
-                page: query.page,
-                limit: query.limit,
-                total,
-                totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
-            },
-        };
+        return toTripListResponse(items, query.page, query.limit, total);
     }
 
     /** `actor` is optional: the trip is public, but it carries the viewer's social state. */
@@ -188,7 +113,7 @@ export class TripService {
 
     async createTrip(actor: TripActor, body: unknown): Promise<TripDetails> {
         const request = parseTripBody(body);
-        const createdId = await this.repository.createTrip(toMetadataInput(actor.id, request));
+        const createdId = await this.repository.createTrip(toTripMetadataInput(actor.id, request));
 
         return this.getTrip(String(createdId), actor);
     }
@@ -198,7 +123,7 @@ export class TripService {
         const ownerId = await this.assertCanModify(actor, tripGroupId);
         const request = parseTripBody(body);
 
-        await this.repository.updateTripMetadata(tripGroupId, toMetadataInput(ownerId, request));
+        await this.repository.updateTripMetadata(tripGroupId, toTripMetadataInput(ownerId, request));
 
         return this.getTrip(rawId, actor);
     }
@@ -211,7 +136,7 @@ export class TripService {
         await this.repository.delete(tripGroupId);
     }
 
-    private async toDetails(row: TripGroupDetailsRow, actor: TripActor | null): Promise<TripDetails> {
+    private async toDetails(row: TripGroupDetailsRecord, actor: TripActor | null): Promise<TripDetails> {
         const targets: SocialTargetRef[] = [{ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id }];
         for (const day of row.trips) {
             targets.push(...toDayTargets(day));
@@ -219,7 +144,13 @@ export class TripService {
 
         const states = await this.socialStates.statesFor(actor?.id ?? null, targets);
 
-        return toDetailsDto(row, states);
+        return toTripDetailsDto(
+            row,
+            states,
+            getImageBaseUrl(),
+            dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
+            dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
+        );
     }
 
     async createDay(actor: TripActor, rawTripId: string, body: unknown): Promise<TripDay> {
@@ -235,7 +166,7 @@ export class TripService {
         const tripId = await this.repository.createDay(
             tripGroupId,
             dayNumber,
-            { title: request.title, description: request.description },
+            toDayWriteInput(request),
             actor.id,
             canonicalDay?.typeOfPeople ?? null,
             canonicalDay?.transport ?? null,
@@ -271,7 +202,7 @@ export class TripService {
 
         const days = await this.repository.listDayRows(tripGroupId);
         const states = await this.socialStates.statesFor(actor.id, days.flatMap((day) => toDayTargets(day)));
-        return days.map((day) => toDayDto(day, states));
+        return toTripDayDtoList(days, states, getImageBaseUrl());
     }
 
     async deleteDay(actor: TripActor, rawTripId: string, rawDayId: string): Promise<void> {
@@ -326,7 +257,7 @@ export class TripService {
             () => this.repository.createImage({ ownerId: actor.id, filePath, tripId }),
         );
 
-        return toImageDto({ id: imageId, filePath });
+        return toImageDto({ id: imageId, filePath }, getImageBaseUrl());
     }
 
     /** The cap is per day row; it is re-checked in the repository to stay authoritative. */
@@ -353,7 +284,7 @@ export class TripService {
         if (!row) throw ApiError.notFound('Day not found.');
 
         const states = await this.socialStates.statesFor(actor.id, toDayTargets(row));
-        return toDayDto(row, states);
+        return toTripDayDto(row, states, getImageBaseUrl());
     }
 
     /**

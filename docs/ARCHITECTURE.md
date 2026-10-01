@@ -25,16 +25,40 @@ Browser/FE -> Nginx -> Express -> Controller -> Service -> Repository -> Prisma 
 
 ### Dependency flow
 
-Controllers are thin HTTP adapters. Services own business validation, access/ownership checks, orchestration, and DTO mapping. Repositories own Prisma queries and persistence mapping. `src/container.ts` constructs the shared graph. Request-path repositories use the shared client from `src/clients/prisma.ts`; migration/maintenance tools are separate and may use narrowly scoped raw SQL.
+Controllers are thin HTTP adapters. Services own business validation, access/ownership checks, orchestration, and return API-ready results. Repositories own Prisma queries and persistence boundaries. `src/container.ts` constructs the shared graph. Request-path repositories use the shared client from `src/clients/prisma.ts`; migration/maintenance tools are separate and may use narrowly scoped raw SQL.
+
+### Mapping boundaries
+
+The response flow is:
+
+```text
+Repository / Prisma persistence
+    -> persistence-to-application mapping (when required)
+    -> Service
+    -> API mapper
+    -> Controller
+    -> res.json(preparedResult)
+```
+
+- All mapper modules live in `src/mappers/`, not `src/services/`.
+- API mappers accept domain/application contracts from `src/model/`; they must not import repository-owned `*Row` types or repository-specific DTO/input types.
+- API mappers contain transformation logic only. They do not call repositories or services, depend on controllers/Express, perform database operations, read service runtime state, or make business, authorization, or ownership decisions.
+- Persistence mapping is separate from API mapping. `configMapper` converts Prisma config models/relations into application config contracts and is used by `ConfigRepository`. `pointPersistenceMapper` converts persisted point fields into the `PointRecord` application contract and is used by point/trip repositories.
+- Current API/resource mapper modules include `tripMapper`, `pointMapper`, `commentMapper`, `imageMapper`, `reportMapper`, `userMapper`, `socialMapper`, `adminMapper`, `routeNotFoundLogMapper`, and `imageInventoryMapper`. Persistence mapper modules are `configMapper` and `pointPersistenceMapper`.
+- Put shared boundary contracts in `src/model/` when they are needed by repository, service, and mapper layers. Avoid duplicate types created only to satisfy formal layering; a repository may return an existing application contract when its shape already matches.
+- Write mappers target application/domain input contracts. The repository translates those contracts into Prisma field names and storage representations where needed. Validation and business rules remain outside mappers.
+- Controllers do not perform DTO mapping or response-specific transformations. They pass the prepared service result to the HTTP response. This refactor must preserve endpoint paths/methods, status codes, response JSON shape, and business behavior.
 
 ### Project structure
 
 - `src/index.ts`: Express application setup and server lifecycle.
 - `src/routes/`: `/api` and `/v1` router composition.
 - `src/controllers/`: auth, admin, config, trips/days, points, comments, likes, favorites, reports, and images.
-- `src/services/`: slice business logic, dynamic config cache, auth mailer, image inventory/attachment.
-- `src/repositories/`: Prisma persistence for each slice.
-- `src/model/`: domain and API DTO/request/response types.
+- `src/controllers/`: auth, admin, config, trips/days, points, comments, likes, favorites, reports, and images; HTTP adapters that send service results.
+- `src/services/`: slice business logic, API boundary orchestration, dynamic config cache, auth mailer, image inventory/attachment.
+- `src/repositories/`: Prisma queries and persistence-to-application boundary mapping for each slice.
+- `src/mappers/`: resource/API mappers plus explicitly persistence-oriented mappers such as `configMapper` and `pointPersistenceMapper`.
+- `src/model/`: domain/application contracts and API DTO/request/response types.
 - `src/validation/`: request validation middleware and Zod schemas.
 - `src/middlewares/`: client marker, auth/role boundary, rate limiting, error handling, route-not-found diagnostics.
 - `src/clients/`: shared Prisma and Google Cloud Storage clients.
@@ -43,7 +67,9 @@ Controllers are thin HTTP adapters. Services own business validation, access/own
 - `src/startup/`: dynamic-config initialization and resource cleanup.
 - `src/db/cloneTestDatabase.ts`: guarded database-clone CLI for disposable test/dev databases.
 - `src/migration/`: database migration CLI and its operational documentation.
-- `src/utils/`: shared parsing, auth, DTO conversion, error, and request-data helpers.
+- `src/utils/`: shared parsing, auth, error, and request-data helpers.
+- `src/utils/`: shared parsing, auth, error, and request-data helpers.
+- `src/utils/`: shared parsing, auth, error, and request-data helpers.
 - `prisma/`: Prisma schema, seed SQL, and Prisma migrations.
 - `scripts/`: repository maintenance scripts.
 - `build/`: generated TypeScript output; not source of truth.
@@ -84,6 +110,8 @@ Request bodies, queries, and route parameters are validated by Zod schemas in `s
 - Social mutations identify a target by target type and ID; the acting user comes from authentication.
 - Admin lists return bounded `items` plus pagination metadata.
 - Config responses use `SelectConfig` and `ServiceConfig` models.
+
+API-facing services return these prepared response contracts through API mappers; controllers do not reconstruct DTOs. The mapper refactor is structural only and does not redesign the API contract.
 
 ## Authentication and authorization
 

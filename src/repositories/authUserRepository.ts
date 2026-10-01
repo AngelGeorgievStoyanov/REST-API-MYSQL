@@ -1,15 +1,6 @@
 import { Prisma, PrismaClient, UserRole, UserStatus } from '@prisma/client';
+import { AuthUserRecord } from '../model/auth';
 
-export interface AuthUserRow {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    hashedPassword: string;
-    role: string;
-    status: string;
-    emailVerifiedAt: Date | null;
-}
 
 /** Fields an administrator may change on another account. */
 export interface AdminUserUpdate {
@@ -39,11 +30,11 @@ const authUserSelect = {
 export class AuthUserRepository {
     constructor(private readonly prisma: PrismaClient) { }
 
-    async findByEmail(email: string): Promise<AuthUserRow | null> {
+    async findByEmail(email: string): Promise<AuthUserRecord | null> {
         return this.prisma.user.findUnique({ where: { email }, select: authUserSelect });
     }
 
-    async findById(userId: string): Promise<AuthUserRow | null> {
+    async findById(userId: string): Promise<AuthUserRecord | null> {
         return this.prisma.user.findUnique({ where: { id: userId }, select: authUserSelect });
     }
 
@@ -54,7 +45,7 @@ export class AuthUserRepository {
         firstName: string;
         lastName: string;
         hashedPassword: string;
-    }): Promise<AuthUserRow> {
+    }): Promise<AuthUserRecord> {
         return this.prisma.user.create({
             data: {
                 id: data.id,
@@ -76,7 +67,7 @@ export class AuthUserRepository {
      * unverified account is promoted to ACTIVE: a suspended/deactivated account
      * stays in its state and is refused by the service.
      */
-    async markEmailVerified(userId: string, verifiedAt: Date): Promise<AuthUserRow> {
+    async markEmailVerified(userId: string, verifiedAt: Date): Promise<AuthUserRecord> {
         await this.prisma.user.updateMany({
             where: { id: userId, status: UserStatus.PENDING_VERIFICATION },
             data: { status: UserStatus.ACTIVE },
@@ -89,7 +80,7 @@ export class AuthUserRepository {
         });
     }
 
-    async updatePassword(userId: string, hashedPassword: string): Promise<AuthUserRow> {
+    async updatePassword(userId: string, hashedPassword: string): Promise<AuthUserRecord> {
         return this.prisma.user.update({
             where: { id: userId },
             data: { hashedPassword },
@@ -106,7 +97,7 @@ export class AuthUserRepository {
     }
 
     /** Administrative account page, ordered by email for a stable answer. */
-    async listPage(skip: number, take: number): Promise<AuthUserRow[]> {
+    async listPage(skip: number, take: number): Promise<AuthUserRecord[]> {
         return this.prisma.user.findMany({
             orderBy: [{ email: 'asc' }, { id: 'asc' }],
             skip,
@@ -119,11 +110,11 @@ export class AuthUserRepository {
         return this.prisma.user.count();
     }
 
-    async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AuthUserRow> {
+    async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AuthUserRecord> {
         return this.prisma.user.update({ where: { id: userId }, data, select: authUserSelect });
     }
 
-    async updateProfile(userId: string, data: ProfileUpdate): Promise<AuthUserRow> {
+    async updateProfile(userId: string, data: ProfileUpdate): Promise<AuthUserRecord> {
         return this.prisma.user.update({ where: { id: userId }, data, select: authUserSelect });
     }
 

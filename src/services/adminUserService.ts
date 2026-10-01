@@ -1,14 +1,15 @@
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { CLIENT_CONTROLLED_USER_FIELDS } from '../constants/admin';
 import { MAX_USER_ID_LENGTH } from '../constants/auth';
-import { AuthUserDto } from '../model/auth';
+import { AuthUserDto, AuthUserRecord } from '../model/auth';
 import { AdminPage } from '../model/admin';
 import { normalizeName } from '../utils/auth';
 import { ApiError } from '../utils/apiError';
-import { adminPage, parseAdminPagination } from '../utils/adminPagination';
 import { asRecord, rejectClientControlledFields, requireEnumValue, requireTrimmedString } from '../utils/validation';
-import { toAuthUserDto } from './authService';
-import { AdminUserUpdate, AuthUserRepository, AuthUserRow } from '../repositories/authUserRepository';
+import { toAuthUserDto, toAuthUserDtoList } from '../mappers/userMapper';
+import { toAdminPageDto } from '../mappers/adminMapper';
+import { parseAdminPagination } from '../utils/adminPagination';
+import { AdminUserUpdate, AuthUserRepository } from '../repositories/authUserRepository';
 
 export class AdminUserService {
     constructor(private readonly users: AuthUserRepository) { }
@@ -20,7 +21,7 @@ export class AdminUserService {
             this.users.countUsers(),
         ]);
 
-        return adminPage(rows.map(toAuthUserDto), total, pagination.page, pagination.pageSize);
+        return toAdminPageDto(toAuthUserDtoList(rows), total, pagination.page, pagination.pageSize);
     }
 
     async updateUser(rawUserId: string, body: unknown): Promise<AuthUserDto> {
@@ -58,7 +59,7 @@ export class AdminUserService {
         }
     }
 
-    private async requireUser(userId: string): Promise<AuthUserRow> {
+    private async requireUser(userId: string): Promise<AuthUserRecord> {
         const user = await this.users.findById(userId);
         if (!user) throw ApiError.notFound('User not found.');
 
