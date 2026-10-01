@@ -1,6 +1,8 @@
 import dotenv = require('dotenv');
 import mysql = require('mysql');
 
+import { DEFAULT_MYSQL_PORT, MAX_TCP_PORT, MIN_TCP_PORT } from '../constants/database';
+
 dotenv.config();
 
 export const DEFAULT_SOURCE_DB = 'hack_trip';
@@ -10,7 +12,6 @@ export const ALLOW_NON_LOCAL_ENV = 'CLONE_ALLOW_NON_LOCAL';
 
 const SYSTEM_SCHEMAS = ['information_schema', 'mysql', 'performance_schema', 'sys'];
 const IDENTIFIER_RE = /^[A-Za-z0-9_$-]{1,64}$/;
-const DEFAULT_PORT = 3306;
 
 export interface CloneConfig {
   host: string;
@@ -114,8 +115,8 @@ export function getConfig(env: EnvSource = process.env): CloneConfig {
   const host = (env.MYSQL_HOST || 'localhost').trim();
   // MYSQOL_PORT is the historical .env spelling.
   const rawPort = (env.MYSQL_PORT || env.MYSQOL_PORT || '').trim();
-  const port = rawPort === '' ? DEFAULT_PORT : Number(rawPort);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  const port = rawPort === '' ? DEFAULT_MYSQL_PORT : Number(rawPort);
+  if (!Number.isInteger(port) || port < MIN_TCP_PORT || port > MAX_TCP_PORT) {
     throw new CloneGuardError(`Invalid MySQL port "${rawPort}".`);
   }
   const user = (env.MYSQL_USER || '').trim();

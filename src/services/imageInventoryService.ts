@@ -1,5 +1,5 @@
 import { ImageRepository } from '../repositories/imageRepository';
-import { ImageFileStorage, isThumbnailFileName, originalFileName } from '../storage/imageFileStorage';
+import { ImageFileStorage, thumbnailFileName } from '../storage/imageFileStorage';
 
 /** The difference between the flat GCS bucket and the `images` table. */
 export interface ImageInventoryComparison {
@@ -21,16 +21,21 @@ export class ImageInventoryService {
     }
 
     /**
-     * A thumbnail is a sidecar of its original, so it only counts as orphaned when
-     * the original is missing from the database as well. The returned names are the
-     * bucket objects themselves, so they can be handed to storage maintenance.
+     * A thumbnail is a sidecar of its original, so only the original has to be
+     * referenced by a row: the objects a healthy store may hold are the referenced
+     * files plus their thumbnails. Anything else in the bucket is an orphan.
      */
     async compare(): Promise<ImageInventoryComparison> {
         const [cloudFiles, databaseFiles] = await Promise.all([this.cloudImages(), this.databaseImages()]);
-        const known = new Set(databaseFiles);
-        const present = new Set(cloudFiles);
 
-        const cloudOnly = cloudFiles.filter((file) => !known.has(isThumbnailFileName(file) ? originalFileName(file) : file));
+        const expected = new Set<string>();
+        for (const filePath of databaseFiles) {
+            expected.add(filePath);
+            expected.add(thumbnailFileName(filePath));
+        }
+
+        const present = new Set(cloudFiles);
+        const cloudOnly = cloudFiles.filter((file) => !expected.has(file));
         const databaseOnly = databaseFiles.filter((file) => !present.has(file));
 
         return { cloudOnly, databaseOnly };

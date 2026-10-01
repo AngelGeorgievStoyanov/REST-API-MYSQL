@@ -3,6 +3,7 @@ import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { DEFAULT_COUNT_PEOPLES, FIRST_DAY_NUMBER } from '../constants/trip';
 import { sortPointsByNumber } from '../utils/point';
 import { clearPolymorphicTargets } from './polymorphicTargets';
+import { attachImageWithinLimit } from './imageAttachment';
 import { pointInclude } from './pointRepository';
 
 /**
@@ -367,15 +368,26 @@ export class TripRepository {
     }
 
     /**
+     * Images currently attached to a day row (`Image.tripId`), used to refuse an
+     * upload before the file is stored.
+     */
+    async countImages(tripId: number): Promise<number> {
+        return this.prisma.image.count({ where: { tripId } });
+    }
+
+    /**
      * Appends one image row attached to a day: `Image.tripId` carries the `Trip.id`
      * of that day row. `pointId` stays unset, so the row belongs to the day only.
+     * `null` means the day already carries the maximum number of images.
      */
-    async createImage(data: { ownerId: string; filePath: string; tripId: number }): Promise<number> {
-        const image = await this.prisma.image.create({
-            data: { ...data, createdAt: new Date() },
-            select: { id: true },
-        });
-        return image.id;
+    async createImage(data: { ownerId: string; filePath: string; tripId: number }): Promise<number | null> {
+        const { tripId, ...rest } = data;
+
+        return attachImageWithinLimit(
+            this.prisma,
+            { tripId },
+            (tx) => tx.image.create({ data: { ...rest, tripId, createdAt: new Date() }, select: { id: true } }),
+        );
     }
 
     async findImageContext(imageId: number): Promise<ImageContext | null> {

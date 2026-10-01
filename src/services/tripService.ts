@@ -1,5 +1,6 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { GROUP_SELECT_TYPE, TRANSPORT_SELECT_TYPE } from '../constants/trip';
+import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { ImageDto } from '../model/image';
 import { SocialStates, SocialTargetRef } from '../model/social';
 import {
@@ -28,6 +29,7 @@ import {
 import { toIsoString } from '../utils/utils';
 import { parseIdList, parsePositiveId } from '../utils/validation';
 import { toPointDto } from './pointService';
+import { attachUploadedImage } from './imageAttachment';
 import { SocialStateService } from './socialStateService';
 import {
     DayContext,
@@ -293,22 +295,45 @@ export class TripService {
         await this.repository.deleteDay(tripId);
     }
 
+    /**
+     * Runs before multer stores anything: the day must belong to the trip group of
+     * the URL, the actor must be allowed to change that group, and the day must
+     * still have a free image slot. A refusal therefore never touches storage.
+     */
     async assertDayImageUpload(actor: TripActor, rawTripId: string, rawDayId: string): Promise<void> {
-        await this.assertDayAccess(actor, parseTripId(rawTripId), parsePositiveId(rawDayId, 'Day id'));
+        const tripGroupId = parseTripId(rawTripId);
+        const tripId = parsePositiveId(rawDayId, 'Day id');
+        await this.assertDayAccess(actor, tripGroupId, tripId);
+        await this.assertImageSlot(tripId);
     }
 
     /**
      * Attaches a day image to the day ROW: `Image.tripId` is the `Trip.id` of that
      * day, never the trip group and never `dayNumber`. There is no separate day
      * entity, so no other identifier exists for a day.
+     *
+     * The object is already in the bucket when this runs, so a row that cannot be
+     * written removes it again.
      */
     async addDayImage(actor: TripActor, rawTripId: string, rawDayId: string, filePath: string): Promise<ImageDto> {
         const tripGroupId = parseTripId(rawTripId);
         const tripId = parsePositiveId(rawDayId, 'Day id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
 
-        const imageId = await this.repository.createImage({ ownerId: actor.id, filePath, tripId });
+        const imageId = await attachUploadedImage(
+            this.imageStorage,
+            filePath,
+            () => this.repository.createImage({ ownerId: actor.id, filePath, tripId }),
+        );
+
         return toImageDto({ id: imageId, filePath });
+    }
+
+    /** The cap is per day row; it is re-checked in the repository to stay authoritative. */
+    private async assertImageSlot(tripId: number): Promise<void> {
+        if ((await this.repository.countImages(tripId)) >= MAX_IMAGES_PER_ENTITY) {
+            throw ApiError.conflict(IMAGE_LIMIT_MESSAGE);
+        }
     }
 
     async deleteImage(actor: TripActor, rawImageId: string): Promise<void> {

@@ -1,9 +1,11 @@
 import { UserStatus } from '@prisma/client';
 import type { AuthConfig } from '../config/auth';
 import {
+    ABSENT_USER_PASSWORD_HASH,
     EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
     PASSWORD_RESET_TOKEN_TTL_SECONDS,
 } from '../constants/auth';
+import { VALIDATION_LIMITS } from '../constants/validation/limits';
 import type { AuthActor, AuthSessionDto, AuthUserDto, AuthUserResponse, MessageResponse } from '../model/auth';
 import { ImageDto } from '../model/image';
 import { ApiError } from '../utils/apiError';
@@ -47,12 +49,6 @@ export interface LoginContext {
     ip: string;
     userAgent: string;
 }
-
-/**
- * Fixed bcrypt hash compared against when the email is unknown, so a failed
- * login costs the same as a real one and cannot be used to probe accounts.
- */
-const ABSENT_USER_HASH = '$2b$10$C6UzMDM.H6dfI/f/IKcEeO1uFqZf5nUwJXvO0.lQybfhB5VcLJ3Iu';
 
 export class AuthService {
     constructor(
@@ -124,10 +120,10 @@ export class AuthService {
     async login(body: unknown, context: LoginContext): Promise<AuthSessionResult> {
         const record = asRecord(body, 'Request body');
         const email = normalizeEmail(record['email']);
-        const password = requireTrimmedString(record['password'], 'password', 200);
+        const password = requireTrimmedString(record['password'], 'password', VALIDATION_LIMITS.auth.passwordInput.max);
 
         const user = await this.users.findByEmail(email);
-        const passwordMatches = await verifyPassword(password, user?.hashedPassword ?? ABSENT_USER_HASH);
+        const passwordMatches = await verifyPassword(password, user?.hashedPassword ?? ABSENT_USER_PASSWORD_HASH);
         if (!user || !passwordMatches) {
             await this.recordFailedLogin(email, context);
             throw ApiError.invalidCredentials();

@@ -11,6 +11,9 @@ export interface EnvironmentConfig {
 
 export type EnvironmentSource = Record<string, string | undefined>;
 
+/** Fallback cadence of the runtime config cache when `CONFIG_SLOW_REFRESH_SECONDS` is unset. */
+const DEFAULT_SLOW_REFRESH_SECONDS = 300;
+
 /** Single place that reads process.env for application configuration. */
 export function loadEnvironmentConfig(
     env: EnvironmentSource = process.env,
@@ -18,7 +21,7 @@ export function loadEnvironmentConfig(
     const production = env.NODE_ENV === 'production';
 
     return {
-        slowRefreshSeconds: Number(env.CONFIG_SLOW_REFRESH_SECONDS || 300),
+        slowRefreshSeconds: Number(env.CONFIG_SLOW_REFRESH_SECONDS || DEFAULT_SLOW_REFRESH_SECONDS),
         corsOrigins: [...(production ? PRODUCTION_CORS_ORIGINS : DEVELOPMENT_CORS_ORIGINS)],
     };
 }

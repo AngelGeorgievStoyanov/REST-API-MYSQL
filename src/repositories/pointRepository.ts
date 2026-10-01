@@ -3,6 +3,7 @@ import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { sortPointsByNumber } from '../utils/point';
 import { toNumberOrNull } from '../utils/utils';
 import { clearPolymorphicTargets } from './polymorphicTargets';
+import { attachImageWithinLimit } from './imageAttachment';
 
 export interface PointWriteFields {
     name: string;
@@ -186,15 +187,26 @@ export class PointRepository {
     }
 
     /**
+     * Images currently attached to a point (`Image.pointId`), used to refuse an
+     * upload before the file is stored.
+     */
+    async countImages(pointId: number): Promise<number> {
+        return this.prisma.image.count({ where: { pointId } });
+    }
+
+    /**
      * Appends one image row attached to a point: `Image.pointId` carries the
      * `Point.id`. `tripId` stays unset, so the row belongs to the point only and
-     * cannot be mistaken for a day image.
+     * cannot be mistaken for a day image. `null` means the point is already full.
      */
-    async createImage(pointId: number, ownerId: string, filePath: string): Promise<number> {
-        const image = await this.prisma.image.create({
-            data: { ownerId, filePath, pointId, createdAt: new Date() },
-            select: { id: true },
-        });
-        return image.id;
+    async createImage(pointId: number, ownerId: string, filePath: string): Promise<number | null> {
+        return attachImageWithinLimit(
+            this.prisma,
+            { pointId },
+            (tx) => tx.image.create({
+                data: { ownerId, filePath, pointId, createdAt: new Date() },
+                select: { id: true },
+            }),
+        );
     }
 }

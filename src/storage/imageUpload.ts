@@ -1,6 +1,7 @@
 import multer, { MulterError, StorageEngine } from 'multer';
 import { NextFunction, Request, RequestHandler, Response } from 'express';
 import { IMAGE_UPLOAD_LIMITS, UPLOAD_FIELD_NAME } from '../constants/imageStorage';
+import { UnsupportedImageError } from './imageValidation';
 import { ApiError } from '../utils/apiError';
 
 let uploadSingleFile: RequestHandler | null = null;
@@ -20,8 +21,8 @@ function getUploadMiddleware(): RequestHandler {
 
 /**
  * Uploads exactly one image through the shared GCS storage engine. Multer
- * failures (size, unexpected field) are turned into the API validation error
- * instead of an unmapped 500.
+ * failures (size, unexpected field) and unsupported files are turned into the API
+ * validation error instead of an unmapped 500.
  */
 export function imageUpload(req: Request, res: Response, next: NextFunction): void {
     getUploadMiddleware()(req, res, (error: unknown) => {
@@ -29,6 +30,12 @@ export function imageUpload(req: Request, res: Response, next: NextFunction): vo
             next(ApiError.validation(`Image upload failed: ${error.message}.`));
             return;
         }
+
+        if (error instanceof UnsupportedImageError) {
+            next(ApiError.validation(`Image upload failed: ${error.message}`));
+            return;
+        }
+
         next(error ?? undefined);
     });
 }

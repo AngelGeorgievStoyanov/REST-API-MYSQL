@@ -1,4 +1,5 @@
 import { MAX_POINT_DESCRIPTION_LENGTH, MAX_POINT_NAME_LENGTH } from '../constants/trip';
+import { VALIDATION_LIMITS } from '../constants/validation/limits';
 import { PointCreateRequest, PointUpdateRequest } from '../model/trip';
 import { ApiError } from './apiError';
 import { toNumberOrNull } from './utils';
@@ -16,6 +17,9 @@ import {
 
 const POINT_SEQUENCE_FIELDS = ['pointNumber', 'numberPoint'];
 const EDITABLE_POINT_FIELDS = ['title', 'description', 'latitude', 'longitude'];
+/** Geographic bounds of `points.lat` / `points.lng`, canonical in the validation limits. */
+const LATITUDE = VALIDATION_LIMITS.point.latitude;
+const LONGITUDE = VALIDATION_LIMITS.point.longitude;
 
 export function parsePointCreateBody(body: unknown): PointCreateRequest {
     const record = asRecord(body, 'Request body');
@@ -25,8 +29,8 @@ export function parsePointCreateBody(body: unknown): PointCreateRequest {
         dayId: parsePositiveId(record.dayId, 'dayId'),
         title: requireTrimmedString(record.title, 'title', MAX_POINT_NAME_LENGTH),
         description: optionalString(record.description, 'description', MAX_POINT_DESCRIPTION_LENGTH),
-        latitude: requireNumberInRange(record.latitude, 'latitude', -90, 90),
-        longitude: requireNumberInRange(record.longitude, 'longitude', -180, 180),
+        latitude: requireNumberInRange(record.latitude, 'latitude', LATITUDE.min, LATITUDE.max),
+        longitude: requireNumberInRange(record.longitude, 'longitude', LONGITUDE.min, LONGITUDE.max),
     };
 }
 
@@ -41,10 +45,10 @@ export function parsePointUpdateBody(body: unknown): PointUpdateRequest {
         request.description = optionalString(record.description, 'description', MAX_POINT_DESCRIPTION_LENGTH);
     }
     if (record.latitude !== undefined) {
-        request.latitude = optionalNumberInRange(record.latitude, 'latitude', -90, 90);
+        request.latitude = optionalNumberInRange(record.latitude, 'latitude', LATITUDE.min, LATITUDE.max);
     }
     if (record.longitude !== undefined) {
-        request.longitude = optionalNumberInRange(record.longitude, 'longitude', -180, 180);
+        request.longitude = optionalNumberInRange(record.longitude, 'longitude', LONGITUDE.min, LONGITUDE.max);
     }
 
     if (EDITABLE_POINT_FIELDS.every((field) => record[field] === undefined)) {

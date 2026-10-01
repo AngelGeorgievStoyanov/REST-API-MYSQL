@@ -1,4 +1,5 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { ImageDto } from '../model/image';
 import { SocialStates, SocialTargetRef } from '../model/social';
 import { PointCreateRequest, PointUpdateRequest, TripActor, TripPoint } from '../model/trip';
@@ -9,6 +10,7 @@ import { toImageDto, toSocialImageDto } from '../utils/image';
 import { parsePointCreateBody, parsePointUpdateBody } from '../utils/point';
 import { parseIdList, parsePositiveId } from '../utils/validation';
 import { toNumberOrNull } from '../utils/utils';
+import { attachUploadedImage } from './imageAttachment';
 import { PointContext, PointDayContext, PointRepository, PointRow, PointWriteFields } from '../repositories/pointRepository';
 import { SocialStateService } from './socialStateService';
 
@@ -121,16 +123,40 @@ export class PointService {
         return this.mapRows(await this.repository.listRows(tripId), actor);
     }
 
+    /**
+     * Runs before multer stores anything: the point must exist, the actor must be
+     * allowed to change its trip group, and the point must still have a free image
+     * slot. A refusal therefore never touches storage.
+     */
     async assertPointImageUpload(actor: TripActor, rawPointId: string): Promise<void> {
-        await this.assertPointAccess(actor, parsePositiveId(rawPointId, 'Point id'));
+        const pointId = parsePositiveId(rawPointId, 'Point id');
+        await this.assertPointAccess(actor, pointId);
+        await this.assertImageSlot(pointId);
     }
 
+    /**
+     * Attaches an image to the POINT: `Image.pointId` carries the `Point.id` and
+     * `tripId` stays unset. The object is already in the bucket when this runs, so
+     * a row that cannot be written removes it again.
+     */
     async addPointImage(actor: TripActor, rawPointId: string, filePath: string): Promise<ImageDto> {
         const pointId = parsePositiveId(rawPointId, 'Point id');
         await this.assertPointAccess(actor, pointId);
 
-        const imageId = await this.repository.createImage(pointId, actor.id, filePath);
+        const imageId = await attachUploadedImage(
+            this.imageStorage,
+            filePath,
+            () => this.repository.createImage(pointId, actor.id, filePath),
+        );
+
         return toImageDto({ id: imageId, filePath });
+    }
+
+    /** The cap is per point; it is re-checked in the repository to stay authoritative. */
+    private async assertImageSlot(pointId: number): Promise<void> {
+        if ((await this.repository.countImages(pointId)) >= MAX_IMAGES_PER_ENTITY) {
+            throw ApiError.conflict(IMAGE_LIMIT_MESSAGE);
+        }
     }
 
     async deletePointImage(actor: TripActor, rawPointId: string, rawImageId: string): Promise<void> {

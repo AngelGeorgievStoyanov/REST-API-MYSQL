@@ -5,10 +5,12 @@ import path from 'path';
 import sharp from 'sharp';
 
 import {
+    IMAGE_THUMBNAIL,
     STORAGE_MAX_RETRIES,
     STORAGE_TOTAL_TIMEOUT,
-} from '../constants/common';
+} from '../constants/imageStorage';
 import { thumbnailFileName } from '../storage/imageFileStorage';
+import { assertAcceptedImage } from '../storage/imageValidation';
 
 const KEY_FILENAME = path.join(
     __dirname,
@@ -25,10 +27,6 @@ export const gcsClient = new Storage({
 });
 
 type UploadedFile = Parameters<StorageEngine['_handleFile']>[1];
-const THUMBNAIL_WIDTH = 800;
-const THUMBNAIL_HEIGHT = 600;
-const THUMBNAIL_QUALITY = 80;
-const THUMBNAIL_FIT = 'inside';
 
 interface GoogleCloudStorageOptions {
     bucketName: string;
@@ -81,6 +79,10 @@ export class GoogleCloudStorage implements StorageEngine {
 
                     const fileBuffer = Buffer.concat(chunks);
 
+                    // The bytes decide the format, and an unsupported file must never
+                    // reach the bucket: validation happens before the upload.
+                    await assertAcceptedImage(fileBuffer, file);
+
                     const bucketFile = this.selectedBucket.file(destination);
 
                     await bucketFile.save(fileBuffer);
@@ -88,13 +90,13 @@ export class GoogleCloudStorage implements StorageEngine {
                     if (this.generateThumbnail) {
                         const thumbnailBuffer = await sharp(fileBuffer)
                             .resize({
-                                width: THUMBNAIL_WIDTH,
-                                height: THUMBNAIL_HEIGHT,
-                                fit: THUMBNAIL_FIT,
+                                width: IMAGE_THUMBNAIL.width,
+                                height: IMAGE_THUMBNAIL.height,
+                                fit: IMAGE_THUMBNAIL.fit,
                                 withoutEnlargement: true,
                             })
                             .webp({
-                                quality: THUMBNAIL_QUALITY,
+                                quality: IMAGE_THUMBNAIL.quality,
                             })
                             .toBuffer();
 
@@ -135,14 +137,21 @@ export class GoogleCloudStorage implements StorageEngine {
             return;
         }
 
-        const bucketFile = this.selectedBucket.file(destination);
+        // The thumbnail sidecar belongs to its original: a rejected request must
+        // not leave the generated thumbnail behind as an orphan object.
+        const objectNames = this.generateThumbnail
+            ? [destination, thumbnailFileName(destination)]
+            : [destination];
 
-        bucketFile
-            .exists()
-            .then(([exists]) =>
-                exists ? bucketFile.delete() : undefined
-            )
+        Promise.all(objectNames.map((objectName) => this.removeObject(objectName)))
             .then(() => callback(null))
             .catch((error: Error) => callback(error));
+    }
+
+    private async removeObject(objectName: string): Promise<void> {
+        const bucketFile = this.selectedBucket.file(objectName);
+        const [exists] = await bucketFile.exists();
+
+        if (exists) await bucketFile.delete();
     }
 }

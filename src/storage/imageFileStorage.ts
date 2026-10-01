@@ -1,22 +1,10 @@
-import { BUCKET_NAME } from '../constants/common';
-import { THUMBNAIL_SUFFIX } from '../constants/imageStorage';
+import { BUCKET_NAME, THUMBNAIL_SUFFIX } from '../constants/imageStorage';
 
 /** A thumbnail is the `_thumb.webp` sidecar of its original in the flat bucket. */
 export function thumbnailFileName(filePath: string): string {
     const extensionIndex = filePath.lastIndexOf('.');
     const base = extensionIndex > -1 ? filePath.substring(0, extensionIndex) : filePath;
     return `${base}${THUMBNAIL_SUFFIX}`;
-}
-
-export function isThumbnailFileName(filePath: string): boolean {
-    return filePath.endsWith(THUMBNAIL_SUFFIX);
-}
-
-/** The original object a thumbnail sidecar belongs to. */
-export function originalFileName(filePath: string): string {
-    if (!isThumbnailFileName(filePath)) return filePath;
-
-    return filePath.substring(0, filePath.length - THUMBNAIL_SUFFIX.length);
 }
 
 export interface ImageFileStorage {

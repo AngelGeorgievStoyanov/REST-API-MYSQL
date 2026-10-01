@@ -1,5 +1,6 @@
 import { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { AuthRateLimitConfig } from '../config/auth';
+import { AUTH_RATE_LIMIT_PRUNE_THRESHOLD } from '../constants/auth';
 import { ApiError } from '../utils/apiError';
 
 interface Bucket {
@@ -8,7 +9,6 @@ interface Bucket {
 }
 
 const buckets = new Map<string, Bucket>();
-const PRUNE_THRESHOLD = 1000;
 
 /**
  * Fixed-window limiter for the auth endpoints only. The key is the client
@@ -42,7 +42,7 @@ export function authRateLimit(bucket: string, max: number, config: AuthRateLimit
 }
 
 function pruneExpired(now: number, windowMs: number): void {
-    if (buckets.size < PRUNE_THRESHOLD) return;
+    if (buckets.size < AUTH_RATE_LIMIT_PRUNE_THRESHOLD) return;
 
     for (const [key, bucket] of buckets) {
         if (now - bucket.windowStartedAt >= windowMs) buckets.delete(key);

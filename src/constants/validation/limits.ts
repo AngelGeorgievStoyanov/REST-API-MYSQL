@@ -33,7 +33,7 @@ import {
  */
 
 /** Widest value of a Prisma `Int` (32-bit signed), the type of every resource id. */
-const INT_MAX = 2_147_483_647;
+const INT_MAX = 2147483647;
 
 /**
  * Longest accepted opaque token. It is not a column width: the value is hashed
@@ -51,7 +51,7 @@ const MAX_TRIP_DAYS = 500;
 const MAX_REORDER_ITEMS = 500;
 
 /** Page numbers are `(page - 1) * limit` offsets in SQL, so they stay modest. */
-const MAX_PAGE = 10_000;
+const MAX_PAGE = 10000;
 
 export const VALIDATION_LIMITS = {
     id: {

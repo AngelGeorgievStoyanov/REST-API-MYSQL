@@ -27,3 +27,16 @@ export const PASSWORD_HASH_ROUNDS = 10;
 
 /** Legacy `users.lastTimeLogin` is VARCHAR(24) holding an ISO string. */
 export const MAX_LAST_LOGIN_LENGTH = 24;
+
+/**
+ * Fixed bcrypt hash compared against when the email of a login is unknown, so a
+ * failed login costs the same as a real one and cannot be used to probe accounts.
+ * The plaintext behind it is irrelevant: it only has to be a valid hash.
+ */
+export const ABSENT_USER_PASSWORD_HASH = '$2b$10$C6UzMDM.H6dfI/f/IKcEeO1uFqZf5nUwJXvO0.lQybfhB5VcLJ3Iu';
+
+/**
+ * Size the in-memory rate-limit bucket map may reach before expired windows are
+ * swept. It bounds the memory of the limiter, not the request budget.
+ */
+export const AUTH_RATE_LIMIT_PRUNE_THRESHOLD = 1000;
