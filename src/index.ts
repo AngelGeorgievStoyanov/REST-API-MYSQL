@@ -2,78 +2,117 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
-import configController from './controllers/configController';
-import { ConfigRepository } from './repositories/configRepository';
+import { SERVER_PORT, SHUTDOWN_SIGNALS, TRUST_PROXY_HOPS } from './constants/application';
+import {
+    CORS_ALLOWED_HEADERS,
+    CORS_METHODS,
+    HSTS_HEADER_NAME,
+    HSTS_HEADER_VALUE,
+    JSON_BODY_LIMIT,
+    URLENCODED_BODY_LIMIT,
+    URLENCODED_PARAMETER_LIMIT,
+} from './constants/http';
+import { EnvironmentConfig, loadEnvironmentConfig } from './config/environment';
+import { clientHeaderMiddleware } from './middlewares/clientHeaderMiddleware';
+import { apiErrorMiddleware } from './middlewares/apiErrorMiddleware';
 import apiRouter from './routes/apiRouter';
-import { prisma } from './clients/prisma';
-import { dynamicConfig } from './services/dynamicConfig';
-import { loadEnvironmentConfig } from './config/environment';
+import { initializeApplication, releaseApplicationResources } from './startup/application';
 import { getErrorMessage } from './utils/error';
 
-dotenv.config()
+dotenv.config();
 
-const app = express()
-const port = 8080;
+/** The environment is read once and handed to every part of the startup. */
+const environment = loadEnvironmentConfig();
 
+const app = express();
 
-// const allowedOrigins = ['http://localhost:3000'];
+configureApplication(app, environment);
 
-const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
+bootstrap(environment);
 
+/**
+ * Wires the HTTP stack in the order one request travels through it: the client
+ * marker first, then the transport concerns, then the routes.
+ */
+function configureApplication(application: express.Express, config: EnvironmentConfig): void {
+    // Cheapest filter first: unrelated traffic never reaches a body parser.
+    application.use(clientHeaderMiddleware);
 
-const options: cors.CorsOptions = {
-    origin: allowedOrigins,
-    methods: 'GET,POST,PUT,DELETE',
-    // The refresh token travels in an HttpOnly cookie, which a browser only
-    // sends with a credentialed cross-origin request.
-    credentials: true
-};
-app.use(cors(options));
+    // Only the origins of the current environment: a production run cannot answer
+    // a development origin, and no origin is ever a wildcard.
+    application.use(cors({
+        origin: config.corsOrigins,
+        methods: CORS_METHODS,
+        allowedHeaders: CORS_ALLOWED_HEADERS,
+        // The refresh token travels in an HttpOnly cookie, which a browser only
+        // sends with a credentialed cross-origin request.
+        credentials: true,
+    }));
 
+    // Binary uploads never pass through a body parser: the image storage engine
+    // reads them with its own per-file cap, so neither parser needs a large limit.
+    application.use(bodyParser.json({ limit: JSON_BODY_LIMIT }));
+    application.use(bodyParser.urlencoded({
+        extended: true,
+        limit: URLENCODED_BODY_LIMIT,
+        parameterLimit: URLENCODED_PARAMETER_LIMIT,
+    }));
 
+    // Registered before the routes, so the policy also reaches their responses.
+    application.use(setHstsHeader);
+    // A TLS-terminating proxy sits in front of the application, so `req.ip` (rate
+    // limiting, failed-log records, the 404 logger) reads the forwarded address.
+    application.set('trust proxy', TRUST_PROXY_HOPS);
 
-app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 100000 }));
-app.use(bodyParser.json({ limit: '50mb' }));
-app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
+    application.use('/api', apiRouter);
 
-app.use('/api', apiRouter);
-app.use('/config', configController);
+    // Last resort: an error raised before a router (a body parser, for example)
+    // must answer with the API contract instead of the Express default page.
+    application.use(apiErrorMiddleware);
 
-
-app.get('/', (req: express.Request, res: express.Response) => {
-    res.send('Hello  HACK TRIP ')
-});
-
-
-
-(async () => {
-    app.use((req, res, next) => {
-        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-        next();
+    application.get('/', (_req: express.Request, res: express.Response) => {
+        res.send('Hello  HACK TRIP ');
     });
-    app.set("trust proxy", true);
+}
 
+/** The proxy terminates TLS, so the application itself answers with the HSTS policy. */
+function setHstsHeader(_req: express.Request, res: express.Response, next: express.NextFunction): void {
+    res.setHeader(HSTS_HEADER_NAME, HSTS_HEADER_VALUE);
+    next();
+}
+
+/** Startup sequence of the application: configuration first, then the HTTP server. */
+async function bootstrap(config: EnvironmentConfig): Promise<void> {
     try {
-        const environment = loadEnvironmentConfig();
-        await dynamicConfig.init(new ConfigRepository(prisma), environment);
-    } catch (err: unknown) {
-        const reason = getErrorMessage(err);
-        console.log(`[startup] configuration failed: ${reason}`);
-        await prisma.$disconnect().catch(() => undefined);
+        await initializeApplication(config);
+    } catch (error: unknown) {
+        console.log(`[startup] configuration failed: ${getErrorMessage(error)}`);
+        await releaseApplicationResources();
         process.exit(1);
     }
 
-    const server = app.listen(port, () => {
-        console.log(`Connected succesfully on port ${port}`)
+    startServer();
+}
+
+function startServer(): void {
+    const server = app.listen(SERVER_PORT, () => {
+        console.log(`Connected succesfully on port ${SERVER_PORT}`)
     });
 
+    server.on('error', (error: Error) => {
+        console.log('Server error:', error);
+    });
+
+    // The close handler stays the single place that releases the runtime resources.
     server.on('close', () => {
-        dynamicConfig.stopRefreshTimer();
-        prisma.$disconnect().catch(() => undefined);
+        void releaseApplicationResources();
     });
 
-    server.on('error', err => {
-        console.log('Server error:', err);
-    });
-})();
+    for (const signal of SHUTDOWN_SIGNALS) {
+        process.on(signal, () => {
+            console.log(`[shutdown] ${signal} received, closing the server`);
+            server.close();
+        });
+    }
+}
 

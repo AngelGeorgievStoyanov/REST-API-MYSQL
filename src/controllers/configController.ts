@@ -10,7 +10,7 @@ configController.get('/selects', (req, res) => {
         res.status(200).json(dynamicConfig.getSelectTypes());
     } catch (err: unknown) {
         const reason = getErrorMessage(err);
-        console.log(`[config] GET /config/selects failed: ${reason}`);
+        console.log(`[config] GET /api/v1/config/selects failed: ${reason}`);
         res.status(503).json('Configuration unavailable');
     }
 });
@@ -20,7 +20,7 @@ configController.get('/services', (req, res) => {
         res.status(200).json(dynamicConfig.getServiceConfigs());
     } catch (err: unknown) {
         const reason = getErrorMessage(err);
-        console.log(`[config] GET /config/services failed: ${reason}`);
+        console.log(`[config] GET /api/v1/config/services failed: ${reason}`);
         res.status(503).json('Configuration unavailable');
     }
 });

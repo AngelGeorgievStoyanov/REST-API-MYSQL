@@ -1,6 +1,6 @@
 import multer, { MulterError, StorageEngine } from 'multer';
 import { NextFunction, Request, RequestHandler, Response } from 'express';
-import { MAX_UPLOAD_BYTES, UPLOAD_FIELD_NAME } from '../constants/imageStorage';
+import { IMAGE_UPLOAD_LIMITS, UPLOAD_FIELD_NAME } from '../constants/imageStorage';
 import { ApiError } from '../utils/apiError';
 
 let uploadSingleFile: RequestHandler | null = null;
@@ -13,7 +13,7 @@ function getUploadMiddleware(): RequestHandler {
     if (!uploadSingleFile) {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { storage } = require('./storageConfig') as { storage: StorageEngine };
-        uploadSingleFile = multer({ storage, limits: { fileSize: MAX_UPLOAD_BYTES } }).single(UPLOAD_FIELD_NAME);
+        uploadSingleFile = multer({ storage, limits: IMAGE_UPLOAD_LIMITS }).single(UPLOAD_FIELD_NAME);
     }
     return uploadSingleFile;
 }

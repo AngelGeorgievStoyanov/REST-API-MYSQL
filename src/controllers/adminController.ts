@@ -1,5 +1,6 @@
 import express from 'express';
-import { ADMIN_OR_MODERATOR_ROLES, ADMIN_ROLES } from '../constants/admin';
+import { authConfig } from '../config/auth';
+import { ADMIN_OR_MODERATOR_ROLES, ADMIN_RATE_LIMIT_MAX, ADMIN_ROLES } from '../constants/admin';
 import {
     adminUserService,
     failedLogService,
@@ -8,9 +9,13 @@ import {
 } from '../container';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { requireRole } from '../middlewares/authBoundary';
+import { authRateLimit } from '../middlewares/authRateLimit';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
+import { validateRequest } from '../validation/validateRequest';
+import { userIdParams } from '../validation/schemas/common.schemas';
+import { adminUserUpdateSchema, failedLogDeleteSchema } from '../validation/schemas/admin.schemas';
 
 /**
  * Administrative surface. Every operation is guarded by the account role of the
@@ -18,44 +23,64 @@ import { routeParam } from '../utils/routeParam';
  */
 const adminController = express.Router();
 
+/** Abuse protection of an expensive, privileged surface. */
+const adminLimiter = authRateLimit('admin', ADMIN_RATE_LIMIT_MAX, authConfig.rateLimit);
 const adminOrModerator = requireRole([...ADMIN_OR_MODERATOR_ROLES]);
 const adminOnly = requireRole([...ADMIN_ROLES]);
 
-adminController.get('/users', adminOrModerator, asyncHandler(async (_req, res) => {
+adminController.get('/users', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
     res.status(200).json(await adminUserService.listUsers());
 }));
 
-adminController.put('/users/:userId', adminOnly, asyncHandler(async (req, res) => {
-    res.status(200).json(await adminUserService.updateUser(routeParam(req.params.userId), req.body));
-}));
+adminController.put(
+    '/users/:userId',
+    adminLimiter,
+    validateRequest({ params: userIdParams, body: adminUserUpdateSchema }),
+    adminOnly,
+    asyncHandler(async (req, res) => {
+        res.status(200).json(await adminUserService.updateUser(routeParam(req.params.userId), req.body));
+    }),
+);
 
-adminController.delete('/users/:userId', adminOrModerator, asyncHandler(async (req, res) => {
-    await adminUserService.deleteUser(routeParam(req.params.userId));
-    res.status(204).send();
-}));
+adminController.delete(
+    '/users/:userId',
+    adminLimiter,
+    validateRequest({ params: userIdParams }),
+    adminOrModerator,
+    asyncHandler(async (req, res) => {
+        await adminUserService.deleteUser(routeParam(req.params.userId));
+        res.status(204).send();
+    }),
+);
 
-adminController.get('/failed-login-logs', adminOrModerator, asyncHandler(async (_req, res) => {
+adminController.get('/failed-login-logs', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
     res.status(200).json(await failedLogService.listAll());
 }));
 
-adminController.delete('/failed-login-logs', adminOrModerator, asyncHandler(async (req, res) => {
-    res.status(200).json({ deleted: await failedLogService.deleteByIds(req.body) });
-}));
+adminController.delete(
+    '/failed-login-logs',
+    adminLimiter,
+    validateRequest({ body: failedLogDeleteSchema }),
+    adminOrModerator,
+    asyncHandler(async (req, res) => {
+        res.status(200).json({ deleted: await failedLogService.deleteByIds(req.body) });
+    }),
+);
 
-adminController.get('/route-not-found-logs', adminOrModerator, asyncHandler(async (_req, res) => {
+adminController.get('/route-not-found-logs', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
     res.status(200).json(await routeNotFoundLogsService.listEvents());
 }));
 
-adminController.get('/images/cloud', adminOrModerator, asyncHandler(async (_req, res) => {
+adminController.get('/images/cloud', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
     res.status(200).json(await imageInventoryService.cloudImages());
 }));
 
-adminController.get('/images/database', adminOrModerator, asyncHandler(async (_req, res) => {
+adminController.get('/images/database', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
     res.status(200).json(await imageInventoryService.databaseImages());
 }));
 
 /** Objects that exist in GCS but have no `images` row are orphaned uploads. */
-adminController.get('/images/orphans', adminOrModerator, asyncHandler(async (_req, res) => {
+adminController.get('/images/orphans', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
     res.status(200).json(await imageInventoryService.compare());
 }));
 

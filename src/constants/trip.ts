@@ -1,5 +1,3 @@
-import { TripSort } from '../model/trip';
-
 /** Dynamic config keys the Trips slice reads from the runtime cache. */
 export const GROUP_SELECT_TYPE = 'group_type';
 export const TRANSPORT_SELECT_TYPE = 'transport';
@@ -12,7 +10,7 @@ export const FIRST_DAY_NUMBER = 1;
 /** `trips.countPeoples` is NOT NULL in the live schema while the API has no people count. */
 export const DEFAULT_COUNT_PEOPLES = 1;
 
-export const TRIP_SORTS: TripSort[] = ['newest', 'oldest'];
+export const TRIP_SORTS = ['newest', 'oldest'] as const;
 
 export const DEFAULT_PAGE = 1;
 export const DEFAULT_LIMIT = 20;

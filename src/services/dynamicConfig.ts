@@ -1,5 +1,5 @@
-import { IConfigRepository } from '../interface/config-repository';
 import { SelectConfig, ServiceConfig } from '../model/config';
+import { ConfigRepository } from '../repositories/configRepository';
 import { getErrorMessage } from '../utils/error';
 import { EnvironmentConfig } from '../config/environment';
 
@@ -9,13 +9,13 @@ export interface DynamicConfig {
     loadedAt: number;
 }
 
-let repository: IConfigRepository | null = null;
+let repository: ConfigRepository | null = null;
 let currentConfig: DynamicConfig | null = null;
 let environment: EnvironmentConfig | null = null;
 let refreshInFlight: Promise<void> | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-async function init(configRepository: IConfigRepository, configEnvironment: EnvironmentConfig): Promise<void> {
+async function init(configRepository: ConfigRepository, configEnvironment: EnvironmentConfig): Promise<void> {
     repository = configRepository;
     environment = configEnvironment;
 

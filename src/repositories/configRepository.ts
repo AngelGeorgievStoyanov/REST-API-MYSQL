@@ -5,7 +5,6 @@ import {
     ServiceConfig as PrismaServiceConfig,
     ServiceType as PrismaServiceType,
 } from '@prisma/client';
-import { IConfigRepository } from '../interface/config-repository';
 import {
     SelectConfig,
     SelectOption,
@@ -57,10 +56,10 @@ const toServiceConfig = (row: PrismaServiceType, configs: ServiceConfigEntry[]):
 /**
  * Persistence layer for dynamic configuration.
  *
- * Uses the shared PrismaClient (Prisma is the ORM) — no mysqlPool,
- * no raw SQL here. Returns domain models from `src/model/config.ts`.
+ * Uses the shared PrismaClient (Prisma is the ORM) and no raw SQL. Returns domain
+ * models from `src/model/config.ts`.
  */
-export class ConfigRepository implements IConfigRepository {
+export class ConfigRepository {
     constructor(private readonly prisma: PrismaClient) { }
 
     async getSelectTypes(): Promise<SelectConfig[]> {

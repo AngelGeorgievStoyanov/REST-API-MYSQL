@@ -106,7 +106,10 @@ export interface TripWriteRequest {
 }
 
 export interface PointCreateRequest {
-    /** The day (a `trips` row) the point is created in; the trip follows from it. */
+    /**
+     * The API's name for the day the point is created in. Its value is the
+     * `Trip.id` of that day row — a day row has no separate identifier.
+     */
     dayId: number;
     title: string;
     description: string | null;

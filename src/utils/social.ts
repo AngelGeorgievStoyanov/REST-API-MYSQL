@@ -4,6 +4,8 @@ import {
     MAX_COMMENT_PAGE_SIZE,
     MAX_REPORT_REASON_LENGTH,
     SOCIAL_TARGET_TYPE,
+    SOCIAL_TARGET_TYPE_INPUT,
+    SOCIAL_TARGET_TYPE_INPUT_VALUES,
 } from '../constants/social';
 import { CommentCreateRequest, CommentUpdateRequest } from '../model/comment';
 import { SocialTargetRef, SocialTargetType } from '../model/social';
@@ -11,28 +13,17 @@ import { ApiError } from './apiError';
 import { firstValue } from './utils';
 import { asRecord, optionalPositiveInt, optionalString, parsePositiveId, requireTrimmedString } from './validation';
 
-/**
- * Accepted `targetType` values of the social request bodies. `day` is the API
- * wording for a `trips` row; `trip` is the name of that row in `target_types`.
- */
-const TARGET_TYPE_ALIASES: Record<string, SocialTargetType> = {
-    tripgroup: SOCIAL_TARGET_TYPE.TRIP_GROUP,
-    day: SOCIAL_TARGET_TYPE.DAY,
-    trip: SOCIAL_TARGET_TYPE.DAY,
-    point: SOCIAL_TARGET_TYPE.POINT,
-    image: SOCIAL_TARGET_TYPE.IMAGE,
-};
-
 const ACCEPTED_TARGET_TYPES = 'tripGroup, day, point, image';
 
 function parseTargetType(value: unknown, field: string): SocialTargetType {
     const raw = firstValue(value);
     if (typeof raw !== 'string') throw ApiError.validation(`"${field}" is required.`);
 
-    const targetType = TARGET_TYPE_ALIASES[raw.trim().toLowerCase()];
-    if (!targetType) throw ApiError.validation(`"${field}" must be one of: ${ACCEPTED_TARGET_TYPES}.`);
+    const normalized = raw.trim().toLowerCase();
+    const accepted = SOCIAL_TARGET_TYPE_INPUT_VALUES.find((candidate) => candidate === normalized);
+    if (accepted === undefined) throw ApiError.validation(`"${field}" must be one of: ${ACCEPTED_TARGET_TYPES}.`);
 
-    return targetType;
+    return SOCIAL_TARGET_TYPE_INPUT[accepted];
 }
 
 function recordOf(value: unknown, what: string): Record<string, unknown> {

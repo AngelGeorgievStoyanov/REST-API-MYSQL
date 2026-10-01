@@ -192,21 +192,21 @@ export class TripService {
     }
 
     async updateTrip(actor: TripActor, rawId: string, body: unknown): Promise<TripDetails> {
-        const id = parseTripId(rawId);
-        const ownerId = await this.assertCanModify(actor, id);
+        const tripGroupId = parseTripId(rawId);
+        const ownerId = await this.assertCanModify(actor, tripGroupId);
         const request = parseTripBody(body);
 
-        await this.repository.updateTripMetadata(id, toMetadataInput(ownerId, request));
+        await this.repository.updateTripMetadata(tripGroupId, toMetadataInput(ownerId, request));
 
         return this.getTrip(rawId, actor);
     }
 
     async deleteTrip(actor: TripActor, rawId: string): Promise<void> {
-        const id = parseTripId(rawId);
-        await this.assertCanModify(actor, id);
+        const tripGroupId = parseTripId(rawId);
+        await this.assertCanModify(actor, tripGroupId);
 
-        await this.imageStorage.removeMany(await this.repository.listTripImagePaths(id));
-        await this.repository.delete(id);
+        await this.imageStorage.removeMany(await this.repository.listTripImagePaths(tripGroupId));
+        await this.repository.delete(tripGroupId);
     }
 
     private async toDetails(row: TripGroupDetailsRow, actor: TripActor | null): Promise<TripDetails> {
@@ -221,84 +221,93 @@ export class TripService {
     }
 
     async createDay(actor: TripActor, rawTripId: string, body: unknown): Promise<TripDay> {
-        const tripId = parseTripId(rawTripId);
-        await this.assertCanModify(actor, tripId);
+        const tripGroupId = parseTripId(rawTripId);
+        await this.assertCanModify(actor, tripGroupId);
 
         const request = parseDayCreateBody(body);
-        const dayNumber = request.dayNumber ?? (await this.repository.findMaxDayNumber(tripId)) + 1;
+        const dayNumber = request.dayNumber ?? (await this.repository.findMaxDayNumber(tripGroupId)) + 1;
 
-        const canonicalDay = await this.repository.findCanonicalDay(tripId);
-        const dayId = await this.repository.createDay(
-            tripId,
+        const canonicalDay = await this.repository.findCanonicalDay(tripGroupId);
+        // A day IS a `trips` row, so the id it is created with is the `tripId`
+        // every image of that day is attached through.
+        const tripId = await this.repository.createDay(
+            tripGroupId,
             dayNumber,
             { title: request.title, description: request.description },
             actor.id,
             canonicalDay?.typeOfPeople ?? null,
             canonicalDay?.transport ?? null,
         );
-        if (dayId === null) throw ApiError.conflict(`Day ${dayNumber} already exists in this trip.`);
+        if (tripId === null) throw ApiError.conflict(`Day ${dayNumber} already exists in this trip.`);
 
-        return this.getDayRow(dayId, actor);
+        return this.getDayRow(tripId, actor);
     }
 
     async updateDay(actor: TripActor, rawTripId: string, rawDayId: string, body: unknown): Promise<TripDay> {
-        const tripId = parseTripId(rawTripId);
-        const dayId = parsePositiveId(rawDayId, 'Day id');
-        await this.assertDayAccess(actor, tripId, dayId);
+        const tripGroupId = parseTripId(rawTripId);
+        const tripId = parsePositiveId(rawDayId, 'Day id');
+        await this.assertDayAccess(actor, tripGroupId, tripId);
 
         const request = parseDayUpdateBody(body);
-        await this.repository.updateDay(dayId, request);
+        await this.repository.updateDay(tripId, request);
 
-        return this.getDayRow(dayId, actor);
+        return this.getDayRow(tripId, actor);
     }
 
     async reorderDays(actor: TripActor, rawTripId: string, body: unknown): Promise<TripDay[]> {
-        const tripId = parseTripId(rawTripId);
-        await this.assertCanModify(actor, tripId);
+        const tripGroupId = parseTripId(rawTripId);
+        await this.assertCanModify(actor, tripGroupId);
 
-        const dayIds = parseIdList(body, 'dayIds', 1);
-        const existing = await this.repository.listDayIds(tripId);
-        if (existing.length !== dayIds.length || dayIds.some((dayId) => !existing.includes(dayId))) {
+        // The API calls the ordered ids `dayIds`; each entry is a `trips` row id.
+        const tripIds = parseIdList(body, 'dayIds', 1);
+        const existing = await this.repository.listDayIds(tripGroupId);
+        if (existing.length !== tripIds.length || tripIds.some((tripId) => !existing.includes(tripId))) {
             throw ApiError.validation('"dayIds" must contain exactly all days of this trip.');
         }
 
-        await this.repository.reorderDays(tripId, dayIds);
+        await this.repository.reorderDays(tripGroupId, tripIds);
 
-        const days = await this.repository.listDayRows(tripId);
+        const days = await this.repository.listDayRows(tripGroupId);
         const states = await this.socialStates.statesFor(actor.id, days.flatMap((day) => toDayTargets(day)));
         return days.map((day) => toDayDto(day, states));
     }
 
     async deleteDay(actor: TripActor, rawTripId: string, rawDayId: string): Promise<void> {
-        const tripId = parseTripId(rawTripId);
-        const dayId = parsePositiveId(rawDayId, 'Day id');
-        await this.assertDayAccess(actor, tripId, dayId);
+        const tripGroupId = parseTripId(rawTripId);
+        const tripId = parsePositiveId(rawDayId, 'Day id');
+        await this.assertDayAccess(actor, tripGroupId, tripId);
 
-        if (await this.repository.countDays(tripId) <= 1) {
+        if (await this.repository.countDays(tripGroupId) <= 1) {
             throw ApiError.conflict('The last day of a trip cannot be deleted.');
         }
 
         // Storage is cleared before the rows, so a storage failure leaves the
-        // database untouched instead of pointing at missing files.
+        // database untouched instead of pointing at missing files. Day images hang
+        // off `Image.tripId`, point images off `Image.pointId` on that same day row.
         const filePaths = [
-            ...(await this.repository.listDayImagePaths(dayId)),
-            ...(await this.repository.listPointImagePathsOfDay(dayId)),
+            ...(await this.repository.listDayImagePaths(tripId)),
+            ...(await this.repository.listPointImagePathsOfDay(tripId)),
         ];
         await this.imageStorage.removeMany(filePaths);
 
-        await this.repository.deleteDay(dayId);
+        await this.repository.deleteDay(tripId);
     }
 
     async assertDayImageUpload(actor: TripActor, rawTripId: string, rawDayId: string): Promise<void> {
         await this.assertDayAccess(actor, parseTripId(rawTripId), parsePositiveId(rawDayId, 'Day id'));
     }
 
+    /**
+     * Attaches a day image to the day ROW: `Image.tripId` is the `Trip.id` of that
+     * day, never the trip group and never `dayNumber`. There is no separate day
+     * entity, so no other identifier exists for a day.
+     */
     async addDayImage(actor: TripActor, rawTripId: string, rawDayId: string, filePath: string): Promise<ImageDto> {
-        const tripId = parseTripId(rawTripId);
-        const dayId = parsePositiveId(rawDayId, 'Day id');
-        await this.assertDayAccess(actor, tripId, dayId);
+        const tripGroupId = parseTripId(rawTripId);
+        const tripId = parsePositiveId(rawDayId, 'Day id');
+        await this.assertDayAccess(actor, tripGroupId, tripId);
 
-        const imageId = await this.repository.createImage({ ownerId: actor.id, filePath, tripId: dayId });
+        const imageId = await this.repository.createImage({ ownerId: actor.id, filePath, tripId });
         return toImageDto({ id: imageId, filePath });
     }
 
@@ -314,25 +323,29 @@ export class TripService {
         await this.repository.deleteImage(imageId);
     }
 
-    private async getDayRow(dayId: number, actor: TripActor): Promise<TripDay> {
-        const row = await this.repository.findDayRow(dayId);
+    private async getDayRow(tripId: number, actor: TripActor): Promise<TripDay> {
+        const row = await this.repository.findDayRow(tripId);
         if (!row) throw ApiError.notFound('Day not found.');
 
         const states = await this.socialStates.statesFor(actor.id, toDayTargets(row));
         return toDayDto(row, states);
     }
 
-    /** The day must belong to the trip from the URL; ownership is checked on the trip. */
-    private async assertDayAccess(actor: TripActor, tripId: number, dayId: number): Promise<DayContext> {
-        const day = await this.repository.findDayContext(dayId);
-        if (!day || day.tripGroupId !== tripId) throw ApiError.notFound('Day not found.');
+    /**
+     * The URL's `:dayId` is a `trips` row id (`Image.tripId` for that day), and the
+     * URL's `:tripId` is its `trip_groups` row. The day must belong to the group of
+     * the URL, and ownership is checked on that group.
+     */
+    private async assertDayAccess(actor: TripActor, tripGroupId: number, tripId: number): Promise<DayContext> {
+        const day = await this.repository.findDayContext(tripId);
+        if (!day || day.tripGroupId !== tripGroupId) throw ApiError.notFound('Day not found.');
 
-        await this.assertCanModify(actor, tripId);
+        await this.assertCanModify(actor, tripGroupId);
         return day;
     }
 
-    private async assertCanModify(actor: TripActor, tripId: number): Promise<string> {
-        const ownerId = await this.repository.findOwnerId(tripId);
+    private async assertCanModify(actor: TripActor, tripGroupId: number): Promise<string> {
+        const ownerId = await this.repository.findOwnerId(tripGroupId);
         if (ownerId === null) throw ApiError.tripNotFound();
 
         if (!canModifyTrip(actor, ownerId)) {

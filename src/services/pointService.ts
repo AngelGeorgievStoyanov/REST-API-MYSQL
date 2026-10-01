@@ -76,10 +76,11 @@ export class PointService {
 
     async createPoint(actor: TripActor, body: unknown): Promise<TripPoint> {
         const request = parsePointCreateBody(body);
+        // The request field is the API's `dayId`; its value is the day row's `Trip.id`.
         const day = await this.assertDayAccess(actor, request.dayId);
 
-        const pointNumber = (await this.repository.findMaxNumber(day.id)) + 1;
-        const pointId = await this.repository.create(day.id, actor.id, toPointFields(request), pointNumber);
+        const pointNumber = (await this.repository.findMaxNumber(day.tripId)) + 1;
+        const pointId = await this.repository.create(day.tripId, actor.id, toPointFields(request), pointNumber);
 
         return this.getPoint(String(pointId), actor);
     }
@@ -101,23 +102,23 @@ export class PointService {
         // Storage is cleared before the row, so a storage failure leaves the
         // database untouched instead of pointing at missing files.
         await this.imageStorage.removeMany(await this.repository.listImagePaths(pointId));
-        await this.repository.deleteAndCompact(point.dayId, pointId, toNumberOrNull(point.pointNumber) ?? 0);
+        await this.repository.deleteAndCompact(point.tripId, pointId, toNumberOrNull(point.pointNumber) ?? 0);
     }
 
     /** `pointIds` is the complete, ordered list of the points of one day. */
     async reorderPoints(actor: TripActor, rawDayId: string, body: unknown): Promise<TripPoint[]> {
-        const dayId = parsePositiveId(rawDayId, 'Day id');
-        await this.assertDayAccess(actor, dayId);
+        const tripId = parsePositiveId(rawDayId, 'Day id');
+        await this.assertDayAccess(actor, tripId);
 
         const pointIds = parseIdList(body, 'pointIds', 0);
-        const existing = await this.repository.listIds(dayId);
+        const existing = await this.repository.listIds(tripId);
         if (existing.length !== pointIds.length || pointIds.some((pointId) => !existing.includes(pointId))) {
             throw ApiError.validation('"pointIds" must contain exactly all points of this day.');
         }
 
-        await this.repository.reorder(dayId, pointIds);
+        await this.repository.reorder(tripId, pointIds);
 
-        return this.mapRows(await this.repository.listRows(dayId), actor);
+        return this.mapRows(await this.repository.listRows(tripId), actor);
     }
 
     async assertPointImageUpload(actor: TripActor, rawPointId: string): Promise<void> {
@@ -151,8 +152,9 @@ export class PointService {
         return rows.map((row) => toPointDto(row, states));
     }
 
-    private async assertDayAccess(actor: TripActor, dayId: number): Promise<PointDayContext> {
-        const day = await this.repository.findDayContext(dayId);
+    /** The day row the points live in: `tripId` is that row's `Trip.id`. */
+    private async assertDayAccess(actor: TripActor, tripId: number): Promise<PointDayContext> {
+        const day = await this.repository.findDayContext(tripId);
         if (!day) throw ApiError.notFound('Day not found.');
 
         this.assertCanModify(actor, day);

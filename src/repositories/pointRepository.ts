@@ -14,15 +14,19 @@ export interface PointWriteFields {
 
 export interface PointContext {
     id: number;
-    dayId: number;
+    /** The day row this point belongs to: `Point.tripId`, i.e. a `Trip.id`. */
+    tripId: number;
     pointNumber: string;
     tripGroupId: number | null;
     groupOwnerId: string | null;
 }
 
-/** The day (a `trips` row) a point belongs to, together with the owner of its trip group. */
+/**
+ * The day (a `trips` row) a point belongs to, together with the owner of its trip
+ * group. `tripId` is the `Trip.id` of that row — a day has no other identifier.
+ */
 export interface PointDayContext {
-    id: number;
+    tripId: number;
     tripGroupId: number | null;
     groupOwnerId: string | null;
 }
@@ -41,14 +45,14 @@ export type PointRow = Prisma.PointGetPayload<{ include: typeof pointInclude }>;
 export class PointRepository {
     constructor(private readonly prisma: PrismaClient) { }
 
-    async findDayContext(dayId: number): Promise<PointDayContext | null> {
+    async findDayContext(tripId: number): Promise<PointDayContext | null> {
         const day = await this.prisma.trip.findUnique({
-            where: { id: dayId },
+            where: { id: tripId },
             select: { id: true, tripGroupId: true, tripGroup: { select: { ownerId: true } } },
         });
         if (!day) return null;
 
-        return { id: day.id, tripGroupId: day.tripGroupId, groupOwnerId: day.tripGroup?.ownerId ?? null };
+        return { tripId: day.id, tripGroupId: day.tripGroupId, groupOwnerId: day.tripGroup?.ownerId ?? null };
     }
 
     /** A point without a day cannot be addressed, so it is reported as missing. */
@@ -66,7 +70,7 @@ export class PointRepository {
 
         return {
             id: point.id,
-            dayId: point.tripId,
+            tripId: point.tripId,
             pointNumber: point.pointNumber,
             tripGroupId: point.trip?.tripGroupId ?? null,
             groupOwnerId: point.trip?.tripGroup?.ownerId ?? null,
@@ -77,25 +81,25 @@ export class PointRepository {
         return this.prisma.point.findUnique({ where: { id: pointId }, include: pointInclude });
     }
 
-    async listRows(dayId: number): Promise<PointRow[]> {
-        const points = await this.prisma.point.findMany({ where: { tripId: dayId }, include: pointInclude });
+    async listRows(tripId: number): Promise<PointRow[]> {
+        const points = await this.prisma.point.findMany({ where: { tripId }, include: pointInclude });
         return sortPointsByNumber(points);
     }
 
-    async listIds(dayId: number): Promise<number[]> {
-        const points = await this.prisma.point.findMany({ where: { tripId: dayId }, select: { id: true } });
+    async listIds(tripId: number): Promise<number[]> {
+        const points = await this.prisma.point.findMany({ where: { tripId }, select: { id: true } });
         return points.map((point) => point.id);
     }
 
-    async findMaxNumber(dayId: number): Promise<number> {
-        const points = await this.prisma.point.findMany({ where: { tripId: dayId }, select: { pointNumber: true } });
+    async findMaxNumber(tripId: number): Promise<number> {
+        const points = await this.prisma.point.findMany({ where: { tripId }, select: { pointNumber: true } });
         return points.reduce((max, point) => {
             const value = toNumberOrNull(point.pointNumber);
             return value !== null && value > max ? value : max;
         }, 0);
     }
 
-    async create(dayId: number, ownerId: string, fields: PointWriteFields, pointNumber: number): Promise<number> {
+    async create(tripId: number, ownerId: string, fields: PointWriteFields, pointNumber: number): Promise<number> {
         const point = await this.prisma.point.create({
             data: {
                 name: fields.name,
@@ -104,7 +108,7 @@ export class PointRepository {
                 lng: fields.longitude,
                 pointNumber: String(pointNumber),
                 ownerId,
-                tripId: dayId,
+                tripId,
                 createdAt: new Date(),
             },
             select: { id: true },
@@ -129,13 +133,13 @@ export class PointRepository {
      * `pointNumber` stays a dense 1..n sequence. The decrement runs over the
      * remaining rows of the day fetched inside the same transaction.
      */
-    async deleteAndCompact(dayId: number, pointId: number, deletedNumber: number): Promise<void> {
+    async deleteAndCompact(tripId: number, pointId: number, deletedNumber: number): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
             await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.POINT, pointId);
             await tx.point.delete({ where: { id: pointId } });
 
             const remaining = await tx.point.findMany({
-                where: { tripId: dayId },
+                where: { tripId },
                 select: { id: true, pointNumber: true },
             });
             for (const row of remaining) {
@@ -147,17 +151,17 @@ export class PointRepository {
     }
 
     /** Renumbers every point of the day to its position in `pointIds`, in one transaction. */
-    async reorder(dayId: number, pointIds: number[]): Promise<void> {
+    async reorder(tripId: number, pointIds: number[]): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
             for (const [index, pointId] of pointIds.entries()) {
                 await tx.point.updateMany({
-                    where: { id: pointId, tripId: dayId },
+                    where: { id: pointId, tripId },
                     data: { pointNumber: String(-(index + 1)) },
                 });
             }
             for (const [index, pointId] of pointIds.entries()) {
                 await tx.point.updateMany({
-                    where: { id: pointId, tripId: dayId },
+                    where: { id: pointId, tripId },
                     data: { pointNumber: String(index + 1) },
                 });
             }
@@ -181,6 +185,11 @@ export class PointRepository {
         await this.prisma.image.delete({ where: { id: imageId } });
     }
 
+    /**
+     * Appends one image row attached to a point: `Image.pointId` carries the
+     * `Point.id`. `tripId` stays unset, so the row belongs to the point only and
+     * cannot be mistaken for a day image.
+     */
     async createImage(pointId: number, ownerId: string, filePath: string): Promise<number> {
         const image = await this.prisma.image.create({
             data: { ownerId, filePath, pointId, createdAt: new Date() },

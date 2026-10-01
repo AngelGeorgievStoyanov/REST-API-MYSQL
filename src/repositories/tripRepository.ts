@@ -14,6 +14,11 @@ import { pointInclude } from './pointRepository';
  *  - likes / comments are polymorphic (`target_types` + `targetId`) and may
  *    point either at the trip group or at a single day row, which is why the
  *    day rows have to be handed over for aggregation.
+ *
+ * There is no separate day entity: a day IS a `trips` row, so its only
+ * identifier is that row's `Trip.id`. That id is what an image of the day is
+ * attached through (`Image.tripId`), and `dayNumber` is never an identifier.
+ * Day-row parameters are therefore named `tripId` here.
  */
 
 /** Trip/group level write input; day and point rows have their own endpoints. */
@@ -271,9 +276,9 @@ export class TripRepository {
         return day?.dayNumber ?? 0;
     }
 
-    async findDayContext(dayId: number): Promise<DayContext | null> {
+    async findDayContext(tripId: number): Promise<DayContext | null> {
         return this.prisma.trip.findUnique({
-            where: { id: dayId },
+            where: { id: tripId },
             select: { id: true, dayNumber: true, tripGroupId: true, ownerId: true },
         });
     }
@@ -299,9 +304,9 @@ export class TripRepository {
         }
     }
 
-    async updateDay(dayId: number, fields: DayUpdateFields): Promise<void> {
+    async updateDay(tripId: number, fields: DayUpdateFields): Promise<void> {
         await this.prisma.trip.update({
-            where: { id: dayId },
+            where: { id: tripId },
             data: {
                 ...(fields.title !== undefined ? { title: fields.title } : {}),
                 ...(fields.description !== undefined ? { description: fields.description } : {}),
@@ -310,23 +315,23 @@ export class TripRepository {
     }
 
     /**
-     * Renumbers every day of the group to its position in `dayIds`. The UNIQUE
+     * Renumbers every day of the group to its position in `tripIds`. The UNIQUE
      * (tripGroupId, dayNumber) constraint makes a direct write fail mid-swap, so
      * every day is parked on a temporary negative number first.
      */
-    async reorderDays(groupId: number, dayIds: number[]): Promise<void> {
+    async reorderDays(groupId: number, tripIds: number[]): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
-            for (const [index, dayId] of dayIds.entries()) {
-                await tx.trip.update({ where: { id: dayId }, data: { dayNumber: -(index + 1) } });
+            for (const [index, tripId] of tripIds.entries()) {
+                await tx.trip.update({ where: { id: tripId }, data: { dayNumber: -(index + 1) } });
             }
-            for (const [index, dayId] of dayIds.entries()) {
-                await tx.trip.update({ where: { id: dayId }, data: { dayNumber: index + 1 } });
+            for (const [index, tripId] of tripIds.entries()) {
+                await tx.trip.update({ where: { id: tripId }, data: { dayNumber: index + 1 } });
             }
         });
     }
 
-    async findDayRow(dayId: number): Promise<DayRow | null> {
-        const day = await this.prisma.trip.findUnique({ where: { id: dayId }, include: dayInclude });
+    async findDayRow(tripId: number): Promise<DayRow | null> {
+        const day = await this.prisma.trip.findUnique({ where: { id: tripId }, include: dayInclude });
         return day ? { ...day, points: sortPointsByNumber(day.points) } : null;
     }
 
@@ -344,23 +349,27 @@ export class TripRepository {
      * their FKs; polymorphic targets (the day and its points) have no FK and are
      * cleared explicitly.
      */
-    async deleteDay(dayId: number): Promise<void> {
+    async deleteDay(tripId: number): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
-            const points = await tx.point.findMany({ where: { tripId: dayId }, select: { id: true } });
+            const points = await tx.point.findMany({ where: { tripId }, select: { id: true } });
             for (const point of points) {
                 await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.POINT, point.id);
             }
-            await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.DAY, dayId);
-            await tx.trip.delete({ where: { id: dayId } });
+            await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.DAY, tripId);
+            await tx.trip.delete({ where: { id: tripId } });
         });
     }
 
-    async listDayImagePaths(dayId: number): Promise<string[]> {
-        const images = await this.prisma.image.findMany({ where: { tripId: dayId }, select: { filePath: true } });
+    /** Image file paths of the day itself, i.e. rows attached through `Image.tripId`. */
+    async listDayImagePaths(tripId: number): Promise<string[]> {
+        const images = await this.prisma.image.findMany({ where: { tripId }, select: { filePath: true } });
         return images.map((image) => image.filePath);
     }
 
-    /** Day images belong to a trip row; point images are owned by the point slice. */
+    /**
+     * Appends one image row attached to a day: `Image.tripId` carries the `Trip.id`
+     * of that day row. `pointId` stays unset, so the row belongs to the day only.
+     */
     async createImage(data: { ownerId: string; filePath: string; tripId: number }): Promise<number> {
         const image = await this.prisma.image.create({
             data: { ...data, createdAt: new Date() },
@@ -422,9 +431,10 @@ export class TripRepository {
         };
     }
 
-    async listPointImagePathsOfDay(dayId: number): Promise<string[]> {
+    /** Image file paths of the points of the day, i.e. rows attached through `Image.pointId`. */
+    async listPointImagePathsOfDay(tripId: number): Promise<string[]> {
         const images = await this.prisma.image.findMany({
-            where: { point: { tripId: dayId } },
+            where: { point: { tripId } },
             select: { filePath: true },
         });
         return images.map((image) => image.filePath);

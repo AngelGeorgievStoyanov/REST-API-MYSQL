@@ -61,7 +61,10 @@ function parsePositiveIntQuery(value: unknown, field: string, fallback: number, 
 function parseSort(value: unknown): TripSort {
     const raw = firstValue(value);
     if (raw === undefined || raw === null || raw === '') return 'newest';
-    if (typeof raw === 'string' && (TRIP_SORTS as string[]).includes(raw)) return raw as TripSort;
+
+    const requested = typeof raw === 'string' ? raw : '';
+    const sort = TRIP_SORTS.find((candidate) => candidate === requested);
+    if (sort !== undefined) return sort;
 
     throw ApiError.validation(`"sort" must be one of: ${TRIP_SORTS.join(', ')}.`);
 }

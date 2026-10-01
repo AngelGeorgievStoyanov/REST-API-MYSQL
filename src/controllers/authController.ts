@@ -10,6 +10,17 @@ import { authRateLimit } from '../middlewares/authRateLimit';
 import { asyncHandler } from '../utils/asyncHandler';
 import { readCookie } from '../utils/auth';
 import { imageUpload, uploadedFileName } from '../storage/imageUpload';
+import { validateRequest } from '../validation/validateRequest';
+import {
+    confirmPasswordSchema,
+    forgotPasswordSchema,
+    loginSchema,
+    registerSchema,
+    resendVerificationSchema,
+    resetPasswordSchema,
+    updateProfileSchema,
+    verifyEmailSchema,
+} from '../validation/schemas/auth.schemas';
 
 /**
  * Authentication routes of API v1 (mounted at `/auth`). The refresh token never
@@ -56,23 +67,43 @@ function loginContext(req: express.Request): LoginContext {
     };
 }
 
-authController.post('/register', attemptLimiter('register'), asyncHandler(async (req, res) => {
-    res.status(201).json(await authService.register(req.body));
-}));
+authController.post(
+    '/register',
+    attemptLimiter('register'),
+    validateRequest({ body: registerSchema }),
+    asyncHandler(async (req, res) => {
+        res.status(201).json(await authService.register(req.body));
+    }),
+);
 
-authController.post('/verify-email', asyncHandler(async (req, res) => {
-    res.status(200).json(await authService.verifyEmail(req.body));
-}));
+authController.post(
+    '/verify-email',
+    attemptLimiter('verify-email'),
+    validateRequest({ body: verifyEmailSchema }),
+    asyncHandler(async (req, res) => {
+        res.status(200).json(await authService.verifyEmail(req.body));
+    }),
+);
 
-authController.post('/resend-verification', emailLimiter('resend-verification'), asyncHandler(async (req, res) => {
-    res.status(200).json(await authService.resendVerification(req.body));
-}));
+authController.post(
+    '/resend-verification',
+    emailLimiter('resend-verification'),
+    validateRequest({ body: resendVerificationSchema }),
+    asyncHandler(async (req, res) => {
+        res.status(200).json(await authService.resendVerification(req.body));
+    }),
+);
 
-authController.post('/login', attemptLimiter('login'), asyncHandler(async (req, res) => {
-    const session = await authService.login(req.body, loginContext(req));
-    setRefreshCookie(res, session);
-    res.status(200).json(session.session);
-}));
+authController.post(
+    '/login',
+    attemptLimiter('login'),
+    validateRequest({ body: loginSchema }),
+    asyncHandler(async (req, res) => {
+        const session = await authService.login(req.body, loginContext(req));
+        setRefreshCookie(res, session);
+        res.status(200).json(session.session);
+    }),
+);
 
 authController.post('/refresh', attemptLimiter('refresh'), asyncHandler(async (req, res) => {
     try {
@@ -96,14 +127,24 @@ authController.get('/me', requireAuthentication, asyncHandler(async (req, res) =
     res.status(200).json(await authService.me(actorFrom(req).id));
 }));
 
-authController.put('/me', requireAuthentication, asyncHandler(async (req, res) => {
-    res.status(200).json(await authService.updateProfile(actorFrom(req).id, req.body));
-}));
+authController.put(
+    '/me',
+    validateRequest({ body: updateProfileSchema }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        res.status(200).json(await authService.updateProfile(actorFrom(req).id, req.body));
+    }),
+);
 
 /** Re-authentication gate used before a sensitive profile change. */
-authController.post('/confirm-password', requireAuthentication, asyncHandler(async (req, res) => {
-    res.status(200).json(await authService.confirmPassword(actorFrom(req).id, req.body));
-}));
+authController.post(
+    '/confirm-password',
+    validateRequest({ body: confirmPasswordSchema }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        res.status(200).json(await authService.confirmPassword(actorFrom(req).id, req.body));
+    }),
+);
 
 authController.get('/me/image', requireAuthentication, asyncHandler(async (req, res) => {
     res.status(200).json(await authService.getProfileImage(actorFrom(req).id));
@@ -118,13 +159,23 @@ authController.delete('/me/image', requireAuthentication, asyncHandler(async (re
     res.status(204).send();
 }));
 
-authController.post('/forgot-password', emailLimiter('forgot-password'), asyncHandler(async (req, res) => {
-    res.status(200).json(await authService.forgotPassword(req.body));
-}));
+authController.post(
+    '/forgot-password',
+    emailLimiter('forgot-password'),
+    validateRequest({ body: forgotPasswordSchema }),
+    asyncHandler(async (req, res) => {
+        res.status(200).json(await authService.forgotPassword(req.body));
+    }),
+);
 
-authController.post('/reset-password', attemptLimiter('reset-password'), asyncHandler(async (req, res) => {
-    res.status(200).json(await authService.resetPassword(req.body));
-}));
+authController.post(
+    '/reset-password',
+    attemptLimiter('reset-password'),
+    validateRequest({ body: resetPasswordSchema }),
+    asyncHandler(async (req, res) => {
+        res.status(200).json(await authService.resetPassword(req.body));
+    }),
+);
 
 authController.use(apiErrorMiddleware);
 authController.use(routeNotFoundLogsMiddleware);

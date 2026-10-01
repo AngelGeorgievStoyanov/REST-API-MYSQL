@@ -2,6 +2,7 @@ import express from 'express';
 import adminController from '../controllers/adminController';
 import authController from '../controllers/authController';
 import commentController from '../controllers/commentController';
+import configController from '../controllers/configController';
 import favoriteController from '../controllers/favoriteController';
 import imagesController from '../controllers/imagesController';
 import likeController from '../controllers/likeController';
@@ -21,6 +22,7 @@ const apiRouterV1 = express.Router();
 
 apiRouterV1.use('/auth', authController);
 apiRouterV1.use('/admin', adminController);
+apiRouterV1.use('/config', configController);
 apiRouterV1.use(commentController);
 // The comments router serves several prefixes from the v1 root, so it cannot host
 // the terminal logger itself (that would capture every unmatched v1 path). Its own

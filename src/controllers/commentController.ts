@@ -5,6 +5,9 @@ import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
+import { validateRequest } from '../validation/validateRequest';
+import { commentIdParams, imageIdParams, pointIdParams, tripDayParams, tripGroupIdParams } from '../validation/schemas/common.schemas';
+import { commentBodySchema, commentPageQuerySchema } from '../validation/schemas/social.schemas';
 
 /**
  * Comment routes of API v1. Reading is public (a trip is public), writing needs
@@ -14,91 +17,137 @@ import { routeParam } from '../utils/routeParam';
  */
 const commentController = express.Router();
 
-commentController.get('/trip-groups/:tripGroupId/comments', asyncHandler(async (req, res) => {
-    const comments = await commentService.listForTarget(
-        SOCIAL_TARGET_TYPE.TRIP_GROUP,
-        routeParam(req.params.tripGroupId),
-        req.query,
-    );
-    res.status(200).json(comments);
-}));
+commentController.get(
+    '/trip-groups/:tripGroupId/comments',
+    validateRequest({ params: tripGroupIdParams, query: commentPageQuerySchema }),
+    asyncHandler(async (req, res) => {
+        const comments = await commentService.listForTarget(
+            SOCIAL_TARGET_TYPE.TRIP_GROUP,
+            routeParam(req.params.tripGroupId),
+            req.query,
+        );
+        res.status(200).json(comments);
+    }),
+);
 
-commentController.post('/trip-groups/:tripGroupId/comments', requireAuthentication, asyncHandler(async (req, res) => {
-    const comment = await commentService.create(
-        actorFrom(req),
-        SOCIAL_TARGET_TYPE.TRIP_GROUP,
-        routeParam(req.params.tripGroupId),
-        req.body,
-    );
-    res.status(201).json(comment);
-}));
+commentController.post(
+    '/trip-groups/:tripGroupId/comments',
+    validateRequest({ params: tripGroupIdParams, body: commentBodySchema }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        const comment = await commentService.create(
+            actorFrom(req),
+            SOCIAL_TARGET_TYPE.TRIP_GROUP,
+            routeParam(req.params.tripGroupId),
+            req.body,
+        );
+        res.status(201).json(comment);
+    }),
+);
 
-commentController.get('/trips/:tripId/days/:dayId/comments', asyncHandler(async (req, res) => {
-    const comments = await commentService.listForDay(
-        routeParam(req.params.tripId),
-        routeParam(req.params.dayId),
-        req.query,
-    );
-    res.status(200).json(comments);
-}));
+commentController.get(
+    '/trips/:tripId/days/:dayId/comments',
+    validateRequest({ params: tripDayParams, query: commentPageQuerySchema }),
+    asyncHandler(async (req, res) => {
+        const comments = await commentService.listForDay(
+            routeParam(req.params.tripId),
+            routeParam(req.params.dayId),
+            req.query,
+        );
+        res.status(200).json(comments);
+    }),
+);
 
-commentController.post('/trips/:tripId/days/:dayId/comments', requireAuthentication, asyncHandler(async (req, res) => {
-    const comment = await commentService.createForDay(
-        actorFrom(req),
-        routeParam(req.params.tripId),
-        routeParam(req.params.dayId),
-        req.body,
-    );
-    res.status(201).json(comment);
-}));
+commentController.post(
+    '/trips/:tripId/days/:dayId/comments',
+    validateRequest({ params: tripDayParams, body: commentBodySchema }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        const comment = await commentService.createForDay(
+            actorFrom(req),
+            routeParam(req.params.tripId),
+            routeParam(req.params.dayId),
+            req.body,
+        );
+        res.status(201).json(comment);
+    }),
+);
 
-commentController.get('/points/:pointId/comments', asyncHandler(async (req, res) => {
-    const comments = await commentService.listForTarget(
-        SOCIAL_TARGET_TYPE.POINT,
-        routeParam(req.params.pointId),
-        req.query,
-    );
-    res.status(200).json(comments);
-}));
+commentController.get(
+    '/points/:pointId/comments',
+    validateRequest({ params: pointIdParams, query: commentPageQuerySchema }),
+    asyncHandler(async (req, res) => {
+        const comments = await commentService.listForTarget(
+            SOCIAL_TARGET_TYPE.POINT,
+            routeParam(req.params.pointId),
+            req.query,
+        );
+        res.status(200).json(comments);
+    }),
+);
 
-commentController.post('/points/:pointId/comments', requireAuthentication, asyncHandler(async (req, res) => {
-    const comment = await commentService.create(
-        actorFrom(req),
-        SOCIAL_TARGET_TYPE.POINT,
-        routeParam(req.params.pointId),
-        req.body,
-    );
-    res.status(201).json(comment);
-}));
+commentController.post(
+    '/points/:pointId/comments',
+    validateRequest({ params: pointIdParams, body: commentBodySchema }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        const comment = await commentService.create(
+            actorFrom(req),
+            SOCIAL_TARGET_TYPE.POINT,
+            routeParam(req.params.pointId),
+            req.body,
+        );
+        res.status(201).json(comment);
+    }),
+);
 
-commentController.get('/images/:imageId/comments', asyncHandler(async (req, res) => {
-    const comments = await commentService.listForTarget(
-        SOCIAL_TARGET_TYPE.IMAGE,
-        routeParam(req.params.imageId),
-        req.query,
-    );
-    res.status(200).json(comments);
-}));
+commentController.get(
+    '/images/:imageId/comments',
+    validateRequest({ params: imageIdParams, query: commentPageQuerySchema }),
+    asyncHandler(async (req, res) => {
+        const comments = await commentService.listForTarget(
+            SOCIAL_TARGET_TYPE.IMAGE,
+            routeParam(req.params.imageId),
+            req.query,
+        );
+        res.status(200).json(comments);
+    }),
+);
 
-commentController.post('/images/:imageId/comments', requireAuthentication, asyncHandler(async (req, res) => {
-    const comment = await commentService.create(
-        actorFrom(req),
-        SOCIAL_TARGET_TYPE.IMAGE,
-        routeParam(req.params.imageId),
-        req.body,
-    );
-    res.status(201).json(comment);
-}));
+commentController.post(
+    '/images/:imageId/comments',
+    validateRequest({ params: imageIdParams, body: commentBodySchema }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        const comment = await commentService.create(
+            actorFrom(req),
+            SOCIAL_TARGET_TYPE.IMAGE,
+            routeParam(req.params.imageId),
+            req.body,
+        );
+        res.status(201).json(comment);
+    }),
+);
 
-commentController.put('/comments/:commentId', requireAuthentication, asyncHandler(async (req, res) => {
-    const comment = await commentService.update(actorFrom(req), routeParam(req.params.commentId), req.body);
-    res.status(200).json(comment);
-}));
+commentController.put(
+    '/comments/:commentId',
+    validateRequest({ params: commentIdParams, body: commentBodySchema }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        const comment = await commentService.update(actorFrom(req), routeParam(req.params.commentId), req.body);
+        res.status(200).json(comment);
+    }),
+);
 
-commentController.delete('/comments/:commentId', requireAuthentication, asyncHandler(async (req, res) => {
-    await commentService.delete(actorFrom(req), routeParam(req.params.commentId));
-    res.status(204).send();
-}));
+commentController.delete(
+    '/comments/:commentId',
+    validateRequest({ params: commentIdParams }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        await commentService.delete(actorFrom(req), routeParam(req.params.commentId));
+        res.status(204).send();
+    }),
+);
 
 commentController.use(apiErrorMiddleware);
 

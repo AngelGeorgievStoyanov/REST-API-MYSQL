@@ -11,9 +11,9 @@ import {
     PASSWORD_HASH_ROUNDS,
 } from '../constants/auth';
 import { ApiError } from './apiError';
+import { EMAIL_PATTERN } from '../constants/validation/patterns';
+import { VALIDATION_LIMITS } from '../constants/validation/limits';
 import { requireTrimmedString } from './validation';
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Cryptographically secure opaque token; only its sha256 hash is stored. */
 export function generateOpaqueToken(): string {
@@ -91,7 +91,7 @@ export function normalizePassword(value: unknown): string {
 }
 
 export function requireTokenValue(value: unknown): string {
-    return requireTrimmedString(value, 'token', 200);
+    return requireTrimmedString(value, 'token', VALIDATION_LIMITS.auth.token.max);
 }
 
 /** Reads one cookie without pulling in another request-parsing dependency. */
