@@ -21,7 +21,7 @@ export interface AuthConfig {
     /** Frontend routes the emailed links point at. */
     verifyEmailPath: string;
     passwordResetPath: string;
-    /** `Secure` cookie flag; true in production unless explicitly overridden. */
+    /** `Secure` cookie flag; always true in production. */
     cookieSecure: boolean;
     cookieSameSite: CookieSameSite;
     /** `smtp` sends through the existing mail helper, `file` writes the dev mail. */
@@ -86,9 +86,7 @@ export function loadAuthConfig(env: AuthEnvironmentSource = process.env): AuthCo
         appUrl: (env.AUTH_APP_URL?.trim() || CONNECTIONURL).replace(/\/+$/, ''),
         verifyEmailPath: verifyEmailPath.startsWith('/') ? verifyEmailPath : `/${verifyEmailPath}`,
         passwordResetPath: passwordResetPath.startsWith('/') ? passwordResetPath : `/${passwordResetPath}`,
-        cookieSecure: env.COOKIE_SECURE !== undefined
-            ? env.COOKIE_SECURE.trim().toLowerCase() === 'true'
-            : production,
+        cookieSecure: production || env.COOKIE_SECURE?.trim().toLowerCase() === 'true',
         cookieSameSite: sameSite === 'strict' || sameSite === 'none' || sameSite === 'lax'
             ? sameSite
             : (production ? 'none' : 'lax'),

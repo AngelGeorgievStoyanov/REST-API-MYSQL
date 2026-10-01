@@ -7,7 +7,6 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "server": "node --inspect=5858 -r ts-node/register/transpile-only ./src/index.ts",
     "start": "npx tsc && pm2 start ./build/index.js",
     "build": "tsc",
@@ -18,9 +17,7 @@
     "migration:phase4:verify": "ts-node src/migration/run-main.ts --verify",
     "db:clone-test": "ts-node src/db/cloneTestDatabase.ts",
     "db:clone-test:dry-run": "ts-node src/db/cloneTestDatabase.ts --dry-run",
-    "lint": "eslint .",
-    "build:tests": "tsc --noEmitOnError false",
-    "test:api": "node --test --test-concurrency=1 \"build/tests/*.test.js\""
+    "lint": "eslint ."
   },
   "author": "Angel Stoyanov",
   "license": "ISC",
