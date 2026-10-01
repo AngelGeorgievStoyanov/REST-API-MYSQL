@@ -40,12 +40,8 @@ export const IMAGE_UPLOAD_LIMITS = {
     fields: 0,
     fieldSize: 8 * 1024,
     fieldNameSize: 64,
-    /**
-     * Total multipart parts. The parser treats the limit as reached on the part
-     * that hits it, so one allowed part needs `2` here; `files`/`fields` keep the
-     * form closed to anything else.
-     */
-    parts: 2,
+    /** One binary part; Multer 2 accepts exactly the configured count. */
+    parts: 1,
 } as const;
 
 /**
@@ -72,13 +68,6 @@ export const IMAGE_THUMBNAIL = {
  * sidecar live at the bucket root.
  */
 export const BUCKET_NAME = 'hack-trip';
-
-/**
- * Digits of random entropy appended to a generated object name. A name is
- * `<timestamp><entropy><original name>`, so two uploads in the same millisecond
- * still land on distinct objects.
- */
-export const OBJECT_NAME_RANDOM_DIGITS = 3;
 
 /** `retryOptions.maxRetries` handed to the GCS client for one storage operation. */
 export const STORAGE_MAX_RETRIES = 3;

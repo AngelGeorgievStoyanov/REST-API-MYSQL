@@ -1,6 +1,7 @@
 import { MAX_FAILED_LOG_DELETE_IDS } from '../constants/failedLogs';
-import { FailedLogDto } from '../model/admin';
+import { AdminPage, FailedLogDto } from '../model/admin';
 import { FailedLogRecord, FailedLogRepository } from '../repositories/failedLogRepository';
+import { adminPage, parseAdminPagination } from '../utils/adminPagination';
 import { parseIdList } from '../utils/validation';
 
 export class FailedLogService {
@@ -11,8 +12,14 @@ export class FailedLogService {
         await this.repository.create(record);
     }
 
-    async listAll(): Promise<FailedLogDto[]> {
-        return this.repository.listAll();
+    async listAll(query: unknown): Promise<AdminPage<FailedLogDto>> {
+        const pagination = parseAdminPagination(query);
+        const [items, total] = await Promise.all([
+            this.repository.listPage(pagination.skip, pagination.pageSize),
+            this.repository.countAll(),
+        ]);
+
+        return adminPage(items, total, pagination.page, pagination.pageSize);
     }
 
     async deleteByIds(body: unknown): Promise<number> {

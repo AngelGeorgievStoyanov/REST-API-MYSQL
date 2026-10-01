@@ -22,3 +22,27 @@ export const adminUserUpdateSchema = z.object({
 export const failedLogDeleteSchema = z.object({
     ids: idList(LIMITS.arrays.failedLogIds),
 }).strict();
+
+const pageNumber = z.union([
+    z.string().regex(/^\d+$/, 'must be a positive integer.').transform(Number),
+    z.number(),
+]).pipe(z.number().int().min(1).max(10000));
+
+const pageSizeNumber = z.union([
+    z.string().regex(/^\d+$/, 'must be a positive integer.').transform(Number),
+    z.number(),
+]).pipe(z.number().int().min(1).max(100));
+
+const adminPageNumber = pageNumber
+    .optional();
+
+const adminPageSize = pageSizeNumber
+    .optional();
+
+export const adminPaginationQuerySchema = z.object({
+    page: adminPageNumber,
+    pageSize: adminPageSize,
+}).strict().transform(({ page, pageSize }) => ({
+    page: page ?? 1,
+    pageSize: pageSize ?? 50,
+}));

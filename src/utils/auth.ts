@@ -84,8 +84,8 @@ export function normalizePassword(value: unknown): string {
     if (value.length < MIN_PASSWORD_LENGTH) {
         throw ApiError.validation(`"password" must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
     }
-    if (value.length > MAX_PASSWORD_LENGTH) {
-        throw ApiError.validation(`"password" must be at most ${MAX_PASSWORD_LENGTH} characters long.`);
+    if (Buffer.byteLength(value, 'utf8') > MAX_PASSWORD_LENGTH) {
+        throw ApiError.validation(`"password" must be at most ${MAX_PASSWORD_LENGTH} bytes long.`);
     }
     return value;
 }

@@ -1,4 +1,4 @@
-import { UserStatus } from '@prisma/client';
+import { Prisma, UserStatus } from '@prisma/client';
 import type { AuthConfig } from '../config/auth';
 import {
     ABSENT_USER_PASSWORD_HASH,
@@ -28,7 +28,7 @@ import type { AuthUserRow } from '../repositories/authUserRepository';
 import { AuthUserRepository } from '../repositories/authUserRepository';
 import { EmailVerificationTokenRepository } from '../repositories/emailVerificationTokenRepository';
 import { FailedLogRepository } from '../repositories/failedLogRepository';
-import { ImageRepository } from '../repositories/imageRepository';
+import { ImageRepository, ImageRow } from '../repositories/imageRepository';
 import { AuthMailer } from './authMailer';
 import { PasswordResetTokenRepository } from '../repositories/passwordResetTokenRepository';
 import { RefreshTokenRepository } from '../repositories/refreshTokenRepository';
@@ -63,30 +63,36 @@ export class AuthService {
         private readonly config: AuthConfig,
     ) { }
 
-    async register(body: unknown): Promise<AuthUserResponse & MessageResponse> {
+    async register(body: unknown): Promise<MessageResponse> {
         const record = asRecord(body, 'Request body');
         const email = normalizeEmail(record['email']);
         const password = normalizePassword(record['password']);
         const firstName = normalizeName(record['firstName'], 'firstName');
         const lastName = normalizeName(record['lastName'], 'lastName');
+        const hashedPassword = await hashPassword(password);
 
         if (await this.users.findByEmail(email)) {
-            throw ApiError.conflict('An account with this email already exists.');
+            return registrationAccepted();
         }
 
-        const user = await this.users.create({
-            id: generateUserId(),
-            email,
-            firstName,
-            lastName,
-            hashedPassword: await hashPassword(password),
-        });
-        await this.issueVerificationToken(user);
+        let user: AuthUserRow;
+        try {
+            user = await this.users.create({
+                id: generateUserId(),
+                email,
+                firstName,
+                lastName,
+                hashedPassword,
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+                return registrationAccepted();
+            }
+            throw error;
+        }
 
-        return {
-            user: toAuthUserDto(user),
-            message: 'Account created. Please check your email to verify the address.',
-        };
+        await this.issueVerificationToken(user, true);
+        return registrationAccepted();
     }
 
     async verifyEmail(body: unknown): Promise<AuthUserResponse> {
@@ -281,23 +287,28 @@ export class AuthService {
         const record = asRecord(body, 'Request body');
         const firstName = normalizeName(record['firstName'], 'firstName');
         const lastName = normalizeName(record['lastName'], 'lastName');
-        const password = record['password'] === undefined || record['password'] === null || record['password'] === ''
-            ? null
-            : normalizePassword(record['password']);
+        return { user: toAuthUserDto(await this.users.updateProfile(actorId, { firstName, lastName })) };
+    }
 
-        if (password === null) {
-            return { user: toAuthUserDto(await this.users.updateProfile(actorId, { firstName, lastName })) };
+    async changePassword(actorId: string, body: unknown): Promise<void> {
+        const user = await this.users.findById(actorId);
+        if (!user) throw ApiError.accountGone();
+
+        const record = asRecord(body, 'Request body');
+        const currentPassword = record['currentPassword'];
+        if (typeof currentPassword !== 'string'
+            || currentPassword.length === 0
+            || currentPassword.length > VALIDATION_LIMITS.auth.passwordInput.max) {
+            throw ApiError.validation('"currentPassword" must be a valid password string.');
+        }
+        const newPassword = normalizePassword(record['newPassword']);
+
+        if (!(await verifyPassword(currentPassword, user.hashedPassword))) {
+            throw ApiError.invalidCredentials('Current password is incorrect.');
         }
 
-        const updated = await this.users.updateProfile(actorId, {
-            firstName,
-            lastName,
-            hashedPassword: await hashPassword(password),
-        });
-        // Long-lived sessions must not survive a password change.
+        await this.users.updatePassword(actorId, await hashPassword(newPassword));
         await this.refreshTokens.revokeAllForUser(actorId, new Date());
-
-        return { user: toAuthUserDto(updated) };
     }
 
     async getProfileImage(actorId: string): Promise<ImageDto | null> {
@@ -312,9 +323,22 @@ export class AuthService {
         if (!user) throw ApiError.accountGone();
 
         const previous = await this.images.findProfileImage(actorId);
-        const created = await this.images.createProfileImage(actorId, filePath);
+        let created: ImageRow;
+        try {
+            created = await this.images.createProfileImage(actorId, filePath);
+        } catch (error) {
+            try {
+                await this.imageStorage.remove(filePath);
+            } catch (cleanupError) {
+                console.log(`[images] could not remove failed profile upload "${filePath}": ${getErrorMessage(cleanupError)}`);
+            }
+            throw error;
+        }
 
-        if (previous) await this.imageStorage.remove(previous.filePath);
+        if (previous) {
+            await this.imageStorage.remove(previous.filePath);
+            await this.images.delete(previous.id);
+        }
 
         return toImageDto(created);
     }
@@ -328,7 +352,7 @@ export class AuthService {
         await this.images.delete(current.id);
     }
 
-    private async issueVerificationToken(user: AuthUserRow): Promise<void> {
+    private async issueVerificationToken(user: AuthUserRow, deliverInBackground = false): Promise<void> {
         const now = new Date();
         const rawToken = generateOpaqueToken();
         await this.verificationTokens.invalidateOutstanding(user.id, now);
@@ -337,6 +361,13 @@ export class AuthService {
             tokenHash: hashToken(rawToken),
             expiresAt: new Date(now.getTime() + EMAIL_VERIFICATION_TOKEN_TTL_SECONDS * 1000),
         });
+        if (deliverInBackground) {
+            void this.mailer.sendVerificationEmail(user.email, rawToken).catch((error: unknown) => {
+                console.log(`[auth] verification email delivery failed: ${getErrorMessage(error)}`);
+            });
+            return;
+        }
+
         await this.mailer.sendVerificationEmail(user.email, rawToken);
     }
 
@@ -367,6 +398,10 @@ export class AuthService {
         if (user.status === UserStatus.DEACTIVATED) throw ApiError.accountDeactivated();
         if (user.status !== UserStatus.ACTIVE || user.emailVerifiedAt === null) throw ApiError.emailNotVerified();
     }
+}
+
+function registrationAccepted(): MessageResponse {
+    return { message: 'If the address can be registered, verification instructions will be sent.' };
 }
 
 export function toAuthUserDto(user: AuthUserRow): AuthUserDto {

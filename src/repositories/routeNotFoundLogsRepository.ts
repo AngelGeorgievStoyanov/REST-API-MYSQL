@@ -26,12 +26,7 @@ export interface RouteNotFoundLogRecord {
 const listSelect = {
     id: true,
     date: true,
-    reqUrl: true,
     reqMethod: true,
-    reqHeaders: true,
-    reqQuery: true,
-    reqBody: true,
-    reqParams: true,
     reqIp: true,
     reqUserId: true,
     reqUserEmail: true,
@@ -62,11 +57,26 @@ export class RouteNotFoundLogsRepository {
     }
 
     /** Newest first; `id` breaks ties because `date` is a stored string. */
-    async listAll(): Promise<RouteNotFoundLogDto[]> {
-        return this.prisma.routeNotFoundLog.findMany({
+    async listPage(skip: number, take: number): Promise<RouteNotFoundLogDto[]> {
+        const rows = await this.prisma.routeNotFoundLog.findMany({
             orderBy: [{ date: 'desc' }, { id: 'desc' }],
+            skip,
+            take,
             select: listSelect,
         });
+
+        return rows.map((row) => ({
+            ...row,
+            reqUrl: null,
+            reqHeaders: null,
+            reqQuery: null,
+            reqBody: null,
+            reqParams: null,
+        }));
+    }
+
+    async countAll(): Promise<number> {
+        return this.prisma.routeNotFoundLog.count();
     }
 }
 

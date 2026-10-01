@@ -33,7 +33,10 @@ export function trimmedString(bounds: StringBounds): z.ZodType<string> {
 
 /** Password policy: never trimmed, because whitespace is part of the secret. */
 export function passwordString(bounds: NumberBounds): z.ZodType<string> {
-    return z.string().min(bounds.min).max(bounds.max);
+    return z.string().min(bounds.min).max(bounds.max).refine(
+        (value) => Buffer.byteLength(value, 'utf8') <= bounds.max,
+        { message: `must be at most ${bounds.max} bytes long.` },
+    );
 }
 
 /** Text that is part of a full write: absent or blank becomes `null`. */

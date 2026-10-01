@@ -8,9 +8,37 @@ export interface ImageRow {
 export class ImageRepository {
     constructor(private readonly prisma: PrismaClient) { }
 
-    /** Every file path the `images` table knows about, across all owners. */
-    async listFilePaths(): Promise<string[]> {
-        const rows = await this.prisma.image.findMany({ select: { filePath: true } });
+    /** One bounded page of image paths, ordered by id for stable pagination. */
+    async listFilePathsPage(skip: number, take: number): Promise<string[]> {
+        const rows = await this.prisma.image.findMany({
+            orderBy: { id: 'asc' },
+            skip,
+            take,
+            select: { filePath: true },
+        });
+
+        return rows.map((row) => row.filePath);
+    }
+
+    async countImages(): Promise<number> {
+        return this.prisma.image.count();
+    }
+
+    async findPathsForCloudObjects(objectPaths: string[]): Promise<string[]> {
+        if (objectPaths.length === 0) return [];
+
+        const originals = objectPaths.filter((objectPath) => !objectPath.endsWith('_thumb.webp'));
+        const thumbnailStems = objectPaths
+            .filter((objectPath) => objectPath.endsWith('_thumb.webp'))
+            .map((objectPath) => objectPath.slice(0, -'_thumb.webp'.length) + '.');
+        const where = [
+            ...(originals.length > 0 ? [{ filePath: { in: originals } }] : []),
+            ...thumbnailStems.map((stem) => ({ filePath: { startsWith: stem } })),
+        ];
+        const rows = await this.prisma.image.findMany({
+            where: { OR: where },
+            select: { filePath: true },
+        });
 
         return rows.map((row) => row.filePath);
     }

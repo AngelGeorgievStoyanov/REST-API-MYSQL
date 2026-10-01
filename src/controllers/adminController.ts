@@ -15,7 +15,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
 import { userIdParams } from '../validation/schemas/common.schemas';
-import { adminUserUpdateSchema, failedLogDeleteSchema } from '../validation/schemas/admin.schemas';
+import { adminPaginationQuerySchema, adminUserUpdateSchema, failedLogDeleteSchema } from '../validation/schemas/admin.schemas';
 
 /**
  * Administrative surface. Every operation is guarded by the account role of the
@@ -28,8 +28,8 @@ const adminLimiter = authRateLimit('admin', ADMIN_RATE_LIMIT_MAX, authConfig.rat
 const adminOrModerator = requireRole([...ADMIN_OR_MODERATOR_ROLES]);
 const adminOnly = requireRole([...ADMIN_ROLES]);
 
-adminController.get('/users', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
-    res.status(200).json(await adminUserService.listUsers());
+adminController.get('/users', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
+    res.status(200).json(await adminUserService.listUsers(req.query));
 }));
 
 adminController.put(
@@ -53,8 +53,8 @@ adminController.delete(
     }),
 );
 
-adminController.get('/failed-login-logs', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
-    res.status(200).json(await failedLogService.listAll());
+adminController.get('/failed-login-logs', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
+    res.status(200).json(await failedLogService.listAll(req.query));
 }));
 
 adminController.delete(
@@ -67,21 +67,21 @@ adminController.delete(
     }),
 );
 
-adminController.get('/route-not-found-logs', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
-    res.status(200).json(await routeNotFoundLogsService.listEvents());
+adminController.get('/route-not-found-logs', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
+    res.status(200).json(await routeNotFoundLogsService.listEvents(req.query));
 }));
 
-adminController.get('/images/cloud', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
-    res.status(200).json(await imageInventoryService.cloudImages());
+adminController.get('/images/cloud', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
+    res.status(200).json(await imageInventoryService.cloudImages(req.query));
 }));
 
-adminController.get('/images/database', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
-    res.status(200).json(await imageInventoryService.databaseImages());
+adminController.get('/images/database', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
+    res.status(200).json(await imageInventoryService.databaseImages(req.query));
 }));
 
 /** Objects that exist in GCS but have no `images` row are orphaned uploads. */
-adminController.get('/images/orphans', adminLimiter, adminOrModerator, asyncHandler(async (_req, res) => {
-    res.status(200).json(await imageInventoryService.compare());
+adminController.get('/images/orphans', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
+    res.status(200).json(await imageInventoryService.compare(req.query));
 }));
 
 adminController.use(apiErrorMiddleware);

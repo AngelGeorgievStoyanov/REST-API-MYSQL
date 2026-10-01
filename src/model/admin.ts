@@ -28,3 +28,14 @@ export interface RouteNotFoundLogDto {
     reqUserId: string | null;
     reqUserEmail: string | null;
 }
+
+export interface AdminPage<T> {
+    items: T[];
+    pagination: {
+        page: number;
+        pageSize: number;
+        total?: number;
+        totalPages?: number;
+        hasNext?: boolean;
+    };
+}

@@ -1,7 +1,7 @@
 import multer, { MulterError, StorageEngine } from 'multer';
 import { NextFunction, Request, RequestHandler, Response } from 'express';
 import { IMAGE_UPLOAD_LIMITS, UPLOAD_FIELD_NAME } from '../constants/imageStorage';
-import { UnsupportedImageError } from './imageValidation';
+import { ImageObjectAlreadyExistsError, UnsupportedImageError } from './imageValidation';
 import { ApiError } from '../utils/apiError';
 
 let uploadSingleFile: RequestHandler | null = null;
@@ -33,6 +33,11 @@ export function imageUpload(req: Request, res: Response, next: NextFunction): vo
 
         if (error instanceof UnsupportedImageError) {
             next(ApiError.validation(`Image upload failed: ${error.message}`));
+            return;
+        }
+
+        if (error instanceof ImageObjectAlreadyExistsError) {
+            next(ApiError.conflict('The image could not be stored because its generated key already exists.'));
             return;
         }
 

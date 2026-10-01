@@ -13,9 +13,6 @@ const email = trimmedString({
     patternMessage: 'must be a valid email address.',
 });
 
-/** Optional new password of a profile update: an empty value means "keep". */
-const optionalPassword = z.union([z.literal(''), passwordString(LIMITS.auth.password)]).optional();
-
 export const registerSchema = z.object({
     email,
     password: passwordString(LIMITS.auth.password),
@@ -38,11 +35,15 @@ export const loginSchema = z.object({
 export const updateProfileSchema = z.object({
     firstName: trimmedString(LIMITS.auth.name),
     lastName: trimmedString(LIMITS.auth.name),
-    password: optionalPassword,
 }).strict();
 
 export const confirmPasswordSchema = z.object({
     password: passwordString(LIMITS.auth.passwordInput),
+}).strict();
+
+export const changePasswordSchema = z.object({
+    currentPassword: passwordString(LIMITS.auth.passwordInput),
+    newPassword: passwordString(LIMITS.auth.password),
 }).strict();
 
 export const forgotPasswordSchema = z.object({ email }).strict();

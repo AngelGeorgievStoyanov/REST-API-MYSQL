@@ -63,11 +63,17 @@ export class FailedLogRepository {
     }
 
     /** Newest first; `id` breaks ties because `date` is a stored string. */
-    async listAll(): Promise<FailedLogDto[]> {
+    async listPage(skip: number, take: number): Promise<FailedLogDto[]> {
         return this.prisma.failedLog.findMany({
             orderBy: [{ date: 'desc' }, { id: 'desc' }],
+            skip,
+            take,
             select: failedLogSelect,
         });
+    }
+
+    async countAll(): Promise<number> {
+        return this.prisma.failedLog.count();
     }
 
     async deleteByIds(ids: number[]): Promise<number> {

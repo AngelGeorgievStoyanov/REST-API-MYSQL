@@ -1,6 +1,6 @@
 import { Storage } from '@google-cloud/storage';
-import { Request } from 'express';
 import { StorageEngine } from 'multer';
+import { randomUUID } from 'crypto';
 import path from 'path';
 import sharp from 'sharp';
 
@@ -10,7 +10,7 @@ import {
     STORAGE_TOTAL_TIMEOUT,
 } from '../constants/imageStorage';
 import { thumbnailFileName } from '../storage/imageFileStorage';
-import { assertAcceptedImage } from '../storage/imageValidation';
+import { assertAcceptedImage, ImageObjectAlreadyExistsError } from '../storage/imageValidation';
 
 const KEY_FILENAME = path.join(
     __dirname,
@@ -31,102 +31,91 @@ type UploadedFile = Parameters<StorageEngine['_handleFile']>[1];
 interface GoogleCloudStorageOptions {
     bucketName: string;
     generateThumbnail?: boolean;
-    destination: (
-        req: Request,
-        file: UploadedFile,
-        callback: (error: Error | null, destination: string) => void
-    ) => void;
 }
 
 export class GoogleCloudStorage implements StorageEngine {
     private readonly selectedBucket;
-    private readonly destination: GoogleCloudStorageOptions['destination'];
     private readonly generateThumbnail: boolean;
 
     constructor(options: GoogleCloudStorageOptions) {
         const {
             bucketName,
-            destination,
             generateThumbnail = false,
         } = options;
 
         this.selectedBucket = gcsClient.bucket(bucketName);
-        this.destination = destination;
         this.generateThumbnail = generateThumbnail;
     }
 
     _handleFile(
-        req: Request,
+        _req: Parameters<StorageEngine['_handleFile']>[0],
         file: UploadedFile,
         callback: (
             error?: Error | null,
             info?: Partial<UploadedFile>
         ) => void
     ): void {
+        void this.storeFile(file, callback).catch((error: unknown) => callback(toError(error)));
+    }
+
+    private async storeFile(
+        file: UploadedFile,
+        callback: (error?: Error | null, info?: Partial<UploadedFile>) => void,
+    ): Promise<void> {
+        const chunks: Buffer[] = [];
+        for await (const chunk of file.stream) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+
+        const uploadedBuffer = Buffer.concat(chunks);
+        const format = await assertAcceptedImage(uploadedBuffer, file);
+        const sanitizedBuffer = await sanitizeImage(uploadedBuffer, format);
+        const extension = format === 'jpeg' ? 'jpg' : format;
+        const destination = `images/${randomUUID()}.${extension}`;
+        const createdObjects: string[] = [];
+
         try {
-            this.destination(req, file, async (destinationError, destination) => {
-                if (destinationError) {
-                    callback(destinationError);
-                    return;
-                }
+            await this.saveCreateOnly(destination, sanitizedBuffer, `image/${format}`);
+            createdObjects.push(destination);
 
-                try {
-                    const chunks: Buffer[] = [];
+            if (this.generateThumbnail) {
+                const thumbnailBuffer = await sharp(sanitizedBuffer)
+                    .resize({
+                        width: IMAGE_THUMBNAIL.width,
+                        height: IMAGE_THUMBNAIL.height,
+                        fit: IMAGE_THUMBNAIL.fit,
+                        withoutEnlargement: true,
+                    })
+                    .webp({ quality: IMAGE_THUMBNAIL.quality })
+                    .toBuffer();
+                const thumbnailDestination = thumbnailFileName(destination);
+                await this.saveCreateOnly(thumbnailDestination, thumbnailBuffer, 'image/webp');
+                createdObjects.push(thumbnailDestination);
+            }
 
-                    for await (const chunk of file.stream) {
-                        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-                    }
+            callback(null, { destination, size: sanitizedBuffer.length });
+        } catch (error) {
+            await Promise.all(createdObjects.map((objectName) => this.removeObject(objectName).catch((cleanupError: unknown) => {
+                console.log(`[images] could not remove failed upload object "${objectName}": ${toError(cleanupError).message}`);
+            })));
+            callback(toError(error));
+        }
+    }
 
-                    const fileBuffer = Buffer.concat(chunks);
-
-                    // The bytes decide the format, and an unsupported file must never
-                    // reach the bucket: validation happens before the upload.
-                    await assertAcceptedImage(fileBuffer, file);
-
-                    const bucketFile = this.selectedBucket.file(destination);
-
-                    await bucketFile.save(fileBuffer);
-
-                    if (this.generateThumbnail) {
-                        const thumbnailBuffer = await sharp(fileBuffer)
-                            .resize({
-                                width: IMAGE_THUMBNAIL.width,
-                                height: IMAGE_THUMBNAIL.height,
-                                fit: IMAGE_THUMBNAIL.fit,
-                                withoutEnlargement: true,
-                            })
-                            .webp({
-                                quality: IMAGE_THUMBNAIL.quality,
-                            })
-                            .toBuffer();
-
-                        const thumbnailDestination = thumbnailFileName(destination);
-
-                        const thumbnailFile =
-                            this.selectedBucket.file(thumbnailDestination);
-
-                        await thumbnailFile.save(thumbnailBuffer, {
-                            metadata: {
-                                contentType: 'image/webp',
-                            },
-                        });
-                    }
-
-                    callback(null, {
-                        destination,
-                        size: fileBuffer.length,
-                    });
-                } catch (error) {
-                    callback(error as Error);
-                }
+    private async saveCreateOnly(objectName: string, data: Buffer, contentType: string): Promise<void> {
+        try {
+            await this.selectedBucket.file(objectName).save(data, {
+                preconditionOpts: { ifGenerationMatch: 0 },
+                metadata: { contentType },
             });
         } catch (error) {
-            callback(error as Error);
+            if (isPreconditionFailure(error)) throw new ImageObjectAlreadyExistsError();
+            throw error;
         }
     }
 
     _removeFile(
-        _req: Request,
+        _req: Parameters<StorageEngine['_removeFile']>[0],
         file: UploadedFile,
         callback: (error: Error | null) => void
     ): void {
@@ -154,4 +143,31 @@ export class GoogleCloudStorage implements StorageEngine {
 
         if (exists) await bucketFile.delete();
     }
+}
+
+async function sanitizeImage(
+    buffer: Buffer,
+    format: typeof import('../constants/imageStorage').ALLOWED_IMAGE_FORMATS[number],
+): Promise<Buffer> {
+    const image = sharp(buffer, { animated: format === 'gif' }).rotate();
+
+    switch (format) {
+        case 'jpeg':
+            return image.jpeg({ quality: 100, chromaSubsampling: '4:4:4' }).toBuffer();
+        case 'png':
+            return image.png().toBuffer();
+        case 'webp':
+            return image.webp({ quality: 100, lossless: true }).toBuffer();
+        case 'gif':
+            return image.gif().toBuffer();
+    }
+}
+
+function isPreconditionFailure(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null) return false;
+    return Number(Reflect.get(error, 'code')) === 412;
+}
+
+function toError(error: unknown): Error {
+    return error instanceof Error ? error : new Error('Image storage operation failed.');
 }

@@ -13,6 +13,13 @@ export class UnsupportedImageError extends Error {
     }
 }
 
+export class ImageObjectAlreadyExistsError extends Error {
+    constructor() {
+        super('The generated image object already exists.');
+        this.name = 'ImageObjectAlreadyExistsError';
+    }
+}
+
 /** Declared properties of the uploaded part, as reported by the multipart parser. */
 export interface UploadedFileFacts {
     mimetype: string;
@@ -27,7 +34,10 @@ export interface UploadedFileFacts {
  * It runs on the buffered upload, before the object is stored, so an unsupported
  * file never reaches GCS.
  */
-export async function assertAcceptedImage(fileBuffer: Buffer, file: UploadedFileFacts): Promise<void> {
+export async function assertAcceptedImage(
+    fileBuffer: Buffer,
+    file: UploadedFileFacts,
+): Promise<typeof ALLOWED_IMAGE_FORMATS[number]> {
     const extension = path.extname(file.originalname).toLowerCase();
     if (!(ALLOWED_IMAGE_EXTENSIONS as readonly string[]).includes(extension)) {
         throw new UnsupportedImageError(`Unsupported file extension "${extension || file.originalname}".`);
@@ -42,6 +52,8 @@ export async function assertAcceptedImage(fileBuffer: Buffer, file: UploadedFile
     if (!(ALLOWED_IMAGE_FORMATS as readonly string[]).includes(format)) {
         throw new UnsupportedImageError(`Unsupported image format "${format}".`);
     }
+
+    return format as typeof ALLOWED_IMAGE_FORMATS[number];
 }
 
 /** The format of the actual bytes; anything undecodable is refused. */

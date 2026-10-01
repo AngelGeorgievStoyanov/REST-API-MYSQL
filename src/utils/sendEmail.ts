@@ -22,13 +22,5 @@ export default async function sendMail(email: string, html: string , subject:str
         html: html
     }
 
-    transport.sendMail(mailOptions, function (err, info) {
-        if (err) {
-            console.log(err)
-            throw new Error(err.message)
-        } else {
-            console.log('Email sent: ' + info.response)
-            return 'Email sent: ' + info.response
-        }
-    })
+    await transport.sendMail(mailOptions);
 }

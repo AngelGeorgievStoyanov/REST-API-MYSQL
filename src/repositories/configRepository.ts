@@ -71,16 +71,6 @@ export class ConfigRepository {
         return types.map((type) => toSelectConfig(type, type.options.map(toSelectOption)));
     }
 
-    async getSelectType(key: string): Promise<SelectConfig | null> {
-        const type: SelectTypeWithOptions | null = await this.prisma.selectType.findUnique({
-            where: { key },
-            include: { options: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] } },
-        });
-        if (!type) return null;
-
-        return toSelectConfig(type, type.options.map(toSelectOption));
-    }
-
     async getServiceConfigs(): Promise<ServiceConfig[]> {
         const types: ServiceTypeWithConfigs[] = await this.prisma.serviceType.findMany({
             include: { configs: { orderBy: { id: 'asc' } } },
@@ -90,14 +80,5 @@ export class ConfigRepository {
         return types.map((type) => toServiceConfig(type, type.configs.map(toServiceConfigEntry)));
     }
 
-    async getServiceConfig(key: string): Promise<ServiceConfig | null> {
-        const type: ServiceTypeWithConfigs | null = await this.prisma.serviceType.findUnique({
-            where: { key },
-            include: { configs: { orderBy: { id: 'asc' } } },
-        });
-        if (!type) return null;
-
-        return toServiceConfig(type, type.configs.map(toServiceConfigEntry));
-    }
 }
 

@@ -13,6 +13,7 @@ import { imageUpload, uploadedFileName } from '../storage/imageUpload';
 import { validateRequest } from '../validation/validateRequest';
 import {
     confirmPasswordSchema,
+    changePasswordSchema,
     forgotPasswordSchema,
     loginSchema,
     registerSchema,
@@ -139,10 +140,22 @@ authController.put(
 /** Re-authentication gate used before a sensitive profile change. */
 authController.post(
     '/confirm-password',
+    attemptLimiter('confirm-password'),
     validateRequest({ body: confirmPasswordSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
         res.status(200).json(await authService.confirmPassword(actorFrom(req).id, req.body));
+    }),
+);
+
+authController.put(
+    '/me/password',
+    attemptLimiter('change-password'),
+    validateRequest({ body: changePasswordSchema }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        await authService.changePassword(actorFrom(req).id, req.body);
+        res.status(204).send();
     }),
 );
 

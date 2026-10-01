@@ -23,13 +23,18 @@ export function apiErrorMiddleware(
 
     const bodyFailure = bodyParserFailure(err);
     if (bodyFailure !== null) {
-        console.log(`[api] ${req.method} ${req.originalUrl} rejected: ${bodyFailure.message}`);
+        console.log(`[api] ${req.method} ${safeRequestLocation(req)} rejected: ${bodyFailure.message}`);
         res.status(bodyFailure.status).json(toApiErrorBody(bodyFailure));
         return;
     }
 
-    console.log(`[api] ${req.method} ${req.originalUrl} failed: ${getErrorMessage(err)}`);
+    console.log(`[api] ${req.method} ${safeRequestLocation(req)} failed: ${getErrorMessage(err)}`);
     res.status(500).json(toApiErrorBody(ApiError.internal()));
+}
+
+function safeRequestLocation(req: Request): string {
+    const routePath = typeof req.route?.path === 'string' ? req.route.path : '';
+    return `${req.baseUrl}${routePath}` || '[unmatched route]';
 }
 
 /**

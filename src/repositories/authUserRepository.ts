@@ -23,7 +23,6 @@ export interface AdminUserUpdate {
 export interface ProfileUpdate {
     firstName: string;
     lastName: string;
-    hashedPassword?: string;
 }
 
 const authUserSelect = {
@@ -106,9 +105,18 @@ export class AuthUserRepository {
         });
     }
 
-    /** Administrative account listing, ordered by email for a stable answer. */
-    async listAll(): Promise<AuthUserRow[]> {
-        return this.prisma.user.findMany({ orderBy: { email: 'asc' }, select: authUserSelect });
+    /** Administrative account page, ordered by email for a stable answer. */
+    async listPage(skip: number, take: number): Promise<AuthUserRow[]> {
+        return this.prisma.user.findMany({
+            orderBy: [{ email: 'asc' }, { id: 'asc' }],
+            skip,
+            take,
+            select: authUserSelect,
+        });
+    }
+
+    async countUsers(): Promise<number> {
+        return this.prisma.user.count();
     }
 
     async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AuthUserRow> {

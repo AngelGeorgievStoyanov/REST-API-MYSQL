@@ -1,4 +1,5 @@
 import { BUCKET_NAME, THUMBNAIL_SUFFIX } from '../constants/imageStorage';
+import { type File, type GetFilesOptions } from '@google-cloud/storage';
 
 /** A thumbnail is the `_thumb.webp` sidecar of its original in the flat bucket. */
 export function thumbnailFileName(filePath: string): string {
@@ -10,8 +11,12 @@ export function thumbnailFileName(filePath: string): string {
 export interface ImageFileStorage {
     remove(filePath: string): Promise<void>;
     removeMany(filePaths: string[]): Promise<void>;
+}
+
+export interface ImageInventoryStorage {
     /** Object names currently present in the bucket. */
-    list(): Promise<string[]>;
+    listPage(page: number, pageSize: number): Promise<{ items: string[]; hasNext: boolean }>;
+    exists(filePath: string): Promise<boolean>;
 }
 
 /**
@@ -30,19 +35,42 @@ async function removeFromGcs(filePath: string): Promise<void> {
 }
 
 /** Bucket folders are not images, so only real objects are reported. */
-async function listFromGcs(): Promise<string[]> {
+async function listPageFromGcs(page: number, pageSize: number): Promise<{ items: string[]; hasNext: boolean }> {
     const { gcsClient } = await import('../clients/googleCloudStorage');
-    const [files] = await gcsClient.bucket(BUCKET_NAME).getFiles();
+    const bucket = gcsClient.bucket(BUCKET_NAME);
+    let query: GetFilesOptions = { autoPaginate: false, maxResults: pageSize };
+    let files: File[] = [];
+    let nextQuery: object | undefined;
 
-    return files.filter((file) => !file.name.endsWith('/')).map((file) => file.name);
+    for (let currentPage = 1; currentPage <= page; currentPage++) {
+        [files, nextQuery] = await bucket.getFiles(query);
+        if (currentPage === page) break;
+        if (!nextQuery) {
+            files = [];
+            break;
+        }
+        query = { ...nextQuery, autoPaginate: false, maxResults: pageSize } as GetFilesOptions;
+    }
+
+    return {
+        items: files.filter((file) => !file.name.endsWith('/')).map((file) => file.name),
+        hasNext: nextQuery !== undefined,
+    };
 }
 
-export const gcsImageFileStorage: ImageFileStorage = {
+async function existsInGcs(filePath: string): Promise<boolean> {
+    const { gcsClient } = await import('../clients/googleCloudStorage');
+    const [exists] = await gcsClient.bucket(BUCKET_NAME).file(filePath).exists();
+    return exists;
+}
+
+export const gcsImageFileStorage: ImageFileStorage & ImageInventoryStorage = {
     remove: removeFromGcs,
     async removeMany(filePaths: string[]): Promise<void> {
         for (const filePath of filePaths) {
             await removeFromGcs(filePath);
         }
     },
-    list: listFromGcs,
+    listPage: listPageFromGcs,
+    exists: existsInGcs,
 };
