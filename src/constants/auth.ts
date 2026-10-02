@@ -1,6 +1,7 @@
 /**
- * Lifetimes of the emailed one-time tokens. The access/refresh token lifetimes
- * are configuration (`src/config/auth.ts`), not constants.
+ * Lifetimes of the emailed one-time tokens. The access/refresh token and
+ * rate-limit lifetimes are environment configuration (`src/config/auth.ts`);
+ * only their fallback defaults are application constants (see below).
  */
 export const EMAIL_VERIFICATION_TOKEN_TTL_SECONDS = 24 * 60 * 60;
 export const PASSWORD_RESET_TOKEN_TTL_SECONDS = 60 * 60;
@@ -40,3 +41,15 @@ export const ABSENT_USER_PASSWORD_HASH = '$2b$10$C6UzMDM.H6dfI/f/IKcEeO1uFqZf5nU
  * swept. It bounds the memory of the limiter, not the request budget.
  */
 export const AUTH_RATE_LIMIT_PRUNE_THRESHOLD = 1000;
+
+/**
+ * Fallback defaults of the Auth configuration, used when the corresponding
+ * `ACCESS_TOKEN_EXPIRES_IN` / `REFRESH_TOKEN_EXPIRES_IN` / `AUTH_RATE_LIMIT_*`
+ * environment variables are unset. They are application policy, not secrets; the
+ * resolved values are owned by `src/config/auth.ts`.
+ */
+export const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+export const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
+export const DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 15 * 60;
+export const DEFAULT_RATE_LIMIT_MAX = 10;
+export const DEFAULT_RATE_LIMIT_EMAIL_MAX = 5;

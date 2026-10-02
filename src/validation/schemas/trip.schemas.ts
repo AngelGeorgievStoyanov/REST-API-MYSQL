@@ -24,7 +24,7 @@ export const tripListQuerySchema = z.object({
     group: trimmedString(LIMITS.trip.selectValue).optional(),
     transport: trimmedString(LIMITS.trip.selectValue).optional(),
     sort: z.enum(TRIP_SORTS).optional(),
-});
+}).strict();
 
 export const dayCreateSchema = z.object({
     dayNumber: optionalInt(LIMITS.trip.dayNumber),

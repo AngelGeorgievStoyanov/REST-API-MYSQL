@@ -48,8 +48,7 @@ export class PointService {
         // The request field is the API's `dayId`; its value is the day row's `Trip.id`.
         const day = await this.assertDayAccess(actor, request.dayId);
 
-        const pointNumber = (await this.repository.findMaxNumber(day.tripId)) + 1;
-        const pointId = await this.repository.create(day.tripId, actor.id, toPointWriteInput(request), pointNumber);
+        const pointId = await this.repository.create(day.tripId, actor.id, toPointWriteInput(request));
 
         return this.getPoint(String(pointId), actor);
     }

@@ -12,7 +12,7 @@ import { dayCreateSchema, dayReorderSchema, dayUpdateSchema, tripListQuerySchema
 
 const tripController = express.Router();
 
-tripController.get('/', validateRequest({ query: tripListQuerySchema }), asyncHandler(async (req, res) => {
+tripController.get('/', validateRequest({ query: tripListQuerySchema }), optionalAuthentication, asyncHandler(async (req, res) => {
     const response = await tripService.listTrips(req.query);
     res.status(200).json(response);
 }));

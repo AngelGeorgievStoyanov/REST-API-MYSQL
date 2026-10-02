@@ -1,7 +1,7 @@
 import express from 'express';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { commentService } from '../container';
-import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
+import { actorFrom, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
@@ -20,6 +20,7 @@ const commentController = express.Router();
 commentController.get(
     '/trip-groups/:tripGroupId/comments',
     validateRequest({ params: tripGroupIdParams, query: commentPageQuerySchema }),
+    optionalAuthentication,
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForTarget(
             SOCIAL_TARGET_TYPE.TRIP_GROUP,
@@ -48,6 +49,7 @@ commentController.post(
 commentController.get(
     '/trips/:tripId/days/:dayId/comments',
     validateRequest({ params: tripDayParams, query: commentPageQuerySchema }),
+    optionalAuthentication,
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForDay(
             routeParam(req.params.tripId),
@@ -76,6 +78,7 @@ commentController.post(
 commentController.get(
     '/points/:pointId/comments',
     validateRequest({ params: pointIdParams, query: commentPageQuerySchema }),
+    optionalAuthentication,
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForTarget(
             SOCIAL_TARGET_TYPE.POINT,
@@ -104,6 +107,7 @@ commentController.post(
 commentController.get(
     '/images/:imageId/comments',
     validateRequest({ params: imageIdParams, query: commentPageQuerySchema }),
+    optionalAuthentication,
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForTarget(
             SOCIAL_TARGET_TYPE.IMAGE,

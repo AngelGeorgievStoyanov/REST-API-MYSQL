@@ -1,8 +1,9 @@
-import { Request, RequestHandler, Response } from 'express';
+import { NextFunction, Request, RequestHandler, Response } from 'express';
 import os from 'os';
 import { routeNotFoundLogsService } from '../container';
 import { optionalActor } from './authBoundary';
 import { getErrorMessage } from '../utils/error';
+import { ApiError } from '../utils/apiError';
 import { redactSensitiveRequestData } from '../utils/sensitiveRequestData';
 import { MAX_CLIENT_IP_LENGTH } from '../constants/routeNotFoundLogs';
 
@@ -20,10 +21,14 @@ const IP_EVIDENCE_HEADERS = [
 /**
  * Route-not-found logger of a single mounted router. It is registered at the end
  * of a router (never at application level), so it only records requests that
- * reached a valid router but matched no endpoint of it. The response is always an
- * empty 404: a logging failure must not change the answer or leak its cause.
+ * reached a valid router but matched no endpoint of it. It forwards the shared
+ * API 404 after best-effort logging; a logging failure never changes the answer.
  */
-export const routeNotFoundLogsMiddleware: RequestHandler = async (req: Request, res: Response): Promise<void> => {
+export const routeNotFoundLogsMiddleware: RequestHandler = async (
+    req: Request,
+    _res: Response,
+    next: NextFunction,
+): Promise<void> => {
     try {
         await routeNotFoundLogsService.recordEvent({
             url: req.baseUrl,
@@ -43,7 +48,7 @@ export const routeNotFoundLogsMiddleware: RequestHandler = async (req: Request, 
         console.log(`[404] route-not-found log failed for ${req.method} ${req.baseUrl}: ${getErrorMessage(error)}`);
     }
 
-    res.status(404).end();
+    next(ApiError.notFound());
 };
 
 /** Diagnostic IP evidence only; raw proxy headers are never used for security decisions. */

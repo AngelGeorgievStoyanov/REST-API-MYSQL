@@ -33,3 +33,20 @@ export interface ServiceConfig {
     isActive: boolean;
     configs: ServiceConfigEntry[];
 }
+
+export interface PublicServiceConfigEntry {
+    id: number;
+    serviceTypeId: number;
+    key: string;
+    value: string;
+    type: ServiceConfigValueType;
+    isActive: boolean;
+}
+
+export interface PublicServiceConfig {
+    id: number;
+    key: string;
+    name: string;
+    isActive: boolean;
+    configs: PublicServiceConfigEntry[];
+}

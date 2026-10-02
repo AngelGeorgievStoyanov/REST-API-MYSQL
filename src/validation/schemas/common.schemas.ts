@@ -88,16 +88,16 @@ export const positiveIdParam = z.string()
 export const userIdParam = z.string().regex(UUID_PATTERN, 'must be a UUID.');
 
 /** Route parameters, one schema per path so every id is validated. */
-export const userIdParams = z.object({ userId: userIdParam });
-export const tripIdParams = z.object({ id: positiveIdParam });
-export const tripIdOnlyParams = z.object({ tripId: positiveIdParam });
-export const tripDayParams = z.object({ tripId: positiveIdParam, dayId: positiveIdParam });
-export const dayIdParams = z.object({ dayId: positiveIdParam });
-export const pointIdParams = z.object({ pointId: positiveIdParam });
-export const pointImageParams = z.object({ pointId: positiveIdParam, imageId: positiveIdParam });
-export const imageIdParams = z.object({ imageId: positiveIdParam });
-export const commentIdParams = z.object({ commentId: positiveIdParam });
-export const tripGroupIdParams = z.object({ tripGroupId: positiveIdParam });
+export const userIdParams = z.object({ userId: userIdParam }).strict();
+export const tripIdParams = z.object({ id: positiveIdParam }).strict();
+export const tripIdOnlyParams = z.object({ tripId: positiveIdParam }).strict();
+export const tripDayParams = z.object({ tripId: positiveIdParam, dayId: positiveIdParam }).strict();
+export const dayIdParams = z.object({ dayId: positiveIdParam }).strict();
+export const pointIdParams = z.object({ pointId: positiveIdParam }).strict();
+export const pointImageParams = z.object({ pointId: positiveIdParam, imageId: positiveIdParam }).strict();
+export const imageIdParams = z.object({ imageId: positiveIdParam }).strict();
+export const commentIdParams = z.object({ commentId: positiveIdParam }).strict();
+export const tripGroupIdParams = z.object({ tripGroupId: positiveIdParam }).strict();
 
 /** Numeric resource id inside a JSON body or a query string. */
 export const positiveId = z.coerce.number()

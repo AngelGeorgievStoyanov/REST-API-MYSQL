@@ -6,6 +6,7 @@ import { sortPointsByNumber } from '../utils/point';
 import { toNumberOrNull } from '../utils/utils';
 import { clearPolymorphicTargets } from './polymorphicTargets';
 import { attachImageWithinLimit } from './imageAttachment';
+import { runSerializableWithRetry } from './serializableTransaction';
 
 
 export interface PointContext {
@@ -87,28 +88,36 @@ export class PointRepository {
     }
 
     async findMaxNumber(tripId: number): Promise<number> {
-        const points = await this.prisma.point.findMany({ where: { tripId }, select: { pointNumber: true } });
-        return points.reduce((max, point) => {
-            const value = toNumberOrNull(point.pointNumber);
-            return value !== null && value > max ? value : max;
-        }, 0);
+        return maxPointNumber(this.prisma, tripId);
     }
 
-    async create(tripId: number, ownerId: string, fields: PointWriteInput, pointNumber: number): Promise<number> {
-        const point = await this.prisma.point.create({
-            data: {
-                name: fields.title,
-                description: fields.description,
-                lat: fields.latitude === null ? null : String(fields.latitude),
-                lng: fields.longitude === null ? null : String(fields.longitude),
-                pointNumber: String(pointNumber),
-                ownerId,
-                tripId,
-                createdAt: new Date(),
-            },
-            select: { id: true },
+    /**
+     * Inserts the point as the last child of its day, so it carries the next
+     * `pointNumber`. The maximum and the insert share one SERIALIZABLE
+     * transaction: two concurrent creations of the same day cannot compute the
+     * same number, and a transaction that loses the race is retried against the
+     * committed state. The response contract is unchanged — the caller still only
+     * receives the new id.
+     */
+    async create(tripId: number, ownerId: string, fields: PointWriteInput): Promise<number> {
+        return runSerializableWithRetry(this.prisma, async (tx) => {
+            const pointNumber = (await maxPointNumber(tx, tripId)) + 1;
+            const point = await tx.point.create({
+                data: {
+                    name: fields.title,
+                    description: fields.description,
+                    lat: fields.latitude === null ? null : String(fields.latitude),
+                    lng: fields.longitude === null ? null : String(fields.longitude),
+                    pointNumber: String(pointNumber),
+                    ownerId,
+                    tripId,
+                    createdAt: new Date(),
+                },
+                select: { id: true },
+            });
+
+            return point.id;
         });
-        return point.id;
     }
 
     async update(pointId: number, fields: Partial<PointWriteInput>): Promise<void> {
@@ -204,3 +213,18 @@ export class PointRepository {
         );
     }
 }
+
+/**
+ * Highest `pointNumber` of one day, computed on the shared client or on the
+ * transaction of a concurrent create. Kept as a free function so the read and
+ * the insert can share the same SERIALIZABLE transaction without duplicating
+ * the reduction.
+ */
+async function maxPointNumber(client: Prisma.TransactionClient, tripId: number): Promise<number> {
+    const points = await client.point.findMany({ where: { tripId }, select: { pointNumber: true } });
+    return points.reduce((max, point) => {
+        const value = toNumberOrNull(point.pointNumber);
+        return value !== null && value > max ? value : max;
+    }, 0);
+}
+

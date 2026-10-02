@@ -1,127 +1,610 @@
 # Backend Contributor Instructions
 
-This document describes the current backend and the rules for changing it. The source code is authoritative when implementation and documentation differ. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the current routes, data model, dependencies, and runtime flow; see [src/migration/README.md](src/migration/README.md) for migration-tool operation.
+This repository contains the HackTrip backend API. It is the server-side source of truth for the production API contract, authentication/authorization behavior, business rules, persistence, image storage, and public configuration consumed by the HackTrip frontend.
+
+The backend is a Node.js 22+ / TypeScript / Express 4 application using Prisma Client with MySQL. The production request path is:
+
+`Frontend -> Nginx -> Express -> middleware -> Controller -> Service -> Repository -> Prisma -> MySQL`
+
+The frontend and backend are separate applications, and the frontend integrates with the production API contract described here.
+
+## Source of truth
+
+Repository source code is authoritative for implemented behavior. `docs/ARCHITECTURE.md` is the canonical architectural description and API contract documentation.
+
+When code and documentation disagree, inspect the implementation and update the documentation in the same change when the documented behavior is intended to remain authoritative.
+
+Do not document temporary workarounds, historical implementation states, future migration plans, or planned frontend changes as current architecture.
 
 ## Stack and runtime
 
-- Node.js `>=22`, TypeScript, Express 4, Prisma Client, and MySQL.
-- Application source is under `src/`; `src/index.ts` is the HTTP entry point. TypeScript emits to `build/`.
-- The HTTP request path is `Controller -> Service -> Repository -> shared Prisma client -> MySQL`.
-- The request path is `Controller -> Service -> Repository -> shared Prisma client -> MySQL`; prepared response data returns through the service to the controller.
-- `src/container.ts` is the composition root. It wires repositories and services; do not put business logic or configuration loading there.
-- The app uses one shared Prisma client from `src/clients/prisma.ts`. Do not create another client or a slice-specific database connection.
+* Node.js `>=22`
+* TypeScript
+* Express 4
+* Prisma Client
+* MySQL
+* Zod
+* JWT access tokens
+* HttpOnly refresh-token cookies
+* Google Cloud Storage for images
+* Multer 2 and Sharp for image processing
+* Nodemailer for authentication email
+
+Application source is under `src/`.
+
+* `src/index.ts` is the HTTP entry point.
+* TypeScript emits to `build/`.
+* `src/container.ts` is the composition root.
+* `src/clients/prisma.ts` provides the single shared Prisma client.
+* Never create another request-path Prisma client.
+* Never edit generated `build/` output by hand.
 
 ## Project structure
 
-- `src/controllers/`: Express route handlers, input boundary, status codes, and HTTP response delivery.
-- `src/controllers/`: Express route handlers, input boundary, status codes, and HTTP response delivery.
-- `src/controllers/`: Express route handlers, input boundary, status codes, and HTTP response delivery.
-- `src/services/`: business rules, authorization/ownership checks, orchestration, and calls to API mappers at the service boundary.
-- `src/repositories/`: Prisma queries and database-specific persistence for each slice.
-- `src/model/`: domain/application contracts, request types, response types, and API DTOs; do not expose Prisma rows directly.
-- `src/mappers/`: API/resource mapping and explicitly named persistence-to-application mapping; mapper files do not belong in `src/services/`.
-- `src/validation/` and `src/validation/schemas/`: request parsing and Zod schemas. Keep generic parsing primitives separate from domain rules.
-- `src/middlewares/`: authentication boundary, request marker, rate limits, error handling, and route-not-found diagnostics.
-- `src/routes/`: `/api` and `/v1` router composition.
-- `src/clients/`, `src/config/`, `src/constants/`, `src/storage/`, `src/utils/`: external clients, environment/runtime configuration, constants, file storage, and helpers.
-- `src/startup/`: runtime initialization and resource release.
-- `src/migration/`: guarded schema/data migration CLI; its raw SQL is isolated from request handlers.
-- `src/db/cloneTestDatabase.ts`: separate guarded database-clone CLI for disposable test/dev databases. It is not the removed API test suite.
-- `prisma/`: Prisma schema, seed data, and migrations.
-- `scripts/`: repository maintenance scripts.
-- `build/`: generated output; do not edit it by hand.
+* `src/controllers/`: HTTP route handlers and response delivery.
+* `src/services/`: business rules, authorization, ownership checks, orchestration, and API response preparation.
+* `src/repositories/`: Prisma queries and persistence.
+* `src/model/`: application/domain contracts and API DTOs.
+* `src/mappers/`: API and persistence mapping.
+* `src/validation/`: request validation middleware and Zod schemas.
+* `src/middlewares/`: client marker, authentication/authorization, rate limiting, errors, and route diagnostics.
+* `src/routes/`: `/api` and `/v1` router composition.
+* `src/clients/`: shared external clients.
+* `src/config/`: environment reading and validation.
+* `src/constants/`: reusable application constants and policy defaults.
+* `src/storage/`: image validation and storage.
+* `src/startup/`: runtime initialization and cleanup.
+* `src/migration/`: guarded migration tooling.
+* `src/db/cloneTestDatabase.ts`: guarded disposable database-clone tooling.
+* `src/utils/`: shared helpers.
+* `prisma/`: schema, seed data, and migrations.
+* `scripts/`: repository maintenance scripts.
+* `build/`: generated output.
 
-## Slice boundaries
+## Architecture boundaries
 
-A slice with persistence or business logic normally has its own controller, service, repository, and model/schema files, adding only what it needs.
+### Controllers
 
-### Controller
+Controllers are thin HTTP adapters.
 
-Controllers parse HTTP inputs through validation middleware, apply authentication/role middleware, call the service, and pass its prepared result to the HTTP response (for example, `res.json(result)`). They must not map domain/application values to DTOs or perform response-specific transformations. They must not contain Prisma queries, SQL, business rules, repository/service construction, or complex validation.
+They:
 
-### Service
+* receive validated HTTP input;
+* rely on authentication/role middleware;
+* call services;
+* return prepared service results with `res.json(...)`.
 
-Services own business validation, authorization and ownership rules, orchestration, and the API boundary: API-facing services call API mappers and return the prepared response DTO/result. Keep service dependencies constructor-injected. Do not instantiate repositories, Prisma clients, or other dependencies inside a service. Keep one-use service-local helpers next to their consumer when they are not mapping functions.
+Controllers must not:
 
-### Repository
+* query Prisma;
+* contain business rules;
+* perform ownership decisions;
+* construct repositories or services;
+* perform DTO mapping;
+* perform response-specific transformations.
 
-Repositories use the shared Prisma client and own persistence queries. Do not introduce generic CRUD/query-builder layers. Do not use raw SQL in request slices; raw SQL belongs only in explicitly scoped migration/maintenance tooling when Prisma cannot express the operation.
+### Services
 
-### Models and validation
+Services own:
 
-- API DTOs and domain/application types must not expose Prisma model types.
-- Keep reusable domain/application boundary contracts in `src/model/` when needed; do not create duplicate types solely for formal layering.
-- New domain identifiers use `id`, `ownerId`, `tripId`, `pointId`, `targetId`, and `targetTypeId`; do not add legacy underscore-prefixed identifiers.
-- Use strict Zod schemas for request bodies/queries/params where the slice already follows that convention. Generic string/number parsing stays generic; business rules stay in services.
+* business validation;
+* authorization and ownership checks;
+* orchestration;
+* API boundary preparation;
+* API mapper invocation where required.
 
-### Mapping boundaries
+Dependencies are constructor-injected.
+
+Services must not instantiate repositories, Prisma clients, or other application dependencies.
+
+### Repositories
+
+Repositories own persistence.
+
+They:
+
+* use the shared Prisma client;
+* perform Prisma queries;
+* translate application contracts into persistence representations where required.
+
+Do not introduce generic CRUD/query-builder abstractions.
+
+Raw SQL is restricted to explicitly scoped migration or maintenance tooling.
+
+### Mapping
 
 The normal response flow is:
 
 ```text
 Prisma / Repository
-	-> persistence-to-application mapping (when required)
-	-> Service
-	-> API mapper
-	-> Controller
-	-> res.json(preparedResult)
+        ->
+persistence-to-application mapping
+        ->
+Service
+        ->
+API mapper
+        ->
+Controller
+        ->
+res.json(preparedResult)
 ```
 
-- Put mapper modules in `src/mappers/`, never in `src/services/`.
-- API mappers accept model/domain/application contracts from `src/model/`; they must not import repository-owned `*Row`, repository DTO/input types, controllers, services, Express, or Prisma Client.
-- API mappers perform transformation only. They must not query a database, call a service/repository, read service runtime state, perform side effects, validate requests, or make business, authorization, or ownership decisions.
-- Repositories may invoke an explicitly persistence-oriented mapper to convert Prisma persistence shapes into application contracts. `configMapper` is Prisma-to-domain/application mapping; `pointPersistenceMapper` converts persisted point columns into `PointRecord`. These are not API mappers.
-- API-oriented mapper examples currently include `tripMapper`, `pointMapper`, `commentMapper`, `imageMapper`, `reportMapper`, `userMapper`, `socialMapper`, `adminMapper`, `routeNotFoundLogMapper`, and `imageInventoryMapper`; persistence-oriented examples are `configMapper` and `pointPersistenceMapper`.
-- Write mapping targets an application/domain input contract, not a repository-private shape. Repositories translate that contract into Prisma field names/types where persistence requires it. Keep validation and business rules outside mappers.
-- This mapping refactor preserves the API contract: it must not itself change endpoints, HTTP methods/status codes, response JSON shape, or business behavior.
+All mapper modules belong in `src/mappers/`.
 
-## Routing and middleware
+API mappers:
 
-The source mounts `src/index.ts -> /api -> /v1 -> feature routers`. Current routes are listed in `docs/ARCHITECTURE.md`; do not restore legacy root-level routers without first checking the current mounts and API contract.
+* accept application/domain contracts;
+* perform transformation only;
+* do not query databases;
+* do not call services or repositories;
+* do not contain business rules;
+* do not perform authorization or ownership decisions;
+* do not depend on Express or Prisma.
 
-The application pipeline starts with the public `x-hacktrip-client: web` noise filter (it is not authentication), then CORS, bounded JSON/urlencoded parsers, HSTS, proxy trust, and `/api`. The final application error handler handles parser/pre-router errors. Feature routers add their own API error handling and scoped 404 diagnostics where applicable.
+Persistence mappers are distinct from API mappers.
 
-## Authentication, authorization, and ownership
+## Public API contract (V6)
 
-- Protected v1 routes use `Authorization: Bearer <access token>` through `src/middlewares/authBoundary.ts`.
-- The JWT identifies the subject; the boundary resolves the user from the database on each request and uses the database row for current account status and role.
-- Services receive the authenticated actor (`id`, `role`). Ownership and authorship derive from this actor, never from client-supplied `ownerId`, `authorId`, or user identity fields.
-- Public reads may use optional authentication for viewer-specific response state. Do not make optional auth an authorization bypass.
-- Admin authorization is role-based at the boundary; preserve the specific route role requirements.
-- Refresh tokens travel in an HttpOnly cookie scoped to `/api/v1/auth`; they are not returned in response bodies. Production must keep the cookie `Secure`. `COOKIE_SECURE` cannot disable it when `NODE_ENV=production`.
+The production anonymous/public Frontend request uses both headers:
 
-## Configuration and external services
+```http
+x-hacktrip-client: web
+Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>
+```
 
-- `DATABASE_URL` configures Prisma/MySQL.
-- Auth configuration uses `JWT_ACCESS_SECRET`, `ACCESS_TOKEN_EXPIRES_IN`, `REFRESH_TOKEN_EXPIRES_IN`, `AUTH_APP_URL`, `AUTH_VERIFY_EMAIL_PATH`, `AUTH_PASSWORD_RESET_PATH`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `AUTH_MAIL_TRANSPORT`, `EMAIL_USER`, `PASS_EMAIL`, and `AUTH_RATE_LIMIT_*` variables. Document variable names only; never commit values.
-- Runtime CORS and dynamic-config refresh use `NODE_ENV` and `CONFIG_SLOW_REFRESH_SECONDS`.
-- Migration gates use `MIGRATION_ALLOW_PRODUCTION` and `MIGRATION_BACKUP_REF`; consult the migration README before invoking write modes.
-- The app uses Google Cloud Storage for images and Nodemailer for email. Never add credentials or private environment values to source or documentation.
-- Image upload uses Multer 2 and Sharp. Preserve server-generated object keys, create-only GCS writes, current format/size limits, generated thumbnails, and cleanup/ownership checks unless a task explicitly changes the contract.
+Both headers are part of the production API contract.
 
-## Security and operational constraints
+### Frontend client marker
 
-- Express currently trusts one proxy hop (`TRUST_PROXY_HOPS = 1`). This is matched to the stated deployment of one Nginx proxy before Node. `req.ip`/`req.ips` depend on that topology; verify the real proxy chain before changing the setting.
-- Raw forwarded IP headers in route-not-found diagnostics are forensic evidence only. Never use them for authentication, authorization, ownership, or rate-limit identity; use Express-derived `req.ip` for client identity.
-- CORS uses environment-specific allowlists with credentials; do not replace it with a wildcard for convenience.
-- HSTS is set in application code. API errors return the API error contract and must not expose stack traces, database details, filesystem paths, or secrets.
-- Route-not-found logging deliberately omits request body, query, params, Authorization, Cookie, and credentials. Preserve its data minimization and IP bounding/redaction behavior.
-- The supplied deployment topology is Internet -> Nginx -> Node/Express on port 8080. Nginx, PM2, firewall, and actual production database state are not repository configuration unless a checked-in file says otherwise.
+`x-hacktrip-client: web` is required for normal Frontend API requests.
 
-## Changes requiring prior analysis
+It is a public request marker and is not authentication.
 
-Before changing a route, DTO, validation schema, Prisma model, migration, authentication behavior, ownership rule, cookie, rate limit, image key/format, logging field, or proxy trust, inspect its callers and current contract. Do not infer production database state from `schema.prisma` alone. Do not edit generated `build/` output. Avoid unrelated cleanup and broad refactors.
+It identifies the expected HackTrip web-client request shape.
 
-## Commands
+The public bearer token does not replace this header.
 
-- `npm run build`: compile TypeScript to `build/`.
-- `npx tsc --noEmit`: typecheck without emitting.
-- `npm run lint`: ESLint across the repository.
-- `npm audit` and `npm audit --omit=dev`: dependency audits.
-- `npm run server`: run the TypeScript entry using `ts-node` with the Node inspector; development only.
-- `npm run dev`: run the nodemon development command.
-- `npm run start`: compile and start the generated entry with PM2.
-- `npm run migration:phase4:dry-run` and `npm run migration:phase4:verify`: read-only migration checks; inspect `src/migration/README.md` before any write command.
-- `npm run db:clone-test:dry-run`: inspect the guarded database clone plan. The live clone command can drop/recreate its configured target; verify it is disposable before running.
+A request without the required client marker is rejected according to the production route-not-found behavior.
 
-The old source test suite and its helpers/scripts have been removed. No test framework or automated test command is currently configured; test strategy is a separate task. Do not recreate tests or add a testing dependency as part of an unrelated slice change.
+### Public frontend bearer token
+
+`Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>` identifies an anonymous/public Frontend API context.
+
+`PUBLIC_FRONTEND_TOKEN`:
+
+* is public;
+* is non-secret;
+* is visible in browser DevTools;
+* is copyable;
+* is not a password;
+* is not a user credential;
+* is not a JWT;
+* is not a session;
+* is not an ownership identity;
+* does not grant privileges;
+* does not bypass authorization;
+* is not a security boundary.
+
+The default value is:
+
+```text
+hacktrip-public-v1
+```
+
+It can be overridden with the `PUBLIC_FRONTEND_TOKEN` environment variable.
+
+Do not hash it, rotate it as a credential, store it with JWT/signing secrets, or treat possession of it as proof of user identity.
+
+### Authentication outcomes
+
+For requests reaching the authentication boundary, bearer authentication has the following production behavior:
+
+| Request state                                         | Result                                              |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| No `Authorization` header                             | `404`                                               |
+| `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`       | Anonymous context                                   |
+| Valid `Authorization: Bearer <USER_ACCESS_TOKEN>`     | Authenticated user context                          |
+| Invalid user access JWT                               | Existing unauthorized/404 behavior; never anonymous |
+| Valid user access JWT with suspended/deactivated user | Existing account-status authentication behavior     |
+
+Absence of `Authorization` is not treated as successful anonymous authentication.
+
+An invalid user access JWT is not treated as the public frontend token and does not fall back to anonymous authentication.
+
+A valid JWT does not override the current database account status.
+
+### Bearer token classification
+
+The authentication boundary classifies the bearer value before attempting JWT verification:
+
+```text
+Authorization: Bearer <token>
+                |
+                +-- no Authorization
+                |       |
+                |       +-- production 404
+                |
+                +-- token === PUBLIC_FRONTEND_TOKEN
+                |       |
+                |       +-- anonymous context
+                |           authenticated = false
+                |           actor = anonymous
+                |           no user
+                |           no session
+                |           no ownership identity
+                |
+                +-- otherwise
+                        |
+                        +-- verify as user access JWT
+                            |
+                            +-- valid
+                            |   authenticated user context
+                            |
+                            +-- invalid
+                            |   existing unauthorized/404 behavior
+                            |   never anonymous
+                            |
+                            +-- valid JWT + suspended/deactivated user
+                                existing account-status behavior
+```
+
+The public token is never passed to JWT verification.
+
+A normal authenticated request uses:
+
+```http
+Authorization: Bearer <USER_ACCESS_TOKEN>
+```
+
+A valid user access token identifies the authenticated user.
+
+The current database user row remains authoritative for current account status and role.
+
+### Anonymous request context
+
+When the bearer token equals `PUBLIC_FRONTEND_TOKEN`, the authentication boundary creates an anonymous request context:
+
+```text
+authenticated = false
+actor = anonymous
+user = none
+session = none
+ownership identity = none
+```
+
+No default application user is created or associated with the request.
+
+The public token therefore does not establish identity or ownership.
+
+### Anonymous permissions
+
+Anonymous/public access is read-only.
+
+Public access may include:
+
+* public trip reads;
+* public day/point data included in public trip responses;
+* public point reads;
+* public comment reads;
+* public like counts/state;
+* public favorite counts/state where exposed publicly;
+* public-safe configuration;
+* public image metadata exposed by public DTOs.
+
+Anonymous access cannot:
+
+* create or modify trips;
+* create or modify points;
+* create or modify comments;
+* create or delete likes;
+* create or delete favorites;
+* submit reports;
+* access admin endpoints;
+* access private user data;
+* access user-specific private resources;
+* perform ownership-sensitive operations.
+
+The public token never grants write capability.
+
+### Public reads and optional authentication
+
+Public read routes are explicit.
+
+A route is not public merely because it lacks an authentication middleware.
+
+Routes that support public reads use the optional-authentication boundary when viewer-specific state can be returned.
+
+For an anonymous request:
+
+```text
+authenticated = false
+actor = anonymous
+```
+
+No user, session, ownership identity, or default application user is created.
+
+For a valid user access token, optional authentication resolves the current database user and may provide viewer-specific state such as `likedByMe` or `favoritedByMe`.
+
+Backend authorization is always the final authority. Frontend visibility restrictions are never a security boundary.
+
+## Authentication and authorization
+
+Protected API requests use:
+
+```http
+Authorization: Bearer <USER_ACCESS_TOKEN>
+```
+
+The authentication boundary:
+
+1. extracts the bearer value;
+2. handles an absent bearer according to the production 404 behavior;
+3. resolves `PUBLIC_FRONTEND_TOKEN` as anonymous;
+4. otherwise verifies the value as a user access JWT;
+5. rejects invalid JWTs using the existing unauthorized/404 behavior;
+6. resolves the current user from the database;
+7. applies the existing account-status authentication behavior;
+8. uses the database row as the authority for current account status and role.
+
+JWT claims do not override current database state.
+
+Ownership and authorship always derive from the authenticated actor.
+
+Never trust client-supplied:
+
+* `ownerId`;
+* `authorId`;
+* user IDs;
+* role values;
+* account status.
+
+Authorization is enforced server-side.
+
+Admin and moderator permissions remain route-specific and role-based.
+
+## Refresh authentication
+
+Refresh tokens:
+
+* are delivered through an HttpOnly cookie;
+* are scoped to `/api/v1/auth`;
+* are not returned in response bodies;
+* use `Secure` in production;
+* must remain protected from client-side JavaScript.
+
+Production security settings must not be weakened through environment configuration.
+
+## Configuration
+
+`src/config/` reads and validates environment values.
+
+Reusable defaults belong in `src/constants/`.
+
+Examples:
+
+* `src/constants/environment.ts`
+* `src/constants/auth.ts`
+
+Configuration modules must import reusable defaults rather than defining duplicate fallback constants locally.
+
+The public frontend token default belongs in `src/constants/environment.ts`.
+
+Authentication fallback values such as access-token TTL, refresh-token TTL, and authentication rate-limit defaults belong in `src/constants/auth.ts`.
+
+Do not duplicate these values across configuration modules.
+
+Never commit credentials, API keys, JWT secrets, SMTP passwords, GCS credentials, or other private environment values.
+
+## Request pipeline
+
+The production request pipeline is:
+
+```text
+Express security setup
+        ->
+x-hacktrip-client: web
+        ->
+CORS
+        ->
+public API rate limit
+        ->
+JSON / URL-encoded body limits
+        ->
+/api
+        ->
+/v1
+        ->
+request validation
+        ->
+authentication / optional authentication / role authorization
+        ->
+controller
+        ->
+service
+        ->
+repository
+        ->
+Prisma / external adapters
+        ->
+prepared response
+```
+
+Multipart image uploads are handled by their route-specific Multer configuration.
+
+The public bearer token is classified by the authentication boundary.
+
+There is no separate custom public-token request header.
+
+## Validation
+
+Request schemas use strict validation where the route contract requires it.
+
+Reject:
+
+* undeclared body fields;
+* undeclared query fields;
+* undeclared route parameters;
+* malformed IDs;
+* invalid pagination;
+* oversized request bodies;
+* invalid image payloads.
+
+Do not weaken strict validation to accommodate undocumented frontend behavior.
+
+If a valid client contract requires a new field or query parameter, update the API contract and frontend integration together rather than silently accepting arbitrary input.
+
+## Rate limiting
+
+Rate limits are operational protections, not authentication.
+
+The public API rate limit must not be treated as an authorization boundary.
+
+Authentication and authorization must remain correct even if rate limiting is bypassed or unavailable.
+
+Do not use forwarded IP headers directly for security decisions. Use Express-derived client identity according to the configured proxy topology.
+
+## Security invariants
+
+Preserve the following unless a task explicitly changes the contract:
+
+* server-side authorization;
+* server-side ownership checks;
+* user role resolution from the database;
+* registration anti-enumeration behavior;
+* password re-authentication for password changes;
+* HttpOnly refresh-token cookies;
+* secure production cookies;
+* bounded request bodies;
+* strict request validation;
+* API error contract;
+* generic production 500 responses;
+* no stack traces or database internals in API responses;
+* route-not-found logging data minimization;
+* server-generated image object keys;
+* create-only GCS writes;
+* EXIF stripping/re-encoding;
+* image format and size limits;
+* thumbnail generation;
+* image ownership checks;
+* transactional image attachment and cleanup.
+
+## Images
+
+The existing image architecture is authoritative.
+
+Preserve:
+
+* one image per upload request;
+* maximum image count per entity;
+* maximum upload size;
+* Sharp byte-level validation;
+* server-generated GCS object names;
+* create-only GCS writes;
+* sanitized/re-encoded image output;
+* thumbnails;
+* transactional attachment;
+* cleanup on partial failure;
+* ownership checks.
+
+Do not use client filenames as storage object keys.
+
+## Database
+
+Use Prisma through the shared client.
+
+User IDs remain UUID strings.
+
+Resource IDs may use integer keys according to the existing Prisma model.
+
+Do not infer production database state from `schema.prisma` alone.
+
+Before changing a schema or migration, inspect the existing migration history and migration documentation.
+
+## Changes requiring analysis first
+
+Before changing any of the following, inspect callers and the current contract:
+
+* routes;
+* DTOs;
+* validation schemas;
+* authentication;
+* authorization;
+* ownership rules;
+* cookies;
+* rate limits;
+* image storage;
+* logging fields;
+* proxy trust;
+* Prisma models;
+* migrations;
+* public API behavior.
+
+Do not perform unrelated cleanup or broad refactors as part of a focused task.
+
+Do not edit generated `build/` output.
+
+## Verification
+
+Use the smallest appropriate verification for the change.
+
+Available commands:
+
+```bash
+npm run build
+npx tsc --noEmit
+npm run lint
+npm audit
+npm audit --omit=dev
+npm run migration:phase4:dry-run
+npm run migration:phase4:verify
+npm run db:clone-test:dry-run
+```
+
+Do not run destructive migration or database-clone commands without explicit authorization and confirmation that the target is disposable.
+
+There is currently no automated application test suite configured. Do not recreate a removed test suite or add a testing dependency as an unrelated change.
+
+## Documentation invariant
+
+Documentation describes the current production contract.
+
+The V6 public API contract is:
+
+```text
+x-hacktrip-client: web
+Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>
+```
+
+Both headers are required for the anonymous/public Frontend API request.
+
+The production authentication outcomes are:
+
+```text
+No Authorization
+    -> 404
+
+PUBLIC_FRONTEND_TOKEN
+    -> anonymous
+
+Valid USER_ACCESS_TOKEN
+    -> authenticated user
+
+Invalid USER_ACCESS_TOKEN
+    -> existing unauthorized/404 behavior
+       never anonymous
+
+Valid JWT + suspended/deactivated user
+    -> existing account-status authentication behavior
+```
+
+The public bearer token is public, non-secret, copyable, and never represents a user identity or authorization credential.
+
+The public bearer token is never passed to JWT verification.
+
+The documentation must describe implemented production behavior directly.
+
+Do not describe the V6 contract as future work, a migration plan, a transitional mechanism, a WIP state, or a planned frontend change.
+
+Do not document `x-hacktrip-public-token` as part of the production API contract.
+
+When implementation and documentation are changed together, implementation, frontend integration, and documentation must describe the same current production behavior.

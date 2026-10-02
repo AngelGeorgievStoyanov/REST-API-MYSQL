@@ -5,15 +5,15 @@ import {
     HACKTRIP_CLIENT_HEADER,
     HACKTRIP_CLIENT_VALUE,
 } from '../constants/http';
+import { ApiError, toApiErrorBody } from '../utils/apiError';
 
 /**
  * First filter of the request pipeline: a request that does not carry the
- * frontend marker is answered with an empty 404 and never reaches CORS, a body
- * parser or any slice.
+ * frontend client marker is rejected before body parsing or a slice.
  *
- * The marker is not a secret and not an authentication factor — it is visible in
- * the bundle and on the network. It only keeps unrelated traffic (bots, scanners,
- * probes) out of the application logic; real authorization happens later.
+ * The marker is public and copyable. It only identifies the expected frontend
+ * request shape; authentication and authorization happen later. The public
+ * frontend bearer token is classified by the authentication boundary, not here.
  *
  * A CORS preflight cannot carry a custom header, so those requests are left to
  * the CORS middleware instead of being rejected here.
@@ -24,6 +24,11 @@ export const clientHeaderMiddleware: RequestHandler = (req: Request, res: Respon
         return;
     }
 
-    // Deliberately empty and uninformative: the answer must not reveal the filter.
+    const isVersionedApi = req.path === '/api/v1' || req.path.startsWith('/api/v1/');
+    if (isVersionedApi) {
+        res.status(404).json(toApiErrorBody(ApiError.notFound()));
+        return;
+    }
+
     res.status(CLIENT_HEADER_REJECTION_STATUS).end();
 };

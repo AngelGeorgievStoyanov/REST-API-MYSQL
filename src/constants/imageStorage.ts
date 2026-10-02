@@ -20,6 +20,20 @@ export const IMAGE_LIMIT_MESSAGE = `A maximum of ${MAX_IMAGES_PER_ENTITY} images
  */
 export const ALLOWED_IMAGE_FORMATS = ['jpeg', 'png', 'webp', 'gif'] as const;
 
+/**
+ * Decoded-size ceilings of one upload. They are a policy decision, not a column
+ * width, and they are enforced on the decoded image header before the file is
+ * re-encoded or written to storage.
+ *
+ * `MAX_IMAGE_PIXELS` is the decisive one: a small file can decode into a huge
+ * raster (a decompression bomb), so a width/height pair alone is not enough. The
+ * budget counts every frame of a multi-page image. It leaves room above a 48 MP
+ * phone photo (8000 x 6000) while refusing a 10000 x 10000 raster.
+ */
+export const MAX_IMAGE_WIDTH = 10000;
+export const MAX_IMAGE_HEIGHT = 10000;
+export const MAX_IMAGE_PIXELS = 50_000_000;
+
 /** Declared `Content-Type` values accepted as a cheap first gate. */
 export const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 

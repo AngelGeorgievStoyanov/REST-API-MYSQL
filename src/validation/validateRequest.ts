@@ -13,12 +13,30 @@ export interface RequestSchemas {
  * Validates the declared parts of the request and hands the parsed values to the
  * rest of the chain, so no slice ever reads unvalidated input.
  *
+ * A part the contract does not declare must also arrive empty: an endpoint
+ * without a body schema answers `400` to any payload instead of ignoring it.
+ *
  * A rejected request is a `400 VALIDATION_ERROR` naming the offending field: the
  * message is derived from the schema, never from a thrown error, so no stack
  * trace, database detail or internal identifier can leak.
  */
 export function validateRequest(schemas: RequestSchemas): RequestHandler {
     return (req: Request, _res: Response, next: NextFunction): void => {
+        if (schemas.body === undefined && hasUnexpectedInput(req.body)) {
+            next(ApiError.validation('This endpoint does not accept a request body.'));
+            return;
+        }
+
+        if (schemas.query === undefined && hasUnexpectedInput(req.query)) {
+            next(ApiError.validation('This endpoint does not accept query parameters.'));
+            return;
+        }
+
+        if (schemas.params === undefined && hasUnexpectedInput(req.params)) {
+            next(ApiError.validation('This endpoint does not accept route parameters.'));
+            return;
+        }
+
         if (schemas.body !== undefined) {
             const parsed = parse(schemas.body, req.body, next);
             if (parsed === undefined) return;
@@ -41,6 +59,19 @@ export function validateRequest(schemas: RequestSchemas): RequestHandler {
 
         next();
     };
+}
+
+/**
+ * A part of the request the endpoint did not declare must arrive empty. An
+ * undeclared body parser result is `undefined` on requests without a body, so it
+ * is only the presence of key/value data that is rejected.
+ */
+function hasUnexpectedInput(value: unknown): boolean {
+    if (value === undefined) return false;
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        return Object.keys(value).length > 0;
+    }
+    return true;
 }
 
 function parse(schema: ZodType, value: unknown, next: NextFunction): unknown {

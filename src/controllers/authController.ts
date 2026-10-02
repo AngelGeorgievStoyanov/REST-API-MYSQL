@@ -106,7 +106,7 @@ authController.post(
     }),
 );
 
-authController.post('/refresh', attemptLimiter('refresh'), asyncHandler(async (req, res) => {
+authController.post('/refresh', attemptLimiter('refresh'), validateRequest({}), asyncHandler(async (req, res) => {
     try {
         const session = await authService.refresh(readCookie(req.headers.cookie, REFRESH_COOKIE_NAME));
         setRefreshCookie(res, session);
@@ -118,13 +118,13 @@ authController.post('/refresh', attemptLimiter('refresh'), asyncHandler(async (r
     }
 }));
 
-authController.post('/logout', asyncHandler(async (req, res) => {
+authController.post('/logout', validateRequest({}), asyncHandler(async (req, res) => {
     const result = await authService.logout(readCookie(req.headers.cookie, REFRESH_COOKIE_NAME));
     clearRefreshCookie(res);
     res.status(200).json(result);
 }));
 
-authController.get('/me', requireAuthentication, asyncHandler(async (req, res) => {
+authController.get('/me', validateRequest({}), requireAuthentication, asyncHandler(async (req, res) => {
     res.status(200).json(await authService.me(actorFrom(req).id));
 }));
 
@@ -159,15 +159,15 @@ authController.put(
     }),
 );
 
-authController.get('/me/image', requireAuthentication, asyncHandler(async (req, res) => {
+authController.get('/me/image', validateRequest({}), requireAuthentication, asyncHandler(async (req, res) => {
     res.status(200).json(await authService.getProfileImage(actorFrom(req).id));
 }));
 
-authController.post('/me/image', requireAuthentication, imageUpload, asyncHandler(async (req, res) => {
+authController.post('/me/image', validateRequest({}), requireAuthentication, imageUpload, asyncHandler(async (req, res) => {
     res.status(201).json(await authService.setProfileImage(actorFrom(req).id, uploadedFileName(req)));
 }));
 
-authController.delete('/me/image', requireAuthentication, asyncHandler(async (req, res) => {
+authController.delete('/me/image', validateRequest({}), requireAuthentication, asyncHandler(async (req, res) => {
     await authService.removeProfileImage(actorFrom(req).id);
     res.status(204).send();
 }));

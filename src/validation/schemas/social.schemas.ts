@@ -14,10 +14,10 @@ export const socialTargetBodySchema = z.object({
 export const socialTargetQuerySchema = z.object({
     targetType: targetTypeInput,
     targetId: positiveId,
-});
+}).strict();
 
 export const favoriteBodySchema = z.object({ tripGroupId: positiveId }).strict();
-export const favoriteQuerySchema = z.object({ tripGroupId: positiveId });
+export const favoriteQuerySchema = z.object({ tripGroupId: positiveId }).strict();
 
 export const commentBodySchema = z.object({
     text: trimmedString(LIMITS.comment.text),
@@ -32,4 +32,4 @@ export const reportBodySchema = z.object({
 export const commentPageQuerySchema = z.object({
     page: optionalInt(LIMITS.pagination.page),
     limit: optionalInt(LIMITS.pagination.commentLimit),
-});
+}).strict();

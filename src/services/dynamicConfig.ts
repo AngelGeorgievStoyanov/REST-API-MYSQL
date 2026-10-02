@@ -1,7 +1,8 @@
-import { SelectConfig, ServiceConfig } from '../model/config';
+import { PublicServiceConfig, SelectConfig, ServiceConfig } from '../model/config';
 import { ConfigRepository } from '../repositories/configRepository';
 import { getErrorMessage } from '../utils/error';
 import { EnvironmentConfig } from '../config/environment';
+import { toPublicServiceConfigList } from '../mappers/publicConfigMapper';
 
 export interface DynamicConfig {
     selects: SelectConfig[];
@@ -91,6 +92,15 @@ function getServiceConfig(key: string): ServiceConfig | null {
     return getConfig().services.find((serviceConfig) => serviceConfig.key === key) ?? null;
 }
 
+/**
+ * Public-safe service configuration: the API mapper exposes only the documented
+ * public keys, so no internal configuration row reaches the response. The mapper
+ * runs at the service boundary; the controller only returns the prepared result.
+ */
+function getPublicServiceConfigs(): PublicServiceConfig[] {
+    return toPublicServiceConfigList(getConfig().services);
+}
+
 async function runRefresh(): Promise<void> {
     await refreshSlow();
     await refreshFast();
@@ -128,5 +138,6 @@ export const dynamicConfig = {
     getSelectType,
     getServiceConfigs,
     getServiceConfig,
+    getPublicServiceConfigs,
 };
 

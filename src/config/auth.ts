@@ -1,4 +1,11 @@
 import { CONNECTIONURL } from '../utils/baseUrl';
+import {
+    DEFAULT_ACCESS_TOKEN_TTL_SECONDS,
+    DEFAULT_RATE_LIMIT_EMAIL_MAX,
+    DEFAULT_RATE_LIMIT_MAX,
+    DEFAULT_RATE_LIMIT_WINDOW_SECONDS,
+    DEFAULT_REFRESH_TOKEN_TTL_SECONDS,
+} from '../constants/auth';
 
 export type CookieSameSite = 'lax' | 'strict' | 'none';
 export type AuthMailTransport = 'smtp' | 'file';
@@ -30,12 +37,6 @@ export interface AuthConfig {
 }
 
 export type AuthEnvironmentSource = Record<string, string | undefined>;
-
-const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
-const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
-const DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 15 * 60;
-const DEFAULT_RATE_LIMIT_MAX = 10;
-const DEFAULT_RATE_LIMIT_EMAIL_MAX = 5;
 
 function isProduction(env: AuthEnvironmentSource): boolean {
     return env.NODE_ENV === 'production';

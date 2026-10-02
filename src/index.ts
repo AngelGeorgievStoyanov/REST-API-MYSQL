@@ -1,7 +1,7 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import dotenv from 'dotenv';
 import { SERVER_PORT, SHUTDOWN_SIGNALS, TRUST_PROXY_HOPS } from './constants/application';
 import {
     CORS_ALLOWED_HEADERS,
@@ -14,12 +14,11 @@ import {
 } from './constants/http';
 import { EnvironmentConfig, loadEnvironmentConfig } from './config/environment';
 import { clientHeaderMiddleware } from './middlewares/clientHeaderMiddleware';
+import { publicApiRateLimit } from './middlewares/publicApiRateLimit';
 import { apiErrorMiddleware } from './middlewares/apiErrorMiddleware';
 import apiRouter from './routes/apiRouter';
 import { initializeApplication, releaseApplicationResources } from './startup/application';
 import { getErrorMessage } from './utils/error';
-
-dotenv.config();
 
 /** The environment is read once and handed to every part of the startup. */
 const environment = loadEnvironmentConfig();
@@ -35,7 +34,11 @@ bootstrap(environment);
  * marker first, then the transport concerns, then the routes.
  */
 function configureApplication(application: express.Express, config: EnvironmentConfig): void {
-    // Cheapest filter first: unrelated traffic never reaches a body parser.
+    application.disable('x-powered-by');
+    application.set('trust proxy', TRUST_PROXY_HOPS);
+    application.use(setHstsHeader);
+
+    // Unmarked traffic is filtered before parsers; preflights pass through to CORS.
     application.use(clientHeaderMiddleware);
 
     // Only the origins of the current environment: a production run cannot answer
@@ -49,6 +52,8 @@ function configureApplication(application: express.Express, config: EnvironmentC
         credentials: true,
     }));
 
+    application.use('/api', publicApiRateLimit);
+
     // Binary uploads never pass through a body parser: the image storage engine
     // reads them with its own per-file cap, so neither parser needs a large limit.
     application.use(bodyParser.json({ limit: JSON_BODY_LIMIT }));
@@ -59,11 +64,6 @@ function configureApplication(application: express.Express, config: EnvironmentC
     }));
 
     // Registered before the routes, so the policy also reaches their responses.
-    application.use(setHstsHeader);
-    // A TLS-terminating proxy sits in front of the application, so `req.ip` (rate
-    // limiting, failed-log records, the 404 logger) reads the forwarded address.
-    application.set('trust proxy', TRUST_PROXY_HOPS);
-
     application.use('/api', apiRouter);
 
     // Last resort: an error raised before a router (a body parser, for example)
