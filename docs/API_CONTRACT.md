@@ -22,7 +22,7 @@ All API endpoints live under the versioned prefix:
 
 ### 1.1 Client marker header
 
-Every Frontend API request must carry:
+Every Frontend API request to `/api/v1` must carry the client marker header. This applies to every endpoint, including every authentication endpoint (`register`, `login`, `verify-email`, `resend-verification`, `forgot-password`, `reset-password`, `refresh`, `logout`, `me`, and all profile endpoints). It is required independently of `Authorization`:
 
 ```http
 x-hacktrip-client: web
@@ -288,6 +288,8 @@ Authorization model:
 ## 6. Auth Endpoints
 
 All auth routes are mounted at `/api/v1/auth`.
+
+> `Auth: none` in this section means no `Authorization` token is required. The `x-hacktrip-client: web` header is STILL required for every auth endpoint, exactly as for every other `/api/v1` endpoint (see §1.1).
 
 ### 6.1 POST `/auth/register`
 
