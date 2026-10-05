@@ -608,3 +608,91 @@ Do not describe the V6 contract as future work, a migration plan, a transitional
 Do not document `x-hacktrip-public-token` as part of the production API contract.
 
 When implementation and documentation are changed together, implementation, frontend integration, and documentation must describe the same current production behavior.
+
+## Trip discovery, user-specific trips, favorites, backgrounds, and reports
+
+### Top 5 trips
+
+The Top 5 trips endpoint is a public read and may be requested by an anonymous context.
+
+It:
+
+* does not accept a `userId` route parameter;
+* returns at most 5 trip groups;
+* ranks trip groups by the total number of likes for each trip group;
+* uses the trip-group ID as the grouping identity;
+* if fewer than 5 trip groups are available, returns only the available trip groups;
+* does not require an authenticated user;
+* preserves the normal public trip response structure for the returned trip groups.
+
+Ties in like counts do not require an application-level tie-break rule unless the API contract explicitly defines one. Database ordering may determine the order of equally ranked groups.
+
+### My Trips
+
+My Trips is a protected user-specific read.
+
+The endpoint must not accept a client-supplied `userId` in the request URL for determining ownership.
+
+The authenticated user is determined exclusively from the authenticated request context. The backend then returns trip groups whose ownership belongs to that authenticated user, with the normal trip response structure.
+
+Never trust a user ID supplied by the frontend to determine which trips belong to the authenticated user.
+
+### My Favorites
+
+My Favorites is a protected user-specific read.
+
+The endpoint must not accept a client-supplied `userId` in the request URL for determining the requesting user.
+
+Favorites are stored per user and trip group. The backend uses the authenticated user identity to read that user's actual favorite records and resolves the corresponding trip groups.
+
+The `favorites` persistence relationship is: `favorites.userId` -> authenticated user; `favorites.tripGroupId` -> trip group.
+
+Only trip groups represented by actual favorite records for the authenticated user may be returned. If the authenticated user has no favorites, the endpoint returns the contract-defined empty collection rather than treating all trips as favorites.
+
+Never trust a client-supplied user ID to determine favorite ownership.
+
+### Background images
+
+Background images are public data and may be requested by an anonymous context.
+
+Background image filenames are stored in Google Cloud Storage and are not database records.
+
+The slow dynamic configuration refresh is responsible for loading the current background-image filename list from the configured GCS bucket. A successful refresh replaces the in-memory configured list with the newly loaded list.
+
+If a GCS refresh fails:
+
+* the failure must not break application startup;
+* the failure must not break a later dynamic-config refresh;
+* if a previous successful list exists, it remains in use;
+* the failure is logged at `warn` level as appropriate.
+
+The background-image service owns selection of a random background from the currently available dynamic-config list. Controllers remain thin and return the service result as JSON; controllers must not query GCS, implement random selection, or perform response mapping.
+
+The public background-image endpoint uses the normal public Frontend authentication contract:
+
+    x-hacktrip-client: web
+    Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>
+
+The response contains one ready-to-use background image value for the Frontend, rather than the complete GCS filename list.
+
+External GCS access belongs behind the appropriate backend service/client boundary. Do not access GCS directly from controllers or duplicate GCS listing logic in multiple request paths.
+
+### Reports
+
+Reports are user-generated moderation records for content such as trips and comments.
+
+Authenticated users may create reports according to the API contract. Anonymous/public context cannot create reports.
+
+Administrative report access is restricted to the roles authorized by the API contract, currently manager/admin moderation access.
+
+The backend must support moderation workflows for reported trips and reported comments, including:
+
+* listing/retrieving reports for administrative triage;
+* identifying the reported resource and report context;
+* deleting/removing a report as part of the moderation workflow.
+
+Trip reports and comment reports remain distinguishable by their reported resource/type even if the API exposes them through a unified administrative reports endpoint.
+
+Report creation and report removal are separate authorization-sensitive operations. Do not allow a normal authenticated user to access administrative report triage or delete arbitrary reports.
+
+Administrative report operations must enforce role authorization server-side; Frontend route visibility is not a security boundary.
