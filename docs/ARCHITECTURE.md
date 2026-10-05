@@ -360,11 +360,13 @@ The `/api/v1` endpoint inventory below is derived from the mounted routers and c
 | Config         | `GET /config/selects`, `/config/services`                                                                                                                                                                                                                                                                                  |
 | Comments       | `GET` and `POST /trip-groups/:tripGroupId/comments`; `/trips/:tripId/days/:dayId/comments`; `/points/:pointId/comments`; `/images/:imageId/comments`; `PUT` and `DELETE /comments/:commentId`                                                                                                                              |
 | Trips and days | `GET /trips`, `/trips/:id`; `POST /trips`, `/trips/:tripId/days`, `/trips/:tripId/days/:dayId/images`; `PUT /trips/:id`, `/trips/:tripId/days/reorder`, `/trips/:tripId/days/:dayId`; `DELETE /trips/:id`, `/trips/:tripId/days/:dayId`                                                                                    |
+| Trip discovery/social | `GET /trips/my-trips`, `/trips/favorites`, `/trips/top`, `/trips/background`; user-specific endpoints resolve the user from authentication and do not accept a `userId` route parameter |
 | Points         | `POST /points`; `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:dayId/points/reorder`                                                                                                                                  |
 | Images         | `DELETE /images/:imageId`                                                                                                                                                                                                                                                                                                  |
 | Likes          | `POST` and `DELETE /likes`                                                                                                                                                                                                                                                                                                 |
 | Favorites      | `POST` and `DELETE /favorites`                                                                                                                                                                                                                                                                                             |
 | Reports        | `POST /reports`                                                                                                                                                                                                                                                                                                            |
+| Admin reports | `GET /admin/reports`, `DELETE /admin/reports/:reportId`; moderation access is restricted to `admin` and `manager` |
 
 Comments are mounted at the v1 root because their collections span several resource prefixes.
 
@@ -473,6 +475,73 @@ hacktrip-public-v1
 ```
 
 The public token is not a secret and must not be treated as one.
+### Dynamic background-image configuration
+
+The existing `refreshSlow()` lifecycle also loads the available background-image object names from Google Cloud Storage.
+
+The background-image list is not stored in MySQL. Its source is the GCS bucket:
+
+```text
+hack-trip-background-images
+```
+
+The refresh lifecycle is:
+
+```text
+refreshSlow()
+    ->
+background-image storage service/adapter
+    ->
+Google Cloud Storage
+    ->
+list object names
+    ->
+dynamic configuration
+```
+
+Rules:
+
+* background-image names are loaded through the existing `refreshSlow()` lifecycle;
+* a successful refresh replaces the current in-memory list with the newly loaded list;
+* a failed refresh does not clear a previously successful list;
+* background-image discovery failure must not fail application startup or a later slow refresh;
+* failures are logged at `warn` level;
+* the last successful list remains available until a later successful refresh;
+* request-path code does not call GCS for every background request;
+* the list is runtime configuration/cache data, not a database entity.
+
+A dedicated background-image storage service/adapter owns GCS access. Controllers do not access Google Cloud Storage directly.
+
+The request path is:
+
+```text
+GET /api/v1/trips/background
+    ->
+authentication boundary
+    ->
+background-image service
+    ->
+dynamic configuration list
+    ->
+random selection
+    ->
+controller
+    ->
+JSON
+```
+
+The service reads the cached dynamic configuration, selects one available object at random, and prepares the public value returned to the controller. The controller returns JSON only; it does not access GCS, read storage directly, perform random selection, or perform response mapping.
+
+The endpoint is public/anonymous and follows the existing public Frontend request contract:
+
+```http
+x-hacktrip-client: web
+Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>
+```
+
+The public token establishes no user identity or ownership.
+
+If no successful background-image list has ever been loaded and the cached list is empty, the service follows the API contract's defined error behavior rather than fabricating an image URL.
 
 Private configuration values such as database credentials, JWT signing secrets, SMTP passwords, and GCS credentials are supplied through the environment and are not committed to source control.
 
@@ -660,6 +729,25 @@ Create-only writes use a GCS generation precondition to prevent accidental overw
 ### Image processing
 
 Sharp performs image decoding, validation, sanitization, re-encoding, and thumbnail generation.
+### Background-image discovery
+
+Background-image discovery is a separate read-only GCS integration from the uploaded trip/point/profile image flow.
+
+The dynamic-configuration service requests object names from the background-image storage adapter. It does not create database records for these objects and does not download image bytes during refresh.
+
+The adapter:
+
+* uses the configured GCS client;
+* lists object names from `hack-trip-background-images`;
+* returns object names to the dynamic-configuration service;
+* propagates discovery failures so the refresh layer can preserve the previous successful value and emit a warning;
+* is never called directly by an HTTP controller.
+
+The public background value is prepared by the background-image service from the cached object name and the configured/public storage URL rules.
+
+### Image processing
+
+Sharp performs image decoding, validation, sanitization, re-encoding, and thumbnail generation.
 
 Multipart upload parsing is performed by Multer 2.
 
@@ -672,6 +760,56 @@ Nodemailer provides authentication email delivery.
 Verification and password-reset emails use environment-provided SMTP configuration.
 
 Development mail transport may write generated messages to the operating-system temporary directory.
+
+## Database
+### User-specific trip discovery
+
+`GET /api/v1/trips/my-trips`:
+
+* requires authenticated user context;
+* does not accept a `userId` route parameter;
+* resolves the current user from the authentication context;
+* returns trips belonging to that user's trip groups;
+* never uses a client-supplied user id to establish ownership.
+
+`GET /api/v1/trips/favorites`:
+
+* requires authenticated user context;
+* does not accept a `userId` route parameter;
+* reads the user's actual persisted `Favorite` records;
+* favorites are associated with `tripGroupId`;
+* resolves the corresponding trip groups/trips from those persisted favorite relationships;
+* returns the normal trip response structure;
+* returns the contract-defined empty collection when the user has no favorites.
+
+### Top trips
+
+`GET /api/v1/trips/top` is public and may be requested anonymously with the public Frontend bearer token.
+
+Initial ranking rules:
+
+* count likes for each `TripGroup`;
+* select at most 5 trip groups;
+* order by descending like count;
+* return fewer than 5 when fewer than 5 trip groups exist;
+* equal like counts have equal ranking semantics and are not a business-level distinction;
+* return the normal trip response structure rather than the legacy `/top/:id` representation.
+
+The ranking is based on persisted social data and is independent of the requesting user.
+
+### Reports and moderation
+
+Reports are created by authenticated users and persisted as report records targeting supported resources.
+
+The moderation boundary is separate from report creation:
+
+* `POST /api/v1/reports` creates a report for the authenticated actor;
+* `GET /api/v1/admin/reports` lists persisted reports for moderation triage;
+* `DELETE /api/v1/admin/reports/:reportId` removes a report record;
+* report listing and deletion are restricted to `admin` and `manager`;
+* ordinary users cannot read or delete the moderation queue.
+
+Report authorization is role-based and independent from ownership of the reported target. Exact target types, duplicate-report behavior, DTOs, pagination, and error responses remain defined by the API contract.
 
 ## Database
 
