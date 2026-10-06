@@ -6,7 +6,7 @@ import {
     PASSWORD_RESET_TOKEN_TTL_SECONDS,
 } from '../constants/auth';
 import { VALIDATION_LIMITS } from '../constants/validation/limits';
-import type { AuthActor, AuthSessionDto, AuthUserResponse, MessageResponse } from '../model/auth';
+import type { AuthActor, AuthSessionDto, AuthUserResponse, MessageResponse, SessionPresenceResponse } from '../model/auth';
 import { ImageDto } from '../model/image';
 import { ApiError } from '../utils/apiError';
 import {
@@ -30,6 +30,7 @@ import {
     toAuthUserResponse,
     toMessageResponse,
     toPasswordCheckResponse,
+    toSessionPresenceResponse,
 } from '../mappers/userMapper';
 import { asRecord, requireTrimmedString } from '../utils/validation';
 import type { AuthUserRecord } from '../model/auth';
@@ -221,6 +222,27 @@ export class AuthService {
 
         await this.refreshTokens.revoke(row.id, now);
         return this.issueSession(user);
+    }
+
+
+    async sessionPresence(rawRefreshToken: string | null): Promise<SessionPresenceResponse> {
+        if (!rawRefreshToken) return toSessionPresenceResponse(false);
+
+        try {
+            const row = await this.refreshTokens.findByHash(hashToken(rawRefreshToken));
+            if (!row || row.revokedAt !== null) return toSessionPresenceResponse(false);
+            if (row.expiresAt.getTime() <= Date.now()) return toSessionPresenceResponse(false);
+
+            const user = await this.users.findById(row.userId);
+            if (!user) return toSessionPresenceResponse(false);
+
+            this.assertAccountUsable(user);
+            return toSessionPresenceResponse(true);
+        } catch (error) {
+
+            if (error instanceof ApiError) return toSessionPresenceResponse(false);
+            throw error;
+        }
     }
 
     /** Idempotent by design: an unknown or already revoked session still logs out. */

@@ -1,4 +1,8 @@
-import { AuthActor, AuthSessionDto, AuthUserDto, AuthUserRecord, AuthUserResponse, MessageResponse } from '../model/auth';
+import { AuthActor, AuthSessionDto, AuthUserDto, AuthUserRecord, AuthUserResponse, MessageResponse, SessionPresenceResponse } from '../model/auth';
+
+export function toSessionPresenceResponse(hasSession: boolean): SessionPresenceResponse {
+    return { hasSession };
+}
 
 export function toAuthUserDto(user: AuthUserRecord): AuthUserDto {
     return {

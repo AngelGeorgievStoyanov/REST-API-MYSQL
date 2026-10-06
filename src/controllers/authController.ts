@@ -5,7 +5,7 @@ import { authService } from '../container';
 import type { AuthSessionResult, LoginContext } from '../services/authService';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
-import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
+import { actorFrom, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
 import { authRateLimit } from '../middlewares/authRateLimit';
 import { asyncHandler } from '../utils/asyncHandler';
 import { readCookie } from '../utils/auth';
@@ -117,6 +117,15 @@ authController.post('/refresh', attemptLimiter('refresh'), validateRequest({}), 
         throw error;
     }
 }));
+
+authController.get(
+    '/session',
+    validateRequest({}),
+    optionalAuthentication,
+    asyncHandler(async (req, res) => {
+        res.status(200).json(await authService.sessionPresence(readCookie(req.headers.cookie, REFRESH_COOKIE_NAME)));
+    }),
+);
 
 authController.post('/logout', validateRequest({}), asyncHandler(async (req, res) => {
     const result = await authService.logout(readCookie(req.headers.cookie, REFRESH_COOKIE_NAME));

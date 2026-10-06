@@ -42,6 +42,10 @@ export interface MessageResponse {
     message: string;
 }
 
+export interface SessionPresenceResponse {
+    hasSession: boolean;
+}
+
 export interface RegisterRequest {
     email: string;
     password: string;
