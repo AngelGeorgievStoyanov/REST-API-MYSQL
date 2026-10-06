@@ -393,6 +393,72 @@ Important DTO families include:
 
 API-facing services return prepared response contracts through API mappers. Controllers do not reconstruct DTOs.
 
+## Session presence probe
+
+The backend exposes the read-only session-presence endpoint:
+
+```text
+GET /api/v1/auth/session
+```
+
+This endpoint exists so the Frontend can determine whether the browser currently has a valid refresh session before deciding whether to call `POST /api/v1/auth/refresh` after a page reload.
+
+The request uses the normal public Frontend request contract:
+
+```http
+x-hacktrip-client: web
+Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>
+```
+
+The request must be sent with credentials enabled so the browser may include the HttpOnly `hack_trip_refresh` cookie.
+
+Architecture and security requirements:
+
+* the endpoint is read-only;
+* it must not rotate, revoke, create, or modify refresh tokens;
+* it must not return an access token, refresh token, user id, email, role, account status, or other user/account data;
+* it must not establish an authenticated access-token context;
+* it returns only whether the current browser request has a valid refresh session;
+* absent and invalid sessions use the same response shape and do not reveal why the session is unavailable;
+* a completely anonymous browser request is valid and must not require a user access JWT;
+* the response is exactly one boolean session-presence value, for example `{ "hasSession": true }` or `{ "hasSession": false }`;
+* `hasSession: false` must never cause the Frontend to call `POST /api/v1/auth/refresh`;
+* `hasSession: true` only permits the Frontend to intentionally start the normal refresh flow;
+* the endpoint is protected by the normal public API rate limit;
+* the public bearer token remains non-secret and is never treated as proof of a user session.
+
+The endpoint is specifically designed to separate anonymous public-page refresh from authenticated session restoration without exposing the HttpOnly refresh cookie to client-side JavaScript and without using `localStorage` or `sessionStorage` as authentication/session state.
+
+The request flow is:
+
+```text
+public page reload
+    ->
+GET /api/v1/auth/session
+    ->
+{ hasSession: false }
+    ->
+remain anonymous
+    ->
+no POST /api/v1/auth/refresh
+```
+
+or, when a valid refresh session exists:
+
+```text
+public page reload
+    ->
+GET /api/v1/auth/session
+    ->
+{ hasSession: true }
+    ->
+intentional POST /api/v1/auth/refresh
+    ->
+memory-only access token
+```
+
+The session-presence endpoint does not replace the refresh endpoint. It only provides a safe read-only decision point before refresh.
+
 ## Authentication and authorization
 
 Protected API requests carry:
