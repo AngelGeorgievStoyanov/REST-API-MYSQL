@@ -164,6 +164,49 @@ The emailed verification and password-reset links are constructed as `<appUrl><p
 
 The raw token only appears inside the email sent to the account owner; it is never logged or returned in an API response.
 
+
+### 2.6 Session presence probe
+
+The Frontend may use the following read-only endpoint to determine whether the browser currently has a valid refresh session before deciding to call POST /auth/refresh:
+
+```text
+GET /auth/session
+```
+
+Request requirements:
+
+```http
+x-hacktrip-client: web
+Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>
+```
+
+The request must be sent with credentials enabled so the browser may include the HttpOnly `hack_trip_refresh` cookie.
+
+The endpoint:
+
+* is read-only and must not rotate, revoke, create, or modify a refresh token;
+* must not return an access token, refresh token, user id, email, role, account status, or other user/account data;
+* must not establish an authenticated access-token context;
+* returns only whether the current browser request has a valid refresh session;
+* returns the same response shape whether the session is absent or invalid, without exposing why it is unavailable;
+* must be safe for a completely anonymous browser request and must not require a user access JWT.
+
+Response:
+
+```json
+{ "hasSession": true }
+```
+
+or:
+
+```json
+{ "hasSession": false }
+```
+
+A `false` result must not cause POST /auth/refresh. A `true` result allows the Frontend to intentionally attempt the normal refresh flow.
+
+The endpoint is protected by the normal public API rate limit and requires the public Frontend bearer token. The public token remains non-secret and is never treated as proof of a user session.
+
 ---
 
 ## 3. Headers
@@ -246,6 +289,7 @@ Authorization model:
 | Endpoint                                  | Anonymous          | Authenticated                        | Owner | Manager | Admin |
 | ----------------------------------------- | ------------------ | ------------------------------------ | ----- | ------- | ----- |
 | GET `/auth/me`                            | NO (404/401)       | YES                                  | —     | —       | —     |
+| GET `/auth/session`                       | YES (public token) | YES (session cookie)                 | —     | —       | —     |
 | PUT `/auth/me`                            | NO                 | YES (self only)                      | —     | —       | —     |
 | GET/POST/DELETE `/auth/me/image`          | NO                 | YES (self only)                      | —     | —       | —     |
 | GET `/config/selects`                     | YES (public token) | YES                                  | —     | —       | —     |
@@ -1524,6 +1568,10 @@ The frontend resolves the deployed backend API base URL from its own deployment 
 * Requests that must carry the cookie — `POST /auth/refresh` and `POST /auth/logout` — must be sent with credentials enabled: `credentials: 'include'` (Fetch) or `withCredentials: true` (Axios).
 * The frontend never reads or stores the refresh cookie value; it is managed by the browser.
 * **A completely anonymous public-page refresh must NOT cause the Frontend to call `POST /auth/refresh`.**
+* Before attempting refresh on a public-page reload, the Frontend may call `GET /auth/session` with the public bearer token and credentials enabled.
+* `GET /auth/session` is a read-only session-presence probe. It does not rotate or modify the refresh session and returns only `{ "hasSession": true|false }`.
+* If `hasSession` is `false`, the Frontend must not call `POST /auth/refresh` and must continue as anonymous using the public bearer token.
+* If `hasSession` is `true`, the Frontend may call the normal `POST /auth/refresh` flow to restore the in-memory access token.
 * `POST /auth/refresh` is only relevant when the browser has an existing refresh session/cookie that the Frontend is intentionally attempting to restore.
 * Public anonymous GET requests use the `PUBLIC_FRONTEND_TOKEN`; they do not require a refresh token.
 
@@ -2062,6 +2110,7 @@ The following additions are part of this API contract and must be implemented co
 | Report list    | `GET /admin/reports`              | Admin/Manager | Automatically lists persisted reports |
 | Delete report  | `DELETE /admin/reports/:reportId` | Admin/Manager | Deletes report record only            |
 | Report comment | `POST /reports/`                  | Auth          | `targetType=comment` supported        |
+| Session probe | `GET /auth/session` | Public | Read-only refresh-session presence check; no token rotation or user data |
 
 ### Non-negotiable rules
 
@@ -2082,3 +2131,4 @@ The following additions are part of this API contract and must be implemented co
 15. **Deleting a report does not delete the reported content.**
 16. **Existing API/auth/security/image/comment/trip rules remain unchanged unless explicitly modified above.**
 17. **No existing contract section, endpoint, schema, DTO, or security rule is removed merely because these new endpoints are added.**
+18. **`GET /auth/session` is the only new session-presence probe: it is read-only, returns only `hasSession`, and must not rotate or expose refresh/access tokens or user identity.**
