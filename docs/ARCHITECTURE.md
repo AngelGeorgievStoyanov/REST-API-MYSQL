@@ -360,7 +360,8 @@ The `/api/v1` endpoint inventory below is derived from the mounted routers and c
 | Config         | `GET /config/selects`, `/config/services`                                                                                                                                                                                                                                                                                  |
 | Comments       | `GET` and `POST /trip-groups/:tripGroupId/comments`; `/trips/:tripId/days/:dayId/comments`; `/points/:pointId/comments`; `/images/:imageId/comments`; `PUT` and `DELETE /comments/:commentId`                                                                                                                              |
 | Trips and days | `GET /trips`, `/trips/:id`; `POST /trips`, `/trips/:tripId/days`, `/trips/:tripId/days/:dayId/images`; `PUT /trips/:id`, `/trips/:tripId/days/reorder`, `/trips/:tripId/days/:dayId`; `DELETE /trips/:id`, `/trips/:tripId/days/:dayId`                                                                                    |
-| Trip discovery/social | `GET /trips/my-trips`, `/trips/favorites`, `/trips/top`, `/trips/background`; user-specific endpoints resolve the user from authentication and do not accept a `userId` route parameter |
+| Trip discovery/social | `GET /trips/top`, `GET /trips/background`; public discovery endpoints use the public Frontend token |
+| Current-user trips/favorites | `GET /me/trips`, `GET /me/favorites`; authenticated user-specific endpoints resolve the user from authentication and do not accept a `userId` route parameter |
 | Points         | `POST /points`; `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:dayId/points/reorder`                                                                                                                                  |
 | Images         | `DELETE /images/:imageId`                                                                                                                                                                                                                                                                                                  |
 | Likes          | `POST` and `DELETE /likes`                                                                                                                                                                                                                                                                                                 |
@@ -764,7 +765,7 @@ Development mail transport may write generated messages to the operating-system 
 ## Database
 ### User-specific trip discovery
 
-`GET /api/v1/trips/my-trips`:
+`GET /api/v1/me/trips`:
 
 * requires authenticated user context;
 * does not accept a `userId` route parameter;
@@ -772,7 +773,7 @@ Development mail transport may write generated messages to the operating-system 
 * returns trips belonging to that user's trip groups;
 * never uses a client-supplied user id to establish ownership.
 
-`GET /api/v1/trips/favorites`:
+`GET /api/v1/me/favorites`:
 
 * requires authenticated user context;
 * does not accept a `userId` route parameter;
@@ -781,6 +782,61 @@ Development mail transport may write generated messages to the operating-system 
 * resolves the corresponding trip groups/trips from those persisted favorite relationships;
 * returns the normal trip response structure;
 * returns the contract-defined empty collection when the user has no favorites.
+
+### Current-user trip and favorite endpoints
+
+The current-user trip collection endpoints use the dedicated `/me` route scope:
+
+```text
+GET /api/v1/me/trips
+GET /api/v1/me/favorites
+```
+
+These endpoints are authenticated-only and never accept a `userId` route parameter.
+
+The intended request flow is:
+
+```text
+GET /api/v1/me/trips
+    ->
+/me route/controller
+    ->
+trip service
+    ->
+repository / Prisma
+    ->
+trip-group ownership query
+    ->
+normal trip response preparation
+    ->
+controller
+    ->
+JSON
+
+GET /api/v1/me/favorites
+    ->
+/me route/controller
+    ->
+favorite/trip service
+    ->
+repository / Prisma
+    ->
+current user's persisted favorites by tripGroupId
+    ->
+corresponding trip groups/trips
+    ->
+normal trip response preparation
+    ->
+controller
+    ->
+JSON
+```
+
+Controller responsibilities remain limited to HTTP concerns: receive the request, obtain the authenticated context supplied by the authentication layer, invoke the appropriate service, and return the service result.
+
+The `/me` controller does not query Prisma, access repositories directly, perform ownership queries, resolve favorites, map trip data, or implement business rules.
+
+The service layer is responsible for resolving the authenticated user's identity, applying ownership rules, querying the required trip-group/favorite relationships through the repository layer, and preparing the contract response.
 
 ### Top trips
 
