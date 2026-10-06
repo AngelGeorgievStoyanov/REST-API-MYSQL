@@ -1011,3 +1011,70 @@ The following are part of the current production architecture:
 * generated `build/` output is not source code.
 
 This document describes the current production architecture and contract. It does not describe migration plans, temporary implementation states, obsolete API mechanisms, or planned frontend changes.
+
+
+## Current-user trip and favorite architecture
+
+The current-user trip endpoints are:
+
+* `GET /me/trips`
+* `GET /me/favorites`
+
+These endpoints resolve the authenticated user from the authentication context. They do not accept a `userId` route parameter.
+
+`GET /me/trips` returns trip groups actually owned by the authenticated user. Ownership is resolved by the backend through the authenticated user and the trip-group ownership relationship.
+
+`GET /me/favorites` returns trip groups for which the authenticated user has an actual persisted favorite relationship. Favorites are stored by `userId` and `tripGroupId`; the client does not supply a user identity for this lookup.
+
+Both endpoints are protected authenticated-user endpoints. Anonymous/public authentication is not sufficient.
+
+Controllers for these endpoints remain thin HTTP adapters. They obtain the authenticated context, call the appropriate service, and return the service result. They do not query Prisma, perform ownership queries, build response mappings, or implement business logic.
+
+The service layer resolves the authenticated user's trip groups/favorite trip groups and uses the existing repository/Prisma and API-mapper architecture.
+
+## Public trip discovery and background architecture
+
+The public trip discovery endpoints are:
+
+* `GET /trips/top`
+* `GET /trips/background`
+
+They are public Frontend API endpoints and may be called by an anonymous browser request using the required `x-hacktrip-client: web` and `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>` headers. They do not require a user session and must not trigger user refresh authentication.
+
+`GET /trips/top` resolves the five most-liked trip groups, ordered by the total likes associated with each trip group, and returns the normal trip response structure. It does not accept a `userId`.
+
+Background images are not stored in the database. The source is the Google Cloud Storage bucket `hack-trip-background-images`.
+
+Background-image discovery follows the existing slow dynamic-configuration refresh lifecycle:
+
+```text
+refreshSlow()
+    ↓
+background image service
+    ↓
+Google Cloud Storage
+    ↓
+successful filename list
+    ↓
+dynamic config cached state
+```
+
+The dynamic-config component owns refresh lifecycle and cached configuration state. It does not perform Google Cloud Storage operations directly. It invokes the background-image service and stores the ready result returned by that service.
+
+On a successful refresh, the newly discovered filename list replaces the previous cached list. On a refresh failure, the previous successful list remains in use and the failure is logged as a warning without breaking startup or the dynamic-config refresh lifecycle.
+
+The background service is also responsible for selecting a random filename from the current cached dynamic-config result and producing the ready public background value for the API layer.
+
+The controller for `GET /trips/background` remains a thin HTTP adapter:
+
+```text
+request
+  ↓
+background service
+  ↓
+response
+```
+
+It does not access Prisma or GCS, select the random image, or perform response/business mapping. The endpoint returns the single ready background value defined by the API contract rather than the complete filename list.
+
+Google Cloud Storage access must use the existing centralized storage client/adapter architecture where available. A second independent GCS client must not be introduced without an explicit architectural reason.
