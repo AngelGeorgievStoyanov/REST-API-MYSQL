@@ -3,6 +3,11 @@ export const GROUP_SELECT_TYPE = 'group_type';
 export const TRANSPORT_SELECT_TYPE = 'transport';
 export const VISUAL_SERVICE = 'visual';
 export const IMAGE_BASE_URL_KEY = 'image_base_url';
+/** Public base URL of the background bucket, seeded under the `visual` service. */
+export const BACKGROUND_IMAGES_BASE_URL_KEY = 'background_images_base_url';
+
+/** `GET /trips/top` returns at most this many trip groups, ranked by likes. */
+export const TOP_TRIPS_LIMIT = 5;
 
 /** The first day row of a new trip; it also carries the trip metadata. */
 export const FIRST_DAY_NUMBER = 1;

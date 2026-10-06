@@ -200,6 +200,51 @@ export class TripRepository {
         return group?.ownerId ?? null;
     }
 
+    /** Trip groups owned by exactly this user, newest first. */
+    async findOwnedGroups(ownerId: string): Promise<TripGroupListRecord[]> {
+        const rows = await this.prisma.tripGroup.findMany({
+            where: { ownerId },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            include: listInclude,
+        });
+
+        return rows.map(toTripListRecord);
+    }
+
+    /**
+     * List-shaped groups for the given ids. Callers that care about an order
+     * (favorites, the like ranking) reorder the result by their own id sequence.
+     */
+    async findGroupsByIds(groupIds: number[]): Promise<TripGroupListRecord[]> {
+        if (groupIds.length === 0) return [];
+
+        const rows = await this.prisma.tripGroup.findMany({
+            where: { id: { in: groupIds } },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            include: listInclude,
+        });
+
+        return rows.map(toTripListRecord);
+    }
+
+    /**
+     * Trip-group ids ranked by the number of likes on the group itself
+     * (`likes.targetTypeId` = tripGroup, `targetId` = group id): grouped, ordered
+     * by count descending and limited. Ties keep the database's order and a group
+     * appears at most once; groups without likes are not part of the ranking.
+     */
+    async findTopGroupIds(limit: number): Promise<number[]> {
+        const rows = await this.prisma.like.groupBy({
+            by: ['targetId'],
+            where: { targetType: { name: SOCIAL_TARGET_TYPE.TRIP_GROUP } },
+            orderBy: { _count: { targetId: 'desc' } },
+            take: limit,
+            _count: { _all: true },
+        });
+
+        return rows.map((row) => row.targetId);
+    }
+
     async findCoverImages(tripIds: number[]): Promise<Map<number, string>> {
         const covers = new Map<number, string>();
         if (tripIds.length === 0) return covers;

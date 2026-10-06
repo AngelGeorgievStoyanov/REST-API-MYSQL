@@ -33,6 +33,16 @@ export const SOCIAL_TARGET_TYPE_INPUT: Record<
     image: SOCIAL_TARGET_TYPE.IMAGE,
 };
 
+/**
+ * Target types reports may address: the social ones plus `comment`, which is a
+ * report-only target (comments are never a like/favorite target). Kept apart
+ * from the social input list so the like/favorite contract stays unchanged.
+ */
+export const REPORT_TARGET_TYPE_INPUT_VALUES = ['tripgroup', 'day', 'trip', 'point', 'image', 'comment'] as const;
+
+/** `targetType` values as reports and the admin report queue expose them. */
+export const REPORT_TARGET_TYPE_VALUES = ['tripGroup', 'trip', 'point', 'image', 'comment'] as const;
+
 /** Longer than `comments.comment` VARCHAR(1000). */
 export const MAX_COMMENT_LENGTH = 1000;
 

@@ -1,11 +1,15 @@
 import { TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
-import { ReportDto } from '../model/report';
-import { toReportDto } from '../mappers/reportMapper';
-import { parseReportBody, parseSocialTargetBody } from '../utils/social';
+import { AdminReportDto, ReportDto } from '../model/report';
+import { toAdminReportDto, toReportDto } from '../mappers/reportMapper';
+import { parseReportBody, parseReportTargetBody, isReportTargetType } from '../utils/social';
 import { ReportRepository } from '../repositories/reportRepository';
 import { SocialTargetRepository } from '../repositories/socialTargetRepository';
 import { TargetTypeRepository } from '../repositories/targetTypeRepository';
+import { AdminPage } from '../model/admin';
+import { toAdminPageDto } from '../mappers/adminMapper';
+import { parseAdminPagination } from '../utils/adminPagination';
+import { parsePositiveId } from '../utils/validation';
 
 
 export class ReportService {
@@ -17,11 +21,11 @@ export class ReportService {
 
     /** Reports are write-only from the public API: they are never read back. */
     async create(actor: TripActor, body: unknown): Promise<ReportDto> {
-        const target = parseSocialTargetBody(body);
-        await this.targets.requireContext(target);
+        const target = parseReportTargetBody(body);
+        await this.targets.requireReportContext(target);
 
         const { reason } = parseReportBody(body);
-        const typeId = await this.targetTypes.requireId(target.targetType);
+        const typeId = await this.targetTypes.requireIdByRowName(target.targetType);
 
         const created = await this.repository.create({
             userId: actor.id,
@@ -32,5 +36,35 @@ export class ReportService {
         if (!created) throw ApiError.conflict('You have already reported this resource.');
 
         return toReportDto(created, target.targetType, target.targetId, reason);
+    }
+
+    /**
+     * Administrative report queue: reports persisted through `POST /reports`,
+     * newest first. Role authorization happens on the route; listing never
+     * mutates, resolves or hides the reported content.
+     */
+    async list(query: unknown): Promise<AdminPage<AdminReportDto>> {
+        const pagination = parseAdminPagination(query);
+        const [rows, total, names] = await Promise.all([
+            this.repository.listPage(pagination.skip, pagination.pageSize),
+            this.repository.countAll(),
+            this.targetTypes.loadAllNames(),
+        ]);
+
+        const items = rows.map((row) => {
+            const targetType = names.get(row.targetTypeId);
+            if (!targetType || !isReportTargetType(targetType)) {
+                throw ApiError.internal('The target type of this report is unknown.');
+            }
+            return toAdminReportDto(row, targetType);
+        });
+
+        return toAdminPageDto(items, total, pagination.page, pagination.pageSize);
+    }
+
+    /** Removes one report record only; the reported content stays untouched. */
+    async remove(rawReportId: string): Promise<void> {
+        const removed = await this.repository.delete(parsePositiveId(rawReportId, 'Report id'));
+        if (!removed) throw ApiError.notFound('Report not found.');
     }
 }

@@ -5,6 +5,7 @@ import {
     adminUserService,
     failedLogService,
     imageInventoryService,
+    reportService,
     routeNotFoundLogsService,
 } from '../container';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
@@ -14,7 +15,7 @@ import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMid
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
-import { userIdParams } from '../validation/schemas/common.schemas';
+import { adminReportIdParams, userIdParams } from '../validation/schemas/common.schemas';
 import { adminPaginationQuerySchema, adminUserUpdateSchema, failedLogDeleteSchema } from '../validation/schemas/admin.schemas';
 
 /**
@@ -83,6 +84,23 @@ adminController.get('/images/database', adminLimiter, validateRequest({ query: a
 adminController.get('/images/orphans', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
     res.status(200).json(await imageInventoryService.compare(req.query));
 }));
+
+/** The moderation queue: reports persisted by `POST /reports`, newest first. */
+adminController.get('/reports', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
+    res.status(200).json(await reportService.list(req.query));
+}));
+
+/** Report removal only: the reported trip/comment/point/image stays untouched. */
+adminController.delete(
+    '/reports/:reportId',
+    adminLimiter,
+    validateRequest({ params: adminReportIdParams }),
+    adminOrModerator,
+    asyncHandler(async (req, res) => {
+        await reportService.remove(routeParam(req.params.reportId));
+        res.status(204).send();
+    }),
+);
 
 adminController.use(apiErrorMiddleware);
 adminController.use(routeNotFoundLogsMiddleware);

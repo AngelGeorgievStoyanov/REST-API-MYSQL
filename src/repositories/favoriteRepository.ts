@@ -28,6 +28,17 @@ export class FavoriteRepository {
         return new Set(rows.map((row) => row.tripGroupId));
     }
 
+    /** Trip-group ids of the user's favorites, most recently added first. */
+    async listFavoriteGroupIds(userId: string): Promise<number[]> {
+        const rows = await this.prisma.favorite.findMany({
+            where: { userId },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            select: { tripGroupId: true },
+        });
+
+        return rows.map((row) => row.tripGroupId);
+    }
+
     /** One favorite per (user, trip group); a repeated favorite is ignored. */
     async add(userId: string, tripGroupId: number): Promise<void> {
         await this.prisma.favorite.createMany({

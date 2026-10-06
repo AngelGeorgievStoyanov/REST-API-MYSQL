@@ -18,6 +18,7 @@ import { TripRepository } from './repositories/tripRepository';
 import { AuthMailer } from './services/authMailer';
 import { AdminUserService } from './services/adminUserService';
 import { AuthService } from './services/authService';
+import { BackgroundImageService } from './services/backgroundImageService';
 import { CommentService } from './services/commentService';
 import { FailedLogService } from './services/failedLogService';
 import { FavoriteService } from './services/favoriteService';
@@ -31,7 +32,7 @@ import { TripService } from './services/tripService';
 import { gcsImageFileStorage } from './storage/imageFileStorage';
 
 const targetTypeRepository = new TargetTypeRepository(prisma);
-const socialTargetRepository = new SocialTargetRepository(prisma);
+const socialTargetRepository = new SocialTargetRepository(prisma, targetTypeRepository);
 
 const commentRepository = new CommentRepository(prisma);
 const likeRepository = new LikeRepository(prisma);
@@ -53,7 +54,7 @@ const pointService = new PointService(pointRepository, gcsImageFileStorage, soci
 
 const commentService = new CommentService(commentRepository, socialTargetRepository, targetTypeRepository);
 const likeService = new LikeService(likeRepository, socialTargetRepository, targetTypeRepository, socialStateService);
-const favoriteService = new FavoriteService(favoriteRepository, socialTargetRepository, socialStateService);
+const favoriteService = new FavoriteService(favoriteRepository, socialTargetRepository, socialStateService, tripRepository);
 const reportService = new ReportService(reportRepository, socialTargetRepository, targetTypeRepository);
 
 const authUserRepository = new AuthUserRepository(prisma);
@@ -83,9 +84,12 @@ const imageInventoryService = new ImageInventoryService(imageRepository, gcsImag
 const routeNotFoundLogsRepository = new RouteNotFoundLogsRepository(prisma);
 const routeNotFoundLogsService = new RouteNotFoundLogsService(routeNotFoundLogsRepository);
 
+const backgroundImageService = new BackgroundImageService();
+
 export {
     adminUserService,
     authService,
+    backgroundImageService,
     commentService,
     failedLogService,
     favoriteService,

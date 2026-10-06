@@ -1,5 +1,5 @@
 import express from 'express';
-import { tripService } from '../container';
+import { backgroundImageService, tripService } from '../container';
 import { actorFrom, optionalActor, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
@@ -15,6 +15,19 @@ const tripController = express.Router();
 tripController.get('/', validateRequest({ query: tripListQuerySchema }), optionalAuthentication, asyncHandler(async (req, res) => {
     const response = await tripService.listTrips(req.query);
     res.status(200).json(response);
+}));
+
+/**
+ * Public discovery reads: both are registered before `/:id` so `top` and
+ * `background` are route literals, never trip ids. Neither accepts a user id,
+ * query parameters, route parameters or a body.
+ */
+tripController.get('/top', validateRequest({}), optionalAuthentication, asyncHandler(async (_req, res) => {
+    res.status(200).json(await tripService.getTopTrips());
+}));
+
+tripController.get('/background', validateRequest({}), optionalAuthentication, asyncHandler(async (_req, res) => {
+    res.status(200).json(backgroundImageService.getRandomBackground());
 }));
 
 tripController.get('/:id', validateRequest({ params: tripIdParams }), optionalAuthentication, asyncHandler(async (req, res) => {

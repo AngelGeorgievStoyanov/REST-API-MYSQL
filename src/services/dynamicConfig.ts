@@ -3,6 +3,7 @@ import { ConfigRepository } from '../repositories/configRepository';
 import { getErrorMessage } from '../utils/error';
 import { EnvironmentConfig } from '../config/environment';
 import { toPublicServiceConfigList } from '../mappers/publicConfigMapper';
+import { listBackgroundImageNames } from '../storage/backgroundImageStorage';
 
 export interface DynamicConfig {
     selects: SelectConfig[];
@@ -15,6 +16,12 @@ let currentConfig: DynamicConfig | null = null;
 let environment: EnvironmentConfig | null = null;
 let refreshInFlight: Promise<void> | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
+/**
+ * Object names of the public background bucket, loaded by the slow refresh.
+ * Starts empty and is only replaced by a successful load: a failed refresh
+ * keeps the last successfully loaded list.
+ */
+let backgroundImages: string[] = [];
 
 async function init(configRepository: ConfigRepository, configEnvironment: EnvironmentConfig): Promise<void> {
     repository = configRepository;
@@ -114,6 +121,10 @@ async function refreshSlow(): Promise<void> {
         throw new Error('dynamicConfig is not initialized (init was not called).');
     }
 
+    // Background discovery runs first and never throws: an unreadable bucket
+    // neither fails startup nor discards the last successfully loaded list.
+    await refreshBackgroundImages();
+
     const [selects, services] = await Promise.all([
         repository.getSelectTypes(),
         repository.getServiceConfigs(),
@@ -129,6 +140,24 @@ async function refreshSlow(): Promise<void> {
     throw new Error('Slow config load produced no select_types (select_types empty; seed data missing?).');
 }
 
+/**
+ * Reloads the background object names from GCS. A successful load replaces the
+ * current list; a failure logs a warning and keeps the previous value, so the
+ * endpoint stays answerable with the last known good list.
+ */
+async function refreshBackgroundImages(): Promise<void> {
+    try {
+        backgroundImages = await listBackgroundImageNames();
+    } catch (err) {
+        console.warn(`[config] background-image refresh failed, keeping last known good list: ${getErrorMessage(err)}`);
+    }
+}
+
+/** Currently available background object names; empty until the first successful load. */
+function getBackgroundImages(): string[] {
+    return backgroundImages;
+}
+
 export const dynamicConfig = {
     init,
     refreshDynamicConfigs,
@@ -139,5 +168,6 @@ export const dynamicConfig = {
     getServiceConfigs,
     getServiceConfig,
     getPublicServiceConfigs,
+    getBackgroundImages,
 };
 

@@ -10,6 +10,7 @@ import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMid
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { ApiError } from '../utils/apiError';
 import pointController, { dayPointController } from '../controllers/pointController';
+import meController from '../controllers/meController';
 import reportController from '../controllers/reportController';
 import tripController from '../controllers/tripController';
 
@@ -25,6 +26,7 @@ const apiRouterV1 = express.Router();
 apiRouterV1.use('/auth', authController);
 apiRouterV1.use('/admin', adminController);
 apiRouterV1.use('/config', configController);
+apiRouterV1.use('/me', meController);
 apiRouterV1.use(commentController);
 // The comments router serves several prefixes from the v1 root, so it cannot host
 // the terminal logger itself (that would capture every unmatched v1 path). Its own

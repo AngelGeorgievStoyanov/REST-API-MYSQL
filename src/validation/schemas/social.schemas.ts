@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { VALIDATION_LIMITS } from '../../constants/validation/limits';
-import { optionalInt, optionalText, positiveId, targetTypeInput, trimmedString } from './common.schemas';
+import { optionalInt, optionalText, positiveId, reportTargetTypeInput, targetTypeInput, trimmedString } from './common.schemas';
 
 const LIMITS = VALIDATION_LIMITS;
 
@@ -24,7 +24,7 @@ export const commentBodySchema = z.object({
 }).strict();
 
 export const reportBodySchema = z.object({
-    targetType: targetTypeInput,
+    targetType: reportTargetTypeInput,
     targetId: positiveId,
     reason: optionalText(LIMITS.report.reason),
 }).strict();

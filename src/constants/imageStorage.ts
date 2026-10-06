@@ -83,6 +83,13 @@ export const IMAGE_THUMBNAIL = {
  */
 export const BUCKET_NAME = 'hack-trip';
 
+/**
+ * Public bucket of the discovery background images. Its object names are read
+ * only (never written by this application) and are loaded into the dynamic
+ * configuration during the slow refresh; no database rows exist for them.
+ */
+export const BACKGROUND_BUCKET_NAME = 'hack-trip-background-images';
+
 /** `retryOptions.maxRetries` handed to the GCS client for one storage operation. */
 export const STORAGE_MAX_RETRIES = 3;
 

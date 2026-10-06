@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { ReportTargetRef } from '../model/report';
 import { SocialTargetContext, SocialTargetRef } from '../model/social';
 import { ApiError } from '../utils/apiError';
+import { TargetTypeRepository } from './targetTypeRepository';
 
 /**
  * Resolves a polymorphic `(targetTypeId, targetId)` pair to the resource it points
@@ -9,7 +11,10 @@ import { ApiError } from '../utils/apiError';
  * owner, which is what authorization needs.
  */
 export class SocialTargetRepository {
-    constructor(private readonly prisma: PrismaClient) { }
+    constructor(
+        private readonly prisma: PrismaClient,
+        private readonly targetTypes: TargetTypeRepository,
+    ) { }
 
     /** Target that has to exist; a missing target is a 404 for the client. */
     async requireContext(target: SocialTargetRef): Promise<SocialTargetContext> {
@@ -17,6 +22,28 @@ export class SocialTargetRepository {
         if (!context) throw ApiError.notFound('The target resource does not exist.');
 
         return context;
+    }
+
+    /**
+     * Existence check of a report target. A reported comment resolves to the
+     * resource the comment itself points at, so reports on comments carry the
+     * same ownership context as the reported content.
+     */
+    async requireReportContext(target: ReportTargetRef): Promise<SocialTargetContext> {
+        if (target.targetType !== 'comment') {
+            return this.requireContext({ targetType: target.targetType, targetId: target.targetId });
+        }
+
+        const comment = await this.prisma.comment.findUnique({
+            where: { id: target.targetId },
+            select: { targetTypeId: true, targetId: true },
+        });
+        if (!comment) throw ApiError.notFound('The target resource does not exist.');
+
+        const targetType = (await this.targetTypes.loadNames()).get(comment.targetTypeId);
+        if (!targetType) throw ApiError.internal('The target type of this comment is unknown.');
+
+        return this.requireContext({ targetType, targetId: comment.targetId });
     }
 
     async findContext(target: SocialTargetRef): Promise<SocialTargetContext | null> {

@@ -1,5 +1,5 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { GROUP_SELECT_TYPE, TRANSPORT_SELECT_TYPE } from '../constants/trip';
+import { GROUP_SELECT_TYPE, TOP_TRIPS_LIMIT, TRANSPORT_SELECT_TYPE } from '../constants/trip';
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { ImageDto } from '../model/image';
 import { SocialTargetRef } from '../model/social';
@@ -7,6 +7,7 @@ import {
     TripActor,
     TripDay,
     TripDetails,
+    TripListItem,
     TripListResponse,
 } from '../model/trip';
 import { ImageFileStorage } from '../storage/imageFileStorage';
@@ -36,7 +37,7 @@ import { parseIdList, parsePositiveId } from '../utils/validation';
 import { attachUploadedImage } from './imageAttachment';
 import { SocialStateService } from './socialStateService';
 import { DayContext, TripRepository } from '../repositories/tripRepository';
-import { TripGroupDetailsRecord } from '../model/trip';
+import { TripGroupDetailsRecord, TripGroupListRecord } from '../model/trip';
 
 /** Social targets of one day row: the day itself, its images, its points and their images. */
 function toDayTargets(day: {
@@ -64,6 +65,30 @@ function toDayTargets(day: {
 
 
 
+/**
+ * Shared `TripListItem` preparation of every list-shaped trip read (public list,
+ * my trips, my favorites, top 5): cover image, public image base URL and the
+ * dynamic select display values. Reordering stays with the caller.
+ */
+export async function prepareTripListItems(
+    repository: TripRepository,
+    rows: TripGroupListRecord[],
+): Promise<TripListItem[]> {
+    const coverTripIds = rows
+        .map((row) => row.trips[0]?.id)
+        .filter((tripId): tripId is number => tripId !== undefined);
+
+    const covers = await repository.findCoverImages(coverTripIds);
+
+    return toTripListItemList(
+        rows,
+        covers,
+        getImageBaseUrl(),
+        dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
+        dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
+    );
+}
+
 export class TripService {
     constructor(
         private readonly repository: TripRepository,
@@ -87,20 +112,39 @@ export class TripService {
             sort: query.sort,
         });
 
-        const coverTripIds = rows
-            .map((row) => row.trips[0]?.id)
-            .filter((tripId): tripId is number => tripId !== undefined);
-
-        const covers = await this.repository.findCoverImages(coverTripIds);
-        const items = toTripListItemList(
-            rows,
-            covers,
-            getImageBaseUrl(),
-            dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
-            dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
-        );
+        const items = await prepareTripListItems(this.repository, rows);
 
         return toTripListResponse(items, query.page, query.limit, total);
+    }
+
+    /**
+     * `GET /me/trips`: the authenticated actor's own trip groups. Ownership is
+     * read from `trip_groups.ownerId` for the actor's id only; the request never
+     * carries a user id, so another user's trips cannot be requested.
+     */
+    async listOwnTrips(actor: TripActor): Promise<TripListItem[]> {
+        const rows = await this.repository.findOwnedGroups(actor.id);
+
+        return prepareTripListItems(this.repository, rows);
+    }
+
+    /**
+     * `GET /trips/top`: at most `TOP_TRIPS_LIMIT` trip groups ranked by the number
+     * of likes on the group itself. The ranking is per trip group and independent
+     * of the requesting user; ties keep the database's order.
+     */
+    async getTopTrips(): Promise<TripListItem[]> {
+        const groupIds = await this.repository.findTopGroupIds(TOP_TRIPS_LIMIT);
+        if (groupIds.length === 0) return [];
+
+        const rows = await this.repository.findGroupsByIds(groupIds);
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        const ranked = groupIds.flatMap((groupId): TripGroupListRecord[] => {
+            const row = byId.get(groupId);
+            return row ? [row] : [];
+        });
+
+        return prepareTripListItems(this.repository, ranked);
     }
 
     /** `actor` is optional: the trip is public, but it carries the viewer's social state. */
