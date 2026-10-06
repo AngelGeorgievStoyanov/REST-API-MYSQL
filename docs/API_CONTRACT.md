@@ -254,8 +254,8 @@ Authorization model:
 | GET `/trips/:id`                          | YES (public token) | YES                                  | —     | —       | —     |
 | GET `/trips/top`                     | YES (public token) | YES                                  | —     | —       | —     |
 | GET `/trips/background`              | YES (public token) | YES                                  | —     | —       | —     |
-| GET `/trips/my-trips`                | NO                 | YES                                  | YES*  | —       | —     |
-| GET `/trips/my-favorites`            | NO                 | YES                                  | —     | —       | —     |
+| GET `/me/trips`                | NO                 | YES                                  | YES*  | —       | —     |
+| GET `/me/favorites`            | NO                 | YES                                  | —     | —       | —     |
 | POST `/trips`                             | NO                 | YES                                  | —     | —       | —     |
 | PUT `/trips/:id`                          | NO                 | CONDITIONAL                          | YES   | YES     | YES   |
 | DELETE `/trips/:id`                       | NO                 | CONDITIONAL                          | YES   | YES     | YES   |
@@ -589,7 +589,7 @@ Example response:
 ]
 ```
 
-### 8.4 GET `/trips/my-trips`
+### 8.4 GET `/me/trips`
 
 This is the authenticated user's own trip-group list.
 
@@ -608,7 +608,7 @@ This is the authenticated user's own trip-group list.
 []
 ```
 
-### 8.5 GET `/trips/my-favorites`
+### 8.5 GET `/me/favorites`
 
 This is the authenticated user's favorite trip-group list.
 
@@ -1310,8 +1310,8 @@ All schemas are `.strict()` unless noted. Numbers may be sent as numeric JSON va
 The new trip-data endpoints do not accept query parameters unless explicitly documented in their endpoint sections. In particular:
 
 * `/trips/top` accepts no user id or other selector.
-* `/trips/my-trips` accepts no user id.
-* `/trips/my-favorites` accepts no user id.
+* `/me/trips` accepts no user id.
+* `/me/favorites` accepts no user id.
 * `/trips/background` accepts no user id or background filename.
 
 ### 18.4 Point schemas
@@ -1359,7 +1359,7 @@ The new trip-data endpoints do not accept query parameters unless explicitly doc
 | `tripGroupIdParams`   | `tripGroupId` (positive int)             |
 | `adminReportIdParams` | `reportId` (positive int)                |
 
-The new `/trips/my-trips` and `/trips/my-favorites` endpoints intentionally do not use `userIdParams`.
+The new `/me/trips` and `/me/favorites` endpoints intentionally do not use `userIdParams`.
 
 ### 18.8 Server-generated / forbidden fields (must NOT be sent by the frontend)
 
@@ -1368,7 +1368,7 @@ The new `/trips/my-trips` and `/trips/my-favorites` endpoints intentionally do n
 * `pointNumber`, `numberPoint` — assigned by the server.
 * `id`, `email`, `hashedPassword`, `password`, `imageFile`, `verifyEmail`, `emailVerifiedAt`, `createdAt` — never settable on admin user update.
 * `days`, `points` — nested structures are rejected on trip writes.
-* `userId` is not accepted as a selector for `/trips/my-trips` or `/trips/my-favorites`.
+* `userId` is not accepted as a selector for `/me/trips` or `/me/favorites`.
 
 ---
 
@@ -1462,8 +1462,8 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | GET    | `/trips`                              | Public           | query `page,limit,search,group,transport,sort`                          | 200 `TripListResponse`               | 400, 401                |
 | GET    | `/trips/:id`                          | Public           | param `id`                                                              | 200 `TripDetails`                    | 400, 401, 404           |
 | GET    | `/trips/top`                     | Public           | none                                                                    | 200 `TripListItem[]` (max 5)         | 401                     |
-| GET    | `/trips/my-trips`                | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
-| GET    | `/trips/my-favorites`            | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
+| GET    | `/me/trips`                | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
+| GET    | `/me/favorites`            | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
 | GET    | `/trips/background`              | Public           | none                                                                    | 200 `{ url }`                        | 401, 404                |
 | POST   | `/trips`                              | Auth             | `{ title, description, group, transport }`                              | 201 `TripDetails`                    | 400, 401, 403           |
 | PUT    | `/trips/:id`                          | Owner/Mod        | param `id`; body `{ title, description, group, transport }`             | 200 `TripDetails`                    | 400, 401, 403, 404      |
@@ -1560,15 +1560,15 @@ The Frontend must not construct these URLs with a user id.
 Correct:
 
 ```text
-GET /api/v1/trips/my-trips
-GET /api/v1/trips/my-favorites
+GET /api/v1/me/trips
+GET /api/v1/me/favorites
 ```
 
 Incorrect:
 
 ```text
-GET /api/v1/trips/my-trips/:userId
-GET /api/v1/trips/my-favorites/:userId
+GET /api/v1/me/trips/:userId
+GET /api/v1/me/favorites/:userId
 ```
 
 The backend obtains the current user from the authenticated access token.
@@ -1711,8 +1711,8 @@ The following must never be used as a substitute:
 This applies particularly to:
 
 ```text
-/trips/my-trips
-/trips/my-favorites
+/me/trips
+/me/favorites
 ```
 
 ---
@@ -1899,8 +1899,8 @@ They do not require:
 These are user-specific:
 
 ```text
-GET /trips/my-trips
-GET /trips/my-favorites
+GET /me/trips
+GET /me/favorites
 ```
 
 They require:
@@ -2056,8 +2056,8 @@ The following additions are part of this API contract and must be implemented co
 | Feature        | Endpoint                          | Access        | Main rule                             |
 | -------------- | --------------------------------- | ------------- | ------------------------------------- |
 | Top 5 trips    | `GET /trips/top`             | Public        | 5 trip groups with most likes         |
-| My Trips       | `GET /trips/my-trips`        | Auth          | Current user's owned trip groups      |
-| My Favorites   | `GET /trips/my-favorites`    | Auth          | Current user's favorite trip groups   |
+| My Trips       | `GET /me/trips`        | Auth          | Current user's owned trip groups      |
+| My Favorites   | `GET /me/favorites`    | Auth          | Current user's favorite trip groups   |
 | Background     | `GET /trips/background`      | Public        | Random public GCS background          |
 | Report list    | `GET /admin/reports`              | Admin/Manager | Automatically lists persisted reports |
 | Delete report  | `DELETE /admin/reports/:reportId` | Admin/Manager | Deletes report record only            |
