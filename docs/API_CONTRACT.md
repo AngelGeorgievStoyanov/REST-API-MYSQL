@@ -753,10 +753,13 @@ This is the authenticated user's own trip-group list.
 * No `userId` is accepted in the path, query, or body.
 * The backend obtains the authenticated user's UUID exclusively from the authenticated request context.
 * The backend must return only trip groups actually owned by that authenticated user.
-* Ownership is determined from the trip-group ownership relation (`trip_groups.ownerId`), not from a user-supplied id.
-* The result is returned by `tripGroupId`, with the full existing trip/group response structure.
+* Ownership is determined from the trip-group ownership relation (`trip_groups.ownerId`), never from a client-supplied identifier.
+* Response `200`: raw `TripGroupResponse[]`.
+* The response uses the exact same unified trip-group structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:id`.
+* Each item contains only `tripGroupId`, trip-group `social`, and the existing `days[]` structure.
+* The response contains **no `userId`, `ownerId`, or author/owner object**.
+* The authenticated user's UUID is used only server-side for ownership filtering and is never serialized into the response.
 * A user cannot use this endpoint to request another user's trips.
-* Response `200`: `TripListItem[]`.
 * If the authenticated user owns no trip groups, response is `200` with an empty array:
 
 ```json
@@ -772,22 +775,19 @@ This is the authenticated user's favorite trip-group list.
 * No `userId` is accepted in the path, query, or body.
 * The backend obtains the authenticated user's UUID exclusively from the authenticated request context.
 * Favorites exist **only at trip-group level**.
-* The `favorites` record contains:
-
-```text
-id
-userId
-tripGroupId
-createdAt
-```
-
-* The backend finds the authenticated user's actual favorite records by `favorites.userId`.
-* It then resolves the corresponding `tripGroupId` values.
-* The response is built from those trip groups.
-* A favorite does not point to an individual day/trip row.
+* The backend resolves the authenticated user's favorite records by the authenticated actor's server-side user id and then resolves the corresponding `tripGroupId` values.
+* A favorite points to a trip group, never to an individual day/trip row.
+* Response `200`: raw `TripGroupResponse[]`.
+* The response uses the exact same unified trip-group structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:id`.
+* Each item contains only `tripGroupId`, trip-group `social`, and the existing `days[]` structure.
+* The response contains **no `userId`, `ownerId`, or author/owner object**, including the owner id of a trip created by another user.
+* The authenticated user's UUID and all favorite-record ownership fields are used only server-side and are never serialized into the response.
 * The backend must never accept a client-supplied `userId` to retrieve another user's favorites.
-* Response `200`: `TripListItem[]`.
-* If the user has no favorites, response is `200` with:
+* If the user has no favorites, response is `200` with an empty array:
+
+```json
+[]
+```
 
 ```json
 []
@@ -1535,7 +1535,7 @@ The API returns DTOs, not database models. The following are the API response sh
 | `ImageDto`                            | image create endpoints, profile image GET/POST              |
 | `SocialImageDto`                      | trip/point image lists                                      |
 | `SocialState`                         | trip detail, day, point, image, like/favorite responses     |
-| `TripListItem`                        | trip list items, Top 5, My Trips, My Favorites              |
+| `TripListItem`                        | legacy/summary trip list items where explicitly documented  |
 | `TripGroupResponse`                   | POST /trips, POST /trips/:tripId/days, PUT /trips/:tripId/days/:dayId |
 | `TripDay`                             | PUT /trips/:tripId/days/reorder                              |
 | `TripPoint`                           | point GET/POST/PUT, point reorder                           |
