@@ -40,16 +40,6 @@ tripController.post('/', validateRequest({ body: tripWriteSchema }), requireAuth
     res.status(201).json(trip);
 }));
 
-tripController.put(
-    '/:id',
-    validateRequest({ params: tripIdParams, body: tripWriteSchema }),
-    requireAuthentication,
-    asyncHandler(async (req, res) => {
-        const trip = await tripService.updateTrip(actorFrom(req), routeParam(req.params.id), req.body);
-        res.status(200).json(trip);
-    }),
-);
-
 tripController.delete('/:id', validateRequest({ params: tripIdParams }), requireAuthentication, asyncHandler(async (req, res) => {
     await tripService.deleteTrip(actorFrom(req), routeParam(req.params.id));
     res.status(204).send();

@@ -3,13 +3,7 @@ import { GROUP_SELECT_TYPE, TOP_TRIPS_LIMIT, TRANSPORT_SELECT_TYPE, CURRENCY_SEL
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { ImageDto } from '../model/image';
 import { SocialTargetRef } from '../model/social';
-import {
-    TripActor,
-    TripDay,
-    TripDetails,
-    TripGroupResponse,
-    TripListItem,
-} from '../model/trip';
+import { TripActor, TripDay, TripGroupResponse, TripListItem } from '../model/trip';
 import { ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip } from '../utils/authorization';
@@ -17,9 +11,7 @@ import { getImageBaseUrl } from '../utils/image';
 import { toImageDto } from '../mappers/imageMapper';
 import {
     toDayWriteInput,
-    toTripDayDto,
     toTripDayDtoList,
-    toTripDetailsDto,
     toTripGroupResponse,
     toTripListItemList,
     toTripMetadataInput,
@@ -205,21 +197,14 @@ export class TripService {
         return this.toDetails(row, actor);
     }
 
-    async createTrip(actor: TripActor, body: unknown): Promise<TripDetails> {
+    async createTrip(actor: TripActor, body: unknown): Promise<TripGroupResponse> {
         const request = parseTripBody(body);
-        const createdId = await this.repository.createTrip(toTripMetadataInput(actor.id, request));
+        const createdGroupId = await this.repository.createTrip(toTripMetadataInput(actor.id, request));
 
-        return this.getTripDetails(String(createdId), actor);
-    }
+        const row = await this.repository.findById(createdGroupId);
+        if (!row) throw ApiError.tripNotFound();
 
-    async updateTrip(actor: TripActor, rawId: string, body: unknown): Promise<TripDetails> {
-        const tripGroupId = parseTripId(rawId);
-        const ownerId = await this.assertCanModify(actor, tripGroupId);
-        const request = parseTripBody(body);
-
-        await this.repository.updateTripMetadata(tripGroupId, toTripMetadataInput(ownerId, request));
-
-        return this.getTripDetails(rawId, actor);
+        return this.toDetails(row, actor);
     }
 
     async deleteTrip(actor: TripActor, rawId: string): Promise<void> {
@@ -248,27 +233,7 @@ export class TripService {
         );
     }
 
-    private async getTripDetails(rawId: string, actor: TripActor | null): Promise<TripDetails> {
-        const row = await this.repository.findById(parseTripId(rawId));
-        if (!row) throw ApiError.tripNotFound();
-
-        const targets: SocialTargetRef[] = [{ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id }];
-        for (const day of row.trips) {
-            targets.push(...toDayTargets(day));
-        }
-
-        const states = await this.socialStates.statesFor(actor?.id ?? null, targets);
-
-        return toTripDetailsDto(
-            row,
-            states,
-            getImageBaseUrl(),
-            dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
-            dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
-        );
-    }
-
-    async createDay(actor: TripActor, rawTripId: string, body: unknown): Promise<TripDay> {
+    async createDay(actor: TripActor, rawTripId: string, body: unknown): Promise<TripGroupResponse> {
         const tripGroupId = parseTripId(rawTripId);
         await this.assertCanModify(actor, tripGroupId);
 
@@ -288,10 +253,13 @@ export class TripService {
         );
         if (tripId === null) throw ApiError.conflict(`Day ${dayNumber} already exists in this trip.`);
 
-        return this.getDayRow(tripId, actor);
+        const row = await this.repository.findById(tripGroupId);
+        if (!row) throw ApiError.tripNotFound();
+
+        return this.toDetails(row, actor);
     }
 
-    async updateDay(actor: TripActor, rawTripId: string, rawDayId: string, body: unknown): Promise<TripDay> {
+    async updateDay(actor: TripActor, rawTripId: string, rawDayId: string, body: unknown): Promise<TripGroupResponse> {
         const tripGroupId = parseTripId(rawTripId);
         const tripId = parsePositiveId(rawDayId, 'Day id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
@@ -299,7 +267,10 @@ export class TripService {
         const request = parseDayUpdateBody(body);
         await this.repository.updateDay(tripId, request);
 
-        return this.getDayRow(tripId, actor);
+        const row = await this.repository.findById(tripGroupId);
+        if (!row) throw ApiError.tripNotFound();
+
+        return this.toDetails(row, actor);
     }
 
     async reorderDays(actor: TripActor, rawTripId: string, body: unknown): Promise<TripDay[]> {
@@ -392,14 +363,6 @@ export class TripService {
         // The file goes first: the row is only dropped once storage succeeded.
         await this.imageStorage.remove(image.filePath);
         await this.repository.deleteImage(imageId);
-    }
-
-    private async getDayRow(tripId: number, actor: TripActor): Promise<TripDay> {
-        const row = await this.repository.findDayRow(tripId);
-        if (!row) throw ApiError.notFound('Day not found.');
-
-        const states = await this.socialStates.statesFor(actor.id, toDayTargets(row));
-        return toTripDayDto(row, states, getImageBaseUrl());
     }
 
     /**

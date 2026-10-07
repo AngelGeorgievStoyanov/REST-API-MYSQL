@@ -23,7 +23,7 @@ import { toIsoString } from '../utils/utils';
 import { TripPagination } from '../model/trip';
 import { toImageUrl, toSocialImageDto } from './imageMapper';
 import { toPointDto } from './pointMapper';
-type SelectDisplayOption = { key: string; value: string };
+type SelectDisplayOption = { id: number; key: string; value: string };
 
 function toTripSelectValue(storedValue: string | null, options: SelectDisplayOption[]): TripSelectValue {
     if (!storedValue) return { key: '', name: '' };
@@ -44,7 +44,7 @@ function toCurrencyDto(currencyKey: string | null, currencyOptions: SelectDispla
 
     if (!option) return { id: 0, code: currencyKey, name: currencyKey };
 
-    return { id: 0, code: option.key, name: option.value };
+    return { id: option.id, code: option.key, name: option.value };
 }
 
 function toTripAuthor(owner: { id: string; firstName: string; lastName: string }): TripAuthor {
