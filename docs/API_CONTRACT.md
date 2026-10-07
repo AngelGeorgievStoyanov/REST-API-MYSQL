@@ -1612,8 +1612,8 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | GET    | `/trips`                              | Public           | query `page,limit,search,group,transport,sort`                          | 200 `TripGroupResponse[]`            | 400, 401                |
 | GET    | `/trips/:id`                          | Public           | param `id` = `tripGroupId` (INT)                                       | 200 `TripGroupResponse`              | 400, 401, 404           |
 | GET    | `/trips/top`                           | Public           | none                                                                    | 200 `TripGroupResponse[]` (max 5)    | 401                     |
-| GET    | `/me/trips`                | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
-| GET    | `/me/favorites`            | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
+| GET    | `/me/trips`                | Auth             | none                                                                    | 200 `TripGroupResponse[]`            | 401, 403                |
+| GET    | `/me/favorites`            | Auth             | none                                                                    | 200 `TripGroupResponse[]`            | 401, 403                |
 | GET    | `/trips/background`              | Public           | none                                                                    | 200 `{ url }`                        | 401, 404                |
 | POST   | `/trips`                              | Auth             | `{ title, description, group, transport }`                              | 201 `TripGroupResponse`              | 400, 401, 403           |
 | DELETE | `/trips/:id`                          | Owner/Mod        | param `id`                                                              | 204                                  | 400, 401, 403, 404      |
