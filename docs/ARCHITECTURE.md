@@ -382,7 +382,7 @@ Request bodies, queries, and route parameters are validated by Zod schemas under
 Important DTO families include:
 
 * `AuthSessionDto` contains a bearer access token and public `AuthUserDto`; refresh tokens are delivered only through an HttpOnly cookie.
-* `TripListResponse` contains paginated `TripListItem` values.
+* The three trip GET endpoints (`GET /trips`, `GET /trips/top`, `GET /trips/:id`) use the shared Trip Group response structure defined in the Trip GET response contract below.
 * Trip details contain group, day, point, image, and social-state data according to the public/private route contract.
 * `CommentListResponse` is paginated.
 * Comment writes use `{ text }`; authorship comes from the authenticated actor.
@@ -392,6 +392,144 @@ Important DTO families include:
 * Configuration responses use the application configuration models.
 
 API-facing services return prepared response contracts through API mappers. Controllers do not reconstruct DTOs.
+
+## Trip GET response structure (three endpoints)
+
+The following three GET endpoints use the same Trip Group response structure:
+
+```text
+GET /api/v1/trips
+GET /api/v1/trips/top
+GET /api/v1/trips/:id
+```
+
+A **Trip Group** is only the grouping container. It does not have its own title, description, group, transport, author, cover image, or other day metadata.
+
+The `tripGroupId` identifies the trip group. All `trips` rows belonging to that `tripGroupId` are returned as `days[]`.
+
+A missing day number is not generated. For example, a trip group may contain exactly Day 1, Day 3, and Day 5.
+
+### Shared response shape
+
+For `GET /trips` and `GET /trips/top`:
+
+```json
+[
+  {
+    "tripGroupId": "<uuid>",
+    "social": SocialState,
+    "days": [ TripGroupDay ]
+  }
+]
+```
+
+For `GET /trips/:id`:
+
+```json
+{
+  "tripGroupId": "<uuid>",
+  "social": SocialState,
+  "days": [ TripGroupDay ]
+}
+```
+
+### TripGroupDay
+
+```json
+{
+  "id": 0,
+  "dayNumber": 1,
+  "title": null,
+  "description": null,
+  "price": 0,
+  "currency": {
+    "id": 0,
+    "code": "<string>",
+    "name": "<string>"
+  },
+  "transport": {
+    "key": "<string>",
+    "name": "<string>"
+  },
+  "group": {
+    "key": "<string>",
+    "name": "<string>"
+  },
+  "images": [ SocialImageDto ],
+  "social": SocialState,
+  "points": [ TripPoint ],
+  "createdAt": null,
+  "updatedAt": null
+}
+```
+
+The `currency` object is resolved from backend configuration and is returned as:
+
+```json
+{
+  "id": 22,
+  "code": "BGN",
+  "name": "Bulgarian Lev"
+}
+```
+
+The Frontend displays `code` (for example `BGN`) and may use `name` as the hover/tooltip text. Currency options are not hard-coded in the Frontend.
+
+Day images keep the existing `SocialImageDto` structure:
+
+```json
+{
+  "id": 0,
+  "url": "<url>",
+  "thumbnailUrl": "<url>",
+  "social": SocialState
+}
+```
+
+Points keep the existing `TripPoint` structure, including their existing `images[]` and `social` fields.
+
+Social state is present at:
+* trip-group level;
+* day level;
+* point level;
+* image level.
+
+The existing `SocialState` structure is unchanged.
+
+Days are ordered by `dayNumber` ascending, with `id` ascending as the tie-break. Points remain ordered by numeric `pointNumber`.
+
+### GET /trips
+
+* Auth: `optionalAuthentication`.
+* Query: `page`, `limit`, `search`, `group`, `transport`, `sort`.
+* Response `200`: raw `TripGroupResponse[]`.
+* There is no `items` wrapper and no `pagination` object in the response.
+* Pagination/filter query semantics remain unchanged for selecting which trip groups are returned.
+
+### GET /trips/top
+
+* Auth: `optionalAuthentication`.
+* No query/body/params are required.
+* Response `200`: raw `TripGroupResponse[]`.
+* Maximum 5 trip groups.
+* Ranking is by likes belonging to the trip group.
+* A trip group is returned only once regardless of how many day rows it contains.
+* The response structure is exactly the same as `GET /trips`.
+
+### GET /trips/:id
+
+* Auth: `optionalAuthentication`.
+* Path parameter `id) is the `tripGroupId) (UUID), not a day row id.
+* Response `200`: one `TripGroupResponse).
+* The response always contains the complete trip group: `tripGroupId`, trip-group `social), and all of its `days[]`.
+* If the Frontend opens a specific day, it may select that day from the returned `days[]), but the backend still returns the complete trip group.
+* Missing trip group -> `404 TRIP_NOT_FOUND`.
+
+All three endpoints therefore share the same nested data model; only the cardinality differs:
+* `/trips` -> array of trip groups;
+* `/trips/top` -> array of up to 5 trip groups;
+* `/trips/:id` -> one trip group.
+
 
 ## Session presence probe
 
