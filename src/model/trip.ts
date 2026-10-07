@@ -6,6 +6,7 @@ import { SocialState } from './social';
  *  - one Trip = one `trip_groups` row; one Day = one `trips` row of that group;
  *  - a Day's points = `points` rows of that `trips` row, images = `images`;
  *  - `trips.typeOfPeople` / `trips.transport` store the dynamic-config select key;
+ *  - `trips.currency` stores the select key (e.g. "EUR"); currency display name comes from select_options;
  *  - Prisma ids are INT autoincrement, so API ids are numbers.
  */
 
@@ -15,7 +16,7 @@ export interface TripActor {
     role: string;
 }
 
-/** Key/name pair resolved through the dynamic config selects (`group_type` / `transport`). */
+/** Key/name pair resolved through the dynamic config selects (`group_type` / `transport` / `currency`). */
 export interface TripSelectValue {
     key: string;
     name: string;
@@ -29,6 +30,13 @@ export interface TripAuthor {
     id: string;
     firstName: string;
     lastName: string;
+}
+
+/** Currency resolved from select_options (currency select type). */
+export interface CurrencyDto {
+    id: number;
+    code: string;
+    name: string;
 }
 
 /** Application read shape returned by point/trip repositories. */
@@ -53,6 +61,9 @@ export interface TripListDayRecord {
 
 export interface TripDayRecord extends TripListDayRecord {
     updatedAt: Date | null;
+    price: number | null;
+    currency: string | null;
+    destination: string | null;
     images: ImageRecord[];
     points: PointRecord[];
 }
@@ -139,6 +150,30 @@ export interface TripDetails {
     social: SocialState;
     createdAt: string | null;
     updatedAt: string | null;
+}
+
+/** TripGroupDay represents a single day within a trip group for the new unified response. */
+export interface TripGroupDay {
+    id: number;
+    dayNumber: number;
+    title: string | null;
+    description: string | null;
+    price: number | null;
+    currency: CurrencyDto | null;
+    transport: TripSelectValue;
+    group: TripSelectValue;
+    images: SocialImageDto[];
+    social: SocialState;
+    points: TripPoint[];
+    createdAt: string | null;
+    updatedAt: string | null;
+}
+
+/** TripGroupResponse is the unified response for GET /trips, GET /trips/top, GET /trips/:id */
+export interface TripGroupResponse {
+    tripGroupId: number;
+    social: SocialState;
+    days: TripGroupDay[];
 }
 
 export interface TripPagination {

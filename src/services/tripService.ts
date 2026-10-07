@@ -1,5 +1,5 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { GROUP_SELECT_TYPE, TOP_TRIPS_LIMIT, TRANSPORT_SELECT_TYPE } from '../constants/trip';
+import { GROUP_SELECT_TYPE, TOP_TRIPS_LIMIT, TRANSPORT_SELECT_TYPE, CURRENCY_SELECT_TYPE } from '../constants/trip';
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { ImageDto } from '../model/image';
 import { SocialTargetRef } from '../model/social';
@@ -7,8 +7,8 @@ import {
     TripActor,
     TripDay,
     TripDetails,
+    TripGroupResponse,
     TripListItem,
-    TripListResponse,
 } from '../model/trip';
 import { ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
@@ -20,8 +20,8 @@ import {
     toTripDayDto,
     toTripDayDtoList,
     toTripDetailsDto,
+    toTripGroupResponse,
     toTripListItemList,
-    toTripListResponse,
     toTripMetadataInput,
 } from '../mappers/tripMapper';
 import {
@@ -64,9 +64,8 @@ function toDayTargets(day: {
 
 
 
-
 /**
- * Shared `TripListItem` preparation of every list-shaped trip read (public list,
+ * Shared TripListItem preparation of every list-shaped trip read (public list,
  * my trips, my favorites, top 5): cover image, public image base URL and the
  * dynamic select display values. Reordering stays with the caller.
  */
@@ -96,10 +95,10 @@ export class TripService {
         private readonly socialStates: SocialStateService,
     ) { }
 
-    async listTrips(rawQuery: unknown): Promise<TripListResponse> {
+    async listTrips(rawQuery: unknown): Promise<TripGroupResponse[]> {
         const query = parseListQuery(rawQuery);
 
-        const { rows, total } = await this.repository.findPage({
+        const { rows } = await this.repository.findPage({
             skip: (query.page - 1) * query.limit,
             take: query.limit,
             search: query.search ?? undefined,
@@ -112,9 +111,39 @@ export class TripService {
             sort: query.sort,
         });
 
-        const items = await prepareTripListItems(this.repository, rows);
+        // Fetch full details for each trip group to get all days with images, points, price, currency
+        const groupIds = rows.map((row) => row.id);
+        if (groupIds.length === 0) return [];
 
-        return toTripListResponse(items, query.page, query.limit, total);
+        const detailRows = await this.repository.findGroupsByIdsWithDetails(groupIds);
+        const byId = new Map(detailRows.map((row) => [row.id, row]));
+        const orderedDetails = groupIds.flatMap((id) => {
+            const row = byId.get(id);
+            return row ? [row] : [];
+        });
+
+        // Collect all social targets
+        const targets: SocialTargetRef[] = [];
+        for (const row of orderedDetails) {
+            targets.push({ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id });
+            for (const day of row.trips) {
+                targets.push(...toDayTargets(day));
+            }
+        }
+
+        const actorId = null; // For public list, no authenticated actor
+        const states = await this.socialStates.statesFor(actorId, targets);
+
+        return orderedDetails.map((row) =>
+            toTripGroupResponse(
+                row,
+                states,
+                getImageBaseUrl(),
+                dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
+                dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
+                dynamicConfig.getSelectType(CURRENCY_SELECT_TYPE)?.options ?? [],
+            )
+        );
     }
 
     /**
@@ -133,22 +162,43 @@ export class TripService {
      * of likes on the group itself. The ranking is per trip group and independent
      * of the requesting user; ties keep the database's order.
      */
-    async getTopTrips(): Promise<TripListItem[]> {
+    async getTopTrips(): Promise<TripGroupResponse[]> {
         const groupIds = await this.repository.findTopGroupIds(TOP_TRIPS_LIMIT);
         if (groupIds.length === 0) return [];
 
-        const rows = await this.repository.findGroupsByIds(groupIds);
-        const byId = new Map(rows.map((row) => [row.id, row]));
-        const ranked = groupIds.flatMap((groupId): TripGroupListRecord[] => {
+        const detailRows = await this.repository.findGroupsByIdsWithDetails(groupIds);
+        const byId = new Map(detailRows.map((row) => [row.id, row]));
+        const ranked = groupIds.flatMap((groupId): TripGroupDetailsRecord[] => {
             const row = byId.get(groupId);
             return row ? [row] : [];
         });
 
-        return prepareTripListItems(this.repository, ranked);
+        // Collect all social targets
+        const targets: SocialTargetRef[] = [];
+        for (const row of ranked) {
+            targets.push({ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id });
+            for (const day of row.trips) {
+                targets.push(...toDayTargets(day));
+            }
+        }
+
+        const actorId = null; // For public top, no authenticated actor
+        const states = await this.socialStates.statesFor(actorId, targets);
+
+        return ranked.map((row) =>
+            toTripGroupResponse(
+                row,
+                states,
+                getImageBaseUrl(),
+                dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
+                dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
+                dynamicConfig.getSelectType(CURRENCY_SELECT_TYPE)?.options ?? [],
+            )
+        );
     }
 
     /** `actor` is optional: the trip is public, but it carries the viewer's social state. */
-    async getTrip(rawId: string, actor: TripActor | null): Promise<TripDetails> {
+    async getTrip(rawId: string, actor: TripActor | null): Promise<TripGroupResponse> {
         const row = await this.repository.findById(parseTripId(rawId));
         if (!row) throw ApiError.tripNotFound();
 
@@ -159,7 +209,7 @@ export class TripService {
         const request = parseTripBody(body);
         const createdId = await this.repository.createTrip(toTripMetadataInput(actor.id, request));
 
-        return this.getTrip(String(createdId), actor);
+        return this.getTripDetails(String(createdId), actor);
     }
 
     async updateTrip(actor: TripActor, rawId: string, body: unknown): Promise<TripDetails> {
@@ -169,7 +219,7 @@ export class TripService {
 
         await this.repository.updateTripMetadata(tripGroupId, toTripMetadataInput(ownerId, request));
 
-        return this.getTrip(rawId, actor);
+        return this.getTripDetails(rawId, actor);
     }
 
     async deleteTrip(actor: TripActor, rawId: string): Promise<void> {
@@ -180,7 +230,28 @@ export class TripService {
         await this.repository.delete(tripGroupId);
     }
 
-    private async toDetails(row: TripGroupDetailsRecord, actor: TripActor | null): Promise<TripDetails> {
+    private async toDetails(row: TripGroupDetailsRecord, actor: TripActor | null): Promise<TripGroupResponse> {
+        const targets: SocialTargetRef[] = [{ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id }];
+        for (const day of row.trips) {
+            targets.push(...toDayTargets(day));
+        }
+
+        const states = await this.socialStates.statesFor(actor?.id ?? null, targets);
+
+        return toTripGroupResponse(
+            row,
+            states,
+            getImageBaseUrl(),
+            dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
+            dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
+            dynamicConfig.getSelectType(CURRENCY_SELECT_TYPE)?.options ?? [],
+        );
+    }
+
+    private async getTripDetails(rawId: string, actor: TripActor | null): Promise<TripDetails> {
+        const row = await this.repository.findById(parseTripId(rawId));
+        if (!row) throw ApiError.tripNotFound();
+
         const targets: SocialTargetRef[] = [{ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id }];
         for (const day of row.trips) {
             targets.push(...toDayTargets(day));

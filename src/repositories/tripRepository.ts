@@ -92,6 +92,21 @@ const detailsInclude = {
 type TripGroupListRow = Prisma.TripGroupGetPayload<{ include: typeof listInclude }>;
 type TripGroupDetailsRow = Prisma.TripGroupGetPayload<{ include: typeof detailsInclude }>;
 
+const detailsWithPriceInclude = {
+    owner: { select: { id: true, firstName: true, lastName: true } },
+    trips: {
+        orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
+        include: {
+            images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
+            points: {
+                orderBy: [{ pointNumber: 'asc' }, { id: 'asc' },], include: pointInclude,
+            },
+        },
+    },
+} satisfies Prisma.TripGroupInclude;
+
+type TripGroupDetailsWithPriceRow = Prisma.TripGroupGetPayload<{ include: typeof detailsWithPriceInclude }>;
+
 const dayInclude = {
     images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
     points: { include: pointInclude },
@@ -126,12 +141,25 @@ function toTripDayRecord(row: DayRow | TripGroupDetailsRow['trips'][number]): Tr
         dayNumber: row.dayNumber,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
+        price: row.price ?? null,
+        currency: row.currency ?? null,
+        destination: row.destination ?? null,
         images: row.images.map((image) => ({ id: image.id, filePath: image.filePath })),
         points: sortPointsByNumber(row.points).map(toPointRecord),
     };
 }
 
 function toTripDetailsRecord(row: TripGroupDetailsRow): TripGroupDetailsRecord {
+    return {
+        id: row.id,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        owner: row.owner,
+        trips: row.trips.map((trip) => toTripDayRecord(trip)),
+    };
+}
+
+function toTripDetailsWithPriceRecord(row: TripGroupDetailsWithPriceRow): TripGroupDetailsRecord {
     return {
         id: row.id,
         createdAt: row.createdAt,
@@ -225,6 +253,26 @@ export class TripRepository {
         });
 
         return rows.map(toTripListRecord);
+    }
+
+    /**
+     * Full detail records for the given trip group ids, including price,
+     * currency, destination, images, and points for each day.
+     * Ordered by the input id sequence.
+     */
+    async findGroupsByIdsWithDetails(groupIds: number[]): Promise<TripGroupDetailsRecord[]> {
+        if (groupIds.length === 0) return [];
+
+        const rows = await this.prisma.tripGroup.findMany({
+            where: { id: { in: groupIds } },
+            include: detailsWithPriceInclude,
+        });
+
+        const byId = new Map(rows.map((row) => [row.id, row]));
+        return groupIds.flatMap((id) => {
+            const row = byId.get(id);
+            return row ? [toTripDetailsWithPriceRecord(row)] : [];
+        });
     }
 
     /**

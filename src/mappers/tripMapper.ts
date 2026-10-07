@@ -1,12 +1,15 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { SocialStates } from '../model/social';
 import {
+    CurrencyDto,
     DayCreateRequest,
     DayWriteInput,
     TripAuthor,
     TripDay,
     TripDetails,
+    TripGroupDay,
     TripGroupInfo,
+    TripGroupResponse,
     TripListItem,
     TripListResponse,
     TripSelectValue,
@@ -30,6 +33,18 @@ function toTripSelectValue(storedValue: string | null, options: SelectDisplayOpt
         candidate.key.toLowerCase() === requested || candidate.value.toLowerCase() === requested);
 
     return option ? { key: option.key, name: option.value } : { key: storedValue, name: storedValue };
+}
+
+function toCurrencyDto(currencyKey: string | null, currencyOptions: SelectDisplayOption[]): CurrencyDto | null {
+    if (!currencyKey) return null;
+
+    const requested = currencyKey.toLowerCase();
+    const option = currencyOptions.find((candidate) =>
+        candidate.key.toLowerCase() === requested || candidate.value.toLowerCase() === requested);
+
+    if (!option) return { id: 0, code: currencyKey, name: currencyKey };
+
+    return { id: 0, code: option.key, name: option.value };
 }
 
 function toTripAuthor(owner: { id: string; firstName: string; lastName: string }): TripAuthor {
@@ -152,5 +167,49 @@ export function toTripDetailsDto(
         social: states.get(SOCIAL_TARGET_TYPE.TRIP_GROUP, row.id),
         createdAt: toIsoString(row.createdAt ?? canonicalDay?.createdAt ?? null),
         updatedAt: toIsoString(row.updatedAt ?? latestDayUpdate(row.trips)),
+    };
+}
+
+export function toTripGroupDay(
+    row: TripDayRecord,
+    states: SocialStates,
+    imageBaseUrl: string | null,
+    groupOptions: SelectDisplayOption[],
+    transportOptions: SelectDisplayOption[],
+    currencyOptions: SelectDisplayOption[],
+): TripGroupDay {
+    return {
+        id: row.id,
+        dayNumber: row.dayNumber ?? 0,
+        title: row.title,
+        description: row.description,
+        price: row.price ?? null,
+        currency: toCurrencyDto(row.currency, currencyOptions),
+        transport: toTripSelectValue(row.transport, transportOptions),
+        group: toTripSelectValue(row.typeOfPeople, groupOptions),
+        images: row.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
+        social: states.get(SOCIAL_TARGET_TYPE.DAY, row.id),
+        points: row.points.map((point) => toPointDto(point, states, imageBaseUrl)),
+        createdAt: toIsoString(row.createdAt),
+        updatedAt: toIsoString(row.updatedAt),
+    };
+}
+
+export function toTripGroupResponse(
+    row: TripGroupDetailsRecord,
+    states: SocialStates,
+    imageBaseUrl: string | null,
+    groupOptions: SelectDisplayOption[],
+    transportOptions: SelectDisplayOption[],
+    currencyOptions: SelectDisplayOption[],
+): TripGroupResponse {
+    const days: TripGroupDay[] = row.trips.map((trip) =>
+        toTripGroupDay(trip, states, imageBaseUrl, groupOptions, transportOptions, currencyOptions)
+    );
+
+    return {
+        tripGroupId: row.id,
+        social: states.get(SOCIAL_TARGET_TYPE.TRIP_GROUP, row.id),
+        days,
     };
 }

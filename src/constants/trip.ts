@@ -1,6 +1,7 @@
 /** Dynamic config keys the Trips slice reads from the runtime cache. */
 export const GROUP_SELECT_TYPE = 'group_type';
 export const TRANSPORT_SELECT_TYPE = 'transport';
+export const CURRENCY_SELECT_TYPE = 'currency';
 export const VISUAL_SERVICE = 'visual';
 export const IMAGE_BASE_URL_KEY = 'image_base_url';
 /** Public base URL of the background bucket, seeded under the `visual` service. */
