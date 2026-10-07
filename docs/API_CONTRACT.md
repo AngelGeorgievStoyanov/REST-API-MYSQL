@@ -301,7 +301,6 @@ Authorization model:
 | GET `/me/trips`                | NO                 | YES                                  | YES*  | —       | —     |
 | GET `/me/favorites`            | NO                 | YES                                  | —     | —       | —     |
 | POST `/trips`                             | NO                 | YES                                  | —     | —       | —     |
-| PUT `/trips/:id`                          | NO                 | CONDITIONAL                          | YES   | YES     | YES   |
 | DELETE `/trips/:id`                       | NO                 | CONDITIONAL                          | YES   | YES     | YES   |
 | POST `/trips/:tripId/days`                | NO                 | CONDITIONAL                          | YES   | YES     | YES   |
 | PUT `/trips/:tripId/days/reorder`         | NO                 | CONDITIONAL                          | YES   | YES     | YES   |
@@ -523,17 +522,18 @@ Mounted at `/api/v1/trips`.
 
 ### Data model note (critical)
 
-* A **Trip** = one `trip_groups` row. Its `id` is the trip id.
-* A **Day** = one `trips` row of that group. A day has no separate entity; a day's only identifier is that row's Trip.id.
-* A Day's `dayNumber` is an ordering value (1..n), NOT an identifier.
-* A trip's metadata (`title`, `description`, `group`, `transport`) is stored on the canonical (lowest `dayNumber`) day row.
-* `group`/`transport` are dynamic-config select keys resolved to `{ key, name }` in responses.
+* A **Trip Group** = one `trip_groups` row. Its integer `id` is the `tripGroupId` used to associate its days.
+* A **Day** = one `trips` row belonging to that trip group. The day row has its own integer `id`.
+* `dayNumber` is the displayed/order number of the day and is not the day identifier.
+* Trip Group itself has only group-level social state in the new GET response; day metadata belongs to each day row.
+* `group` and `transport` are dynamic-config select values resolved to `{ key, name }`.
+* `currency` is resolved from the dynamic-config `currency` select to `{ id, code, name }`.
 * Days are returned in `dayNumber` ascending order (tie-break `id` ascending).
-* Points within a day are returned in numeric `pointNumber` order.
+* Points within a day are returned in `pointNumber` ascending order (tie-break `id` ascending).
 
 ## 8. Trip GET response structure (three endpoints)
 
-The following three GET endpoints use the same Trip Group response structure:
+The following three GET endpoints use the same unified Trip Group response structure:
 
 ```text
 GET /api/v1/trips
@@ -541,11 +541,11 @@ GET /api/v1/trips/top
 GET /api/v1/trips/:id
 ```
 
-A **Trip Group** is only the grouping container. It does not have its own title, description, group, transport, author, cover image, or other day metadata.
+A **Trip Group** is only the grouping container. It has no title, description, transport, group, currency, author, cover image, or other day metadata.
 
-The `tripGroupId` identifies the trip group. All `trips` rows belonging to that `tripGroupId` are returned as `days[]`.
+The **`tripGroupId`** identifies the grouping record. It is an integer database id. Every day in `days[]` belongs to that trip group through this id.
 
-A missing day number is not generated. For example, a trip group may contain exactly Day 1, Day 3, and Day 5.
+A trip group does not generate missing day numbers. For example, a trip group may contain exactly Day 1, Day 3, and Day 5.
 
 ### Shared response shape
 
@@ -554,54 +554,128 @@ For `GET /trips` and `GET /trips/top`:
 ```json
 [
   {
-    "tripGroupId": "<uuid>",
-    "social": SocialState,
-    "days": [ TripGroupDay ]
+    "tripGroupId": 123,
+    "social": {
+      "likes": 25,
+      "likedByMe": true,
+      "comments": { "count": 8 },
+      "favorites": 3,
+      "favoritedByMe": false
+    },
+    "days": [
+      {
+        "id": 1001,
+        "dayNumber": 1,
+        "title": "Day 1 title",
+        "description": "Day description",
+        "price": 250,
+        "currency": {
+          "id": 22,
+          "code": "BGN",
+          "name": "Bulgarian Lev"
+        },
+        "transport": {
+          "key": "car",
+          "name": "Car"
+        },
+        "group": {
+          "key": "friends",
+          "name": "Friends"
+        },
+        "images": [
+          {
+            "id": 5001,
+            "url": "<url>",
+            "thumbnailUrl": "<url>",
+            "social": {
+              "likes": 5,
+              "likedByMe": false,
+              "comments": { "count": 2 }
+            }
+          }
+        ],
+        "social": {
+          "likes": 10,
+          "likedByMe": false,
+          "comments": { "count": 3 }
+        },
+        "points": [
+          {
+            "id": 2001,
+            "title": "Point title",
+            "description": "Point description",
+            "latitude": 42.6975,
+            "longitude": 23.3241,
+            "images": [
+              {
+                "id": 5002,
+                "url": "<url>",
+                "thumbnailUrl": "<url>",
+                "social": {
+                  "likes": 2,
+                  "likedByMe": false,
+                  "comments": { "count": 1 }
+                }
+              }
+            ],
+            "social": {
+              "likes": 4,
+              "likedByMe": false,
+              "comments": { "count": 2 }
+            }
+          }
+        ],
+        "createdAt": "2026-01-15T10:30:00.000Z",
+        "updatedAt": "2026-01-20T14:45:00.000Z"
+      }
+    ]
   }
 ]
 ```
 
-For `GET /trips/:id`:
+For `GET /trips/:id`, the same object is returned instead of an array:
 
 ```json
 {
-  "tripGroupId": "<uuid>",
-  "social": SocialState,
-  "days": [ TripGroupDay ]
+  "tripGroupId": 123,
+  "social": { "...": "same Trip Group social structure" },
+  "days": [ "same TripGroupDay structure as above" ]
 }
 ```
 
 ### TripGroupDay
 
+Each element of `days[]` represents one existing day row belonging to the trip group.
+
 ```json
 {
-  "id": 0,
+  "id": 1001,
   "dayNumber": 1,
-  "title": null,
-  "description": null,
-  "price": 0,
+  "title": "Day 1 title",
+  "description": "Day description",
+  "price": 250,
   "currency": {
-    "id": 0,
-    "code": "<string>",
-    "name": "<string>"
+    "id": 22,
+    "code": "BGN",
+    "name": "Bulgarian Lev"
   },
   "transport": {
-    "key": "<string>",
-    "name": "<string>"
+    "key": "car",
+    "name": "Car"
   },
   "group": {
-    "key": "<string>",
-    "name": "<string>"
+    "key": "friends",
+    "name": "Friends"
   },
   "images": [ SocialImageDto ],
   "social": SocialState,
   "points": [ TripPoint ],
-  "createdAt": null,
-  "updatedAt": null
+  "createdAt": "ISO 8601 timestamp",
+  "updatedAt": "ISO 8601 timestamp"
 }
 ```
 
-The `currency` object is resolved from backend configuration and is returned as:
+The `currency` object is resolved from the backend `currency` select options:
 
 ```json
 {
@@ -611,20 +685,18 @@ The `currency` object is resolved from backend configuration and is returned as:
 }
 ```
 
-The Frontend displays `code` (for example `BGN`) and may use `name` as the hover/tooltip text. Currency options are not hard-coded in the Frontend.
+The Frontend displays `code` and may use `name` as the hover/tooltip text. Currency options are loaded from the Backend; the Frontend must not hard-code the currency list.
 
-Day images keep the existing `SocialImageDto` structure:
+Day images and point images keep the existing `SocialImageDto` structure:
 
 ```json
 {
-  "id": 0,
+  "id": 5001,
   "url": "<url>",
   "thumbnailUrl": "<url>",
   "social": SocialState
 }
 ```
-
-Points keep the existing `TripPoint` structure, including their existing `images[]` and `social` fields.
 
 Social state is present at:
 * trip-group level;
@@ -632,9 +704,13 @@ Social state is present at:
 * point level;
 * image level.
 
-The existing `SocialState` structure is unchanged.
+The trip-group social state is the global social state for the whole trip. In particular, trip-group likes, reports and favorites are scoped to the trip group, not to an individual day.
 
-Days are ordered by `dayNumber` ascending, with `id` ascending as the tie-break. Points remain ordered by numeric `pointNumber`.
+Day comments remain day-scoped. There is no separate day-independent comment count used for the trip-group like/favorite behavior.
+
+Days are ordered by `dayNumber ASC`, with `id ASC` as the tie-breaker. Missing day numbers are preserved; they are never generated.
+
+Points are ordered by `pointNumber ASC`, with `id ASC` as the tie-breaker.
 
 ### GET /trips
 
@@ -642,7 +718,7 @@ Days are ordered by `dayNumber` ascending, with `id` ascending as the tie-break.
 * Query: `page`, `limit`, `search`, `group`, `transport`, `sort`.
 * Response `200`: raw `TripGroupResponse[]`.
 * There is no `items` wrapper and no `pagination` object in the response.
-* Pagination/filter query semantics remain unchanged for selecting which trip groups are returned.
+* Query pagination/filtering is used only to select which trip groups are returned.
 
 ### GET /trips/top
 
@@ -657,13 +733,13 @@ Days are ordered by `dayNumber` ascending, with `id` ascending as the tie-break.
 ### GET /trips/:id
 
 * Auth: `optionalAuthentication`.
-* Path parameter `id) is the `tripGroupId) (UUID), not a day row id.
-* Response `200`: one `TripGroupResponse).
-* The response always contains the complete trip group: `tripGroupId`, trip-group `social), and all of its `days[]`.
-* If the Frontend opens a specific day, it may select that day from the returned `days[]), but the backend still returns the complete trip group.
+* Path parameter `id` is the **`tripGroupId` (INT)**, not a day id.
+* Response `200`: one `TripGroupResponse`.
+* The response contains the complete trip group: `tripGroupId`, trip-group `social`, and all existing `days[]`.
+* The Frontend may open a specific day from the returned `days[]`; the Backend still returns the complete trip group.
 * Missing trip group -> `404 TRIP_NOT_FOUND`.
 
-All three endpoints therefore share the same nested data model; only the cardinality differs:
+All three endpoints therefore share exactly the same nested data model; only the cardinality differs:
 * `/trips` -> array of trip groups;
 * `/trips/top` -> array of up to 5 trip groups;
 * `/trips/:id` -> one trip group.
@@ -770,12 +846,6 @@ The controller must not contain GCS access logic, random-selection logic, file-l
 * Auth: `requireAuthentication`.
 * Body (strict): `{ title, description, group, transport }`.
 * Response `201`: `TripDetails`.
-
-### 8.8 PUT `/trips/:id`
-
-* Auth: `requireAuthentication` + owner/moderator (else `403 FORBIDDEN`).
-* Path params (strict): `{ id }`. Body (strict): `{ title, description, group, transport }`.
-* Response `200`: `TripDetails`.
 
 ### 8.9 DELETE `/trips/:id`
 
@@ -1319,7 +1389,8 @@ The initial report queue intentionally keeps the DTO minimal. The backend must n
 
 * `page`: default `1`, min `1`, max `10000`.
 * `limit`: default `20`, min `1`, max `100`.
-* Response `pagination`: `{ page, limit, total, totalPages }` (`totalPages = ceil(total/limit)`, `0` when total is 0).
+* These query parameters select which trip groups are returned.
+* Response is a raw `TripGroupResponse[]`; there is no `items` wrapper and no `pagination` object.
 
 ### 17.2 Comment list (all comment GET endpoints)
 
@@ -1465,10 +1536,10 @@ The API returns DTOs, not database models. The following are the API response sh
 | `SocialImageDto`                      | trip/point image lists                                      |
 | `SocialState`                         | trip detail, day, point, image, like/favorite responses     |
 | `TripListItem`                        | trip list items, Top 5, My Trips, My Favorites              |
-| `TripDetails`                         | trip GET/POST/PUT                                           |
+| `TripDetails`                         | POST /trips                                                 |
 | `TripDay`                             | day create/update/reorder, trip detail days                 |
 | `TripPoint`                           | point GET/POST/PUT, point reorder                           |
-| `TripListResponse`                    | GET /trips                                                  |
+| `TripGroupResponse`                    | GET /trips, GET /trips/top, GET /trips/:id                 |
 | `CommentDto`                          | comment list/create/update                                  |
 | `CommentListResponse`                 | comment list                                                |
 | `ReportDto`                           | report create                                               |
@@ -1538,9 +1609,9 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | POST   | `/auth/reset-password`                | None             | `{ token, password }`                                                   | 200 `{ message }`                    | 400, 403                |
 | GET    | `/config/selects`                     | Public           | none                                                                    | 200 `SelectConfig[]`                 | 401                     |
 | GET    | `/config/services`                    | Public           | none                                                                    | 200 `PublicServiceConfig[]`          | 401                     |
-| GET    | `/trips`                              | Public           | query `page,limit,search,group,transport,sort`                          | 200 `TripListResponse`               | 400, 401                |
-| GET    | `/trips/:id`                          | Public           | param `id`                                                              | 200 `TripDetails`                    | 400, 401, 404           |
-| GET    | `/trips/top`                     | Public           | none                                                                    | 200 `TripListItem[]` (max 5)         | 401                     |
+| GET    | `/trips`                              | Public           | query `page,limit,search,group,transport,sort`                          | 200 `TripGroupResponse[]`            | 400, 401                |
+| GET    | `/trips/:id`                          | Public           | param `id` = `tripGroupId` (INT)                                       | 200 `TripGroupResponse`              | 400, 401, 404           |
+| GET    | `/trips/top`                           | Public           | none                                                                    | 200 `TripGroupResponse[]` (max 5)    | 401                     |
 | GET    | `/me/trips`                | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
 | GET    | `/me/favorites`            | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
 | GET    | `/trips/background`              | Public           | none                                                                    | 200 `{ url }`                        | 401, 404                |
