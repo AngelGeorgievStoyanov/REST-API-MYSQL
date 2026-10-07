@@ -1535,7 +1535,6 @@ The API returns DTOs, not database models. The following are the API response sh
 | `ImageDto`                            | image create endpoints, profile image GET/POST              |
 | `SocialImageDto`                      | trip/point image lists                                      |
 | `SocialState`                         | trip detail, day, point, image, like/favorite responses     |
-| `TripListItem`                        | legacy/summary trip list items where explicitly documented  |
 | `TripGroupResponse`                   | POST /trips, POST /trips/:tripId/days, PUT /trips/:tripId/days/:dayId |
 | `TripDay`                             | PUT /trips/:tripId/days/reorder                              |
 | `TripPoint`                           | point GET/POST/PUT, point reorder                           |
