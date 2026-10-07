@@ -359,7 +359,7 @@ The `/api/v1` endpoint inventory below is derived from the mounted routers and c
 | Admin          | `GET /admin/users`; `PUT` and `DELETE /admin/users/:userId`; `GET /admin/failed-login-logs`; `DELETE /admin/failed-login-logs`; `GET /admin/route-not-found-logs`; `GET /admin/images/cloud`, `/admin/images/database`, `/admin/images/orphans`                                                                            |
 | Config         | `GET /config/selects`, `/config/services`                                                                                                                                                                                                                                                                                  |
 | Comments       | `GET` and `POST /trip-groups/:tripGroupId/comments`; `/trips/:tripId/days/:dayId/comments`; `/points/:pointId/comments`; `/images/:imageId/comments`; `PUT` and `DELETE /comments/:commentId`                                                                                                                              |
-| Trips and days | `GET /trips`, `/trips/:id`; `POST /trips`, `/trips/:tripId/days`, `/trips/:tripId/days/:dayId/images`; `PUT /trips/:id`, `/trips/:tripId/days/reorder`, `/trips/:tripId/days/:dayId`; `DELETE /trips/:id`, `/trips/:tripId/days/:dayId`                                                                                    |
+| Trips and days | `GET /trips`, `/trips/:id`; `POST /trips`, `/trips/:tripId/days`, `/trips/:tripId/days/:dayId/images`; `PUT /trips/:tripId/days/reorder`, `/trips/:tripId/days/:dayId`; `DELETE /trips/:id`, `/trips/:tripId/days/:dayId` |
 | Trip discovery/social | `GET /trips/top`, `GET /trips/background`; public discovery endpoints use the public Frontend token |
 | Current-user trips/favorites | `GET /me/trips`, `GET /me/favorites`; authenticated user-specific endpoints resolve the user from authentication and do not accept a `userId` route parameter |
 | Points         | `POST /points`; `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:dayId/points/reorder`                                                                                                                                  |
@@ -383,7 +383,7 @@ Important DTO families include:
 
 * `AuthSessionDto` contains a bearer access token and public `AuthUserDto`; refresh tokens are delivered only through an HttpOnly cookie.
 * The three trip GET endpoints (`GET /trips`, `GET /trips/top`, `GET /trips/:id`) use the shared Trip Group response structure defined in the Trip GET response contract below.
-* Trip details contain group, day, point, image, and social-state data according to the public/private route contract.
+* Trip GET and trip write responses use the Trip Group response model described in the trip response sections. Trip Group contains only `tripGroupId`, global `social`, and `days[]`; day-specific metadata belongs inside each Day.
 * `CommentListResponse` is paginated.
 * Comment writes use `{ text }`; authorship comes from the authenticated actor.
 * `ImageDto` contains `id`, `url`, and `thumbnailUrl`; storage object paths are not exposed as the API image contract.
@@ -416,7 +416,7 @@ For `GET /trips` and `GET /trips/top`:
 ```json
 [
   {
-    "tripGroupId": "<uuid>",
+    "tripGroupId": 123,
     "social": SocialState,
     "days": [ TripGroupDay ]
   }
@@ -519,7 +519,7 @@ Days are ordered by `dayNumber` ascending, with `id` ascending as the tie-break.
 ### GET /trips/:id
 
 * Auth: `optionalAuthentication`.
-* Path parameter `id) is the `tripGroupId) (UUID), not a day row id.
+* Path parameter `id` is the `tripGroupId` (INT, autoincrement), not a day row id.
 * Response `200`: one `TripGroupResponse).
 * The response always contains the complete trip group: `tripGroupId`, trip-group `social), and all of its `days[]`.
 * If the Frontend opens a specific day, it may select that day from the returned `days[]), but the backend still returns the complete trip group.
@@ -530,6 +530,78 @@ All three endpoints therefore share the same nested data model; only the cardina
 * `/trips/top` -> array of up to 5 trip groups;
 * `/trips/:id` -> one trip group.
 
+
+## Trip write endpoints and response structure
+
+Trip groups are grouping containers only. A trip group has no title, description, transport, group, price, currency, or day content of its own. Those fields belong to individual days. The trip group owns only its global social state and connects its days through `tripGroupId`.
+
+The write endpoints use the following rules:
+
+### POST /api/v1/trips
+
+Creates a new Trip Group together with its first Day.
+
+The request contains the data required to create the day. The backend creates the `tripGroupId` and the first `trips` row in the same operation.
+
+Response `201`: **one `TripGroupResponse`**.
+
+The response is the source of truth for the newly created `tripGroupId` and Day `id`. The Frontend can therefore continue directly to Trip Details or Add Points without another GET request.
+
+### POST /api/v1/trips/:tripId/days
+
+Adds another Day to an existing Trip Group.
+
+`:tripId` is the **tripGroupId**, not a day id.
+
+Response `201`: **one `TripGroupResponse`** containing the complete trip group after the new day has been created.
+
+The response includes all existing days, including the newly created day. The Frontend uses the returned days to determine the newly created Day `id`, its `dayNumber`, and the persisted day values.
+
+This endpoint is also used by the "Add Next Day Trip" flow. The Frontend remains on the day creation form after the request and uses the returned Trip Group response to persist the current trip-group/day state and prepare the next day.
+
+### PUT /api/v1/trips/:tripId/days/reorder
+
+Reorders existing days inside a Trip Group.
+
+`:tripId` is the tripGroupId and the request contains the existing day IDs in the desired order.
+
+Response `200`: the existing `TripDay[]` reorder response remains unchanged unless separately revised.
+
+### PUT /api/v1/trips/:tripId/days/:dayId
+
+Updates one existing Day.
+
+`:tripId` is the **tripGroupId** and `:dayId` is the **trips.id** of the specific Day.
+
+Response `200`: **one `TripGroupResponse`** containing the complete trip group after the update.
+
+The response is directly usable by the Frontend Trip Details page. When the user edited a specific Day, the Frontend can select that Day from the returned `days[]` using its `id`/ `dayNumber` and display the updated persisted data immediately without a second GET request.
+
+`PUT /api/v1/trips/:id` is not part of the current trip architecture. Trip Group has no editable metadata endpoint because title, description, price, currency, transport, and group belong to Days rather than the Trip Group.
+
+### DELETE /api/v1/trips/:id
+
+Deletes the complete Trip Group and all of its Days.
+
+`:id` is the **tripGroupId**.
+
+Response remains `204 No Content`.
+
+### DELETE /api/v1/trips/:tripId/days/:dayId
+
+Deletes one Day from a Trip Group.
+
+`:tripId` is the tripGroupId and `:dayId` is the Day row id.
+
+Response remains `204 No Content`.
+
+### POST /api/v1/trips/:tripId/days/:dayId/images
+
+Adds an image to a specific Day.
+
+`:tripId` is the tripGroupId and `:dayId` is the Day row id.
+
+Response remains the existing `ImageDto` contract.
 
 ## Session presence probe
 
