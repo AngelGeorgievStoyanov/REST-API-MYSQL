@@ -1,40 +1,36 @@
 import { NextFunction, Request, Response } from 'express';
 import { ApiError, toApiErrorBody } from '../utils/apiError';
 import { getErrorMessage } from '../utils/error';
+import { logger } from '../utils/logger';
+import { RequestWithId } from './requestIdMiddleware';
 
-/**
- * Turns an {@link ApiError} into the API error contract and hides unexpected
- * errors behind a `500 INTERNAL_SERVER_ERROR` (details stay in the server log).
- *
- * It is registered on every router and once more at application level, so an
- * error raised before a router (a body parser, for example) cannot reach the
- * Express default handler and leak a stack trace.
- */
 export function apiErrorMiddleware(
     err: unknown,
     req: Request,
     res: Response,
     next: NextFunction,
 ): void {
+    const requestId = (req as unknown as RequestWithId).id;
+    const method = req.method;
+    const url = req.url;
+
     if (err instanceof ApiError) {
+        if (err.status >= 500) {
+            logger.error({ err, requestId, method, url, statusCode: err.status }, 'API error');
+        }
         res.status(err.status).json(toApiErrorBody(err));
         return;
     }
 
     const bodyFailure = bodyParserFailure(err);
     if (bodyFailure !== null) {
-        console.log(`[api] ${req.method} ${safeRequestLocation(req)} rejected: ${bodyFailure.message}`);
+        logger.warn({ err: bodyFailure, requestId, method, url, statusCode: bodyFailure.status }, 'Request rejected');
         res.status(bodyFailure.status).json(toApiErrorBody(bodyFailure));
         return;
     }
 
-    console.log(`[api] ${req.method} ${safeRequestLocation(req)} failed: ${getErrorMessage(err)}`);
+    logger.error({ err, requestId, method, url, statusCode: 500 }, `Unhandled error: ${getErrorMessage(err)}`);
     res.status(500).json(toApiErrorBody(ApiError.internal()));
-}
-
-function safeRequestLocation(req: Request): string {
-    const routePath = typeof req.route?.path === 'string' ? req.route.path : '';
-    return `${req.baseUrl}${routePath}` || '[unmatched route]';
 }
 
 /**

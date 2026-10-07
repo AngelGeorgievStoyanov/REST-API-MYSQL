@@ -36,6 +36,9 @@ export const CORS_ALLOWED_HEADERS = [HACKTRIP_CLIENT_HEADER, 'Content-Type', 'Au
  */
 export const CORS_PREFLIGHT_METHOD = 'OPTIONS';
 
+/** Request ID header forwarded by the reverse proxy or generated per request. */
+export const REQUEST_ID_HEADER = 'x-request-id';
+
 /**
  * Body ceilings. JSON payloads are small by contract (the largest field is a
  * 2000-char description); binary uploads never travel through the body parsers,

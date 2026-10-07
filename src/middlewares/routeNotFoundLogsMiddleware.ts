@@ -2,7 +2,7 @@ import { NextFunction, Request, RequestHandler, Response } from 'express';
 import os from 'os';
 import { routeNotFoundLogsService } from '../container';
 import { optionalActor } from './authBoundary';
-import { getErrorMessage } from '../utils/error';
+import { logger } from '../utils/logger';
 import { ApiError } from '../utils/apiError';
 import { redactSensitiveRequestData } from '../utils/sensitiveRequestData';
 import { MAX_CLIENT_IP_LENGTH } from '../constants/routeNotFoundLogs';
@@ -44,8 +44,7 @@ export const routeNotFoundLogsMiddleware: RequestHandler = async (
             actorId: optionalActor(req)?.id,
         });
     } catch (error) {
-        // The query string is left out of the log line: it can carry one-time tokens.
-        console.log(`[404] route-not-found log failed for ${req.method} ${req.baseUrl}: ${getErrorMessage(error)}`);
+        logger.error({ err: error, method: req.method, url: req.baseUrl }, 'Route-not-found log failed');
     }
 
     next(ApiError.notFound());

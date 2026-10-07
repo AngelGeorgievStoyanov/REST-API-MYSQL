@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
+import pinoHttp from 'pino-http';
 import { SERVER_PORT, SHUTDOWN_SIGNALS, TRUST_PROXY_HOPS } from './constants/application';
 import {
     CORS_ALLOWED_HEADERS,
@@ -16,9 +17,11 @@ import { EnvironmentConfig, loadEnvironmentConfig } from './config/environment';
 import { clientHeaderMiddleware } from './middlewares/clientHeaderMiddleware';
 import { publicApiRateLimit } from './middlewares/publicApiRateLimit';
 import { apiErrorMiddleware } from './middlewares/apiErrorMiddleware';
+import { requestIdMiddleware } from './middlewares/requestIdMiddleware';
 import apiRouter from './routes/apiRouter';
 import { initializeApplication, releaseApplicationResources } from './startup/application';
 import { getErrorMessage } from './utils/error';
+import { logger } from './utils/logger';
 
 /** The environment is read once and handed to every part of the startup. */
 const environment = loadEnvironmentConfig();
@@ -38,17 +41,37 @@ function configureApplication(application: express.Express, config: EnvironmentC
     application.set('trust proxy', TRUST_PROXY_HOPS);
     application.use(setHstsHeader);
 
-    // Unmarked traffic is filtered before parsers; preflights pass through to CORS.
+    application.use(requestIdMiddleware);
+
+    application.use(pinoHttp({
+        logger,
+        customLogLevel: (_req, res, _err) => {
+            if (res.statusCode >= 400 && res.statusCode < 500) return 'warn';
+            if (res.statusCode >= 500) return 'error';
+            return 'info';
+        },
+        customSuccessMessage: (req, res) => {
+            return `${req.method} ${res.statusCode} - ${req.url}`;
+        },
+        customErrorMessage: (req, res, err) => {
+            return `Request failed: ${err.message}`;
+        },
+        autoLogging: {
+            ignore: (req) => {
+                return req.method === 'OPTIONS' || req.url === '/';
+            },
+        },
+        genReqId: (req) => {
+            return (req as unknown as { id: string }).id;
+        },
+    }));
+
     application.use(clientHeaderMiddleware);
 
-    // Only the origins of the current environment: a production run cannot answer
-    // a development origin, and no origin is ever a wildcard.
     application.use(cors({
         origin: config.corsOrigins,
         methods: CORS_METHODS,
         allowedHeaders: CORS_ALLOWED_HEADERS,
-        // The refresh token travels in an HttpOnly cookie, which a browser only
-        // sends with a credentialed cross-origin request.
         credentials: true,
     }));
 
@@ -81,12 +104,11 @@ function setHstsHeader(_req: express.Request, res: express.Response, next: expre
     next();
 }
 
-/** Startup sequence of the application: configuration first, then the HTTP server. */
 async function bootstrap(config: EnvironmentConfig): Promise<void> {
     try {
         await initializeApplication(config);
     } catch (error: unknown) {
-        console.log(`[startup] configuration failed: ${getErrorMessage(error)}`);
+        logger.error(`[startup] configuration failed: ${getErrorMessage(error)}`);
         await releaseApplicationResources();
         process.exit(1);
     }
@@ -96,21 +118,20 @@ async function bootstrap(config: EnvironmentConfig): Promise<void> {
 
 function startServer(): void {
     const server = app.listen(SERVER_PORT, () => {
-        console.log(`Connected succesfully on port ${SERVER_PORT}`)
+        logger.info(`Connected succesfully on port ${SERVER_PORT}`);
     });
 
     server.on('error', (error: Error) => {
-        console.log('Server error:', error);
+        logger.error({ err: error }, 'Server error');
     });
 
-    // The close handler stays the single place that releases the runtime resources.
     server.on('close', () => {
         void releaseApplicationResources();
     });
 
     for (const signal of SHUTDOWN_SIGNALS) {
         process.on(signal, () => {
-            console.log(`[shutdown] ${signal} received, closing the server`);
+            logger.info(`[shutdown] ${signal} received, closing the server`);
             server.close();
         });
     }
