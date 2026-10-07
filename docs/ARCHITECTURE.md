@@ -1044,20 +1044,32 @@ Development mail transport may write generated messages to the operating-system 
 `GET /api/v1/me/trips`:
 
 * requires authenticated user context;
-* does not accept a `userId` route parameter;
-* resolves the current user from the authentication context;
-* returns trips belonging to that user's trip groups;
-* never uses a client-supplied user id to establish ownership.
+* does not accept a `userId` route parameter, query parameter, or body field;
+* resolves the current user exclusively from the authenticated request context;
+* returns only trip groups owned by that authenticated user;
+* uses the authenticated user's UUID only server-side for ownership filtering;
+* returns raw `TripGroupResponse[]`;
+* uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:id`;
+* serializes only `tripGroupId`, trip-group `social`, and the existing `days[]` structure;
+* never serializes `userId`, `ownerId`, or an author/owner object;
+* never uses a client-supplied user id to establish ownership;
+* returns `200 []` when the authenticated user owns no trip groups.
 
 `GET /api/v1/me/favorites`:
 
 * requires authenticated user context;
-* does not accept a `userId` route parameter;
-* reads the user's actual persisted `Favorite` records;
+* does not accept a `userId` route parameter, query parameter, or body field;
+* resolves the current user exclusively from the authenticated request context;
+* reads the authenticated user's persisted `Favorite` records server-side;
 * favorites are associated with `tripGroupId`;
 * resolves the corresponding trip groups/trips from those persisted favorite relationships;
-* returns the normal trip response structure;
-* returns the contract-defined empty collection when the user has no favorites.
+* returns raw `TripGroupResponse[]`;
+* uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:id`;
+* serializes only `tripGroupId`, trip-group `social`, and the existing `days[]` structure;
+* never serializes `userId`, `ownerId`, or an author/owner object, including the owner id of a favorited trip created by another user;
+* never serializes the authenticated user's UUID or favorite-record ownership fields;
+* never accepts a client-supplied user id to retrieve another user's favorites;
+* returns `200 []` when the authenticated user has no favorites.
 
 ### Current-user trip and favorite endpoints
 
@@ -1068,7 +1080,18 @@ GET /api/v1/me/trips
 GET /api/v1/me/favorites
 ```
 
-These endpoints are authenticated-only and never accept a `userId` route parameter.
+These endpoints are authenticated-only and never accept a `userId` route parameter, query parameter, or body field.
+
+Both endpoints must use the same response model as the public trip discovery endpoints. The response cardinality is an array in both cases:
+
+```text
+GET /api/v1/me/trips      -> TripGroupResponse[]
+GET /api/v1/me/favorites  -> TripGroupResponse[]
+```
+
+The unified response contains the trip-group identifier and global social state plus the complete set of existing days. Trip Group remains a grouping container: day-specific fields such as title, description, price, currency, transport, group, images, and points belong under `days[]`, not on the Trip Group itself.
+
+The response must not expose any database ownership identity. In particular, `userId`, `ownerId`, and author/owner objects are server-side data only and must never be serialized by these two endpoints. This applies equally when a favorite belongs to a trip group owned by a different user.
 
 The intended request flow is:
 
@@ -1081,9 +1104,9 @@ trip service
     ->
 repository / Prisma
     ->
-trip-group ownership query
+authenticated actor ownership query
     ->
-normal trip response preparation
+TripGroupResponse[] preparation
     ->
 controller
     ->
@@ -1097,11 +1120,11 @@ favorite/trip service
     ->
 repository / Prisma
     ->
-current user's persisted favorites by tripGroupId
+authenticated actor favorite lookup by tripGroupId
     ->
 corresponding trip groups/trips
     ->
-normal trip response preparation
+TripGroupResponse[] preparation
     ->
 controller
     ->
@@ -1112,7 +1135,7 @@ Controller responsibilities remain limited to HTTP concerns: receive the request
 
 The `/me` controller does not query Prisma, access repositories directly, perform ownership queries, resolve favorites, map trip data, or implement business rules.
 
-The service layer is responsible for resolving the authenticated user's identity, applying ownership rules, querying the required trip-group/favorite relationships through the repository layer, and preparing the contract response.
+The service layer is responsible for resolving the authenticated user's identity, applying ownership/favorite rules, querying the required trip-group/favorite relationships through the repository layer, and preparing the contract response without serializing ownership identities.
 
 ### Top trips
 
