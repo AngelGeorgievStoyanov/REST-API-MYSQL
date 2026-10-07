@@ -228,18 +228,6 @@ export class TripRepository {
         return group?.ownerId ?? null;
     }
 
-    /** Trip groups owned by exactly this user, newest first. */
-    async findOwnedGroups(ownerId: string): Promise<TripGroupListRecord[]> {
-        const rows = await this.prisma.tripGroup.findMany({
-            where: { ownerId },
-            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            include: listInclude,
-        });
-
-        return rows.map(toTripListRecord);
-    }
-
-    /** IDs of trip groups owned by this user, ordered newest first. */
     async findOwnedGroupIds(ownerId: string): Promise<number[]> {
         const rows = await this.prisma.tripGroup.findMany({
             where: { ownerId },
@@ -248,22 +236,6 @@ export class TripRepository {
         });
 
         return rows.map((row) => row.id);
-    }
-
-    /**
-     * List-shaped groups for the given ids. Callers that care about an order
-     * (favorites, the like ranking) reorder the result by their own id sequence.
-     */
-    async findGroupsByIds(groupIds: number[]): Promise<TripGroupListRecord[]> {
-        if (groupIds.length === 0) return [];
-
-        const rows = await this.prisma.tripGroup.findMany({
-            where: { id: { in: groupIds } },
-            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            include: listInclude,
-        });
-
-        return rows.map(toTripListRecord);
     }
 
     /**
@@ -302,24 +274,6 @@ export class TripRepository {
         });
 
         return rows.map((row) => row.targetId);
-    }
-
-    async findCoverImages(tripIds: number[]): Promise<Map<number, string>> {
-        const covers = new Map<number, string>();
-        if (tripIds.length === 0) return covers;
-
-        const images = await this.prisma.image.findMany({
-            where: { tripId: { in: tripIds } },
-            orderBy: { id: 'asc' },
-            select: { tripId: true, filePath: true },
-        });
-
-        for (const image of images) {
-            if (image.tripId !== null && !covers.has(image.tripId)) {
-                covers.set(image.tripId, image.filePath);
-            }
-        }
-        return covers;
     }
 
     /** Creates the trip group plus its first day row, which carries the trip metadata. */
@@ -466,11 +420,6 @@ export class TripRepository {
                 await tx.trip.update({ where: { id: tripId }, data: { dayNumber: index + 1 } });
             }
         });
-    }
-
-    async findDayRow(tripId: number): Promise<TripDayRecord | null> {
-        const day = await this.prisma.trip.findUnique({ where: { id: tripId }, include: dayInclude });
-        return day ? toTripDayRecord(day) : null;
     }
 
     async listDayRows(groupId: number): Promise<TripDayRecord[]> {

@@ -4,11 +4,8 @@ import {
     CurrencyDto,
     DayCreateRequest,
     DayWriteInput,
-    TripAuthor,
     TripDay,
-    TripDetails,
     TripGroupDay,
-    TripGroupInfo,
     TripGroupResponse,
     TripSelectValue,
     TripDayRecord,
@@ -17,7 +14,7 @@ import {
     TripWriteRequest,
 } from '../model/trip';
 import { toIsoString } from '../utils/utils';
-import { toImageUrl, toSocialImageDto } from './imageMapper';
+import { toSocialImageDto } from './imageMapper';
 import { toPointDto } from './pointMapper';
 type SelectDisplayOption = { id: number; key: string; value: string };
 
@@ -41,17 +38,6 @@ function toCurrencyDto(currencyKey: string | null, currencyOptions: SelectDispla
     if (!option) return { id: 0, code: currencyKey, name: currencyKey };
 
     return { id: option.id, code: option.key, name: option.value };
-}
-
-function toTripAuthor(owner: { id: string; firstName: string; lastName: string }): TripAuthor {
-    return { id: owner.id, firstName: owner.firstName, lastName: owner.lastName };
-}
-
-function latestDayUpdate(trips: { updatedAt: Date | null }[]): Date | null {
-    return trips.reduce<Date | null>((latest, trip) => {
-        if (!trip.updatedAt) return latest;
-        return !latest || trip.updatedAt > latest ? trip.updatedAt : latest;
-    }, null);
 }
 
 export function toTripMetadataInput(ownerId: string, request: TripWriteRequest): TripMetadataInput {
@@ -81,41 +67,6 @@ export function toTripDayDto(row: TripDayRecord, states: SocialStates, imageBase
 
 export function toTripDayDtoList(rows: TripDayRecord[], states: SocialStates, imageBaseUrl: string | null): TripDay[] {
     return rows.map((row) => toTripDayDto(row, states, imageBaseUrl));
-}
-
-export function toTripDetailsDto(
-    row: TripGroupDetailsRecord,
-    states: SocialStates,
-    imageBaseUrl: string | null,
-    groupOptions: SelectDisplayOption[],
-    transportOptions: SelectDisplayOption[],
-): TripDetails {
-    const canonicalDay = row.trips[0];
-    const groupValue = toTripSelectValue(canonicalDay?.typeOfPeople ?? null, groupOptions);
-    const group: TripGroupInfo = { id: row.id, key: groupValue.key, name: groupValue.name };
-
-    const days: TripDay[] = row.trips.map((trip) => ({
-        id: trip.id,
-        day: trip.dayNumber ?? 0,
-        title: trip.title,
-        images: trip.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
-        points: trip.points.map((point) => toPointDto(point, states, imageBaseUrl)),
-        social: states.get(SOCIAL_TARGET_TYPE.DAY, trip.id),
-    }));
-
-    return {
-        id: row.id,
-        title: canonicalDay?.title ?? '',
-        description: canonicalDay?.description ?? null,
-        group,
-        transport: toTripSelectValue(canonicalDay?.transport ?? null, transportOptions),
-        author: toTripAuthor(row.owner),
-        coverImage: canonicalDay?.images[0] ? toImageUrl(canonicalDay.images[0].filePath, imageBaseUrl) : null,
-        days,
-        social: states.get(SOCIAL_TARGET_TYPE.TRIP_GROUP, row.id),
-        createdAt: toIsoString(row.createdAt ?? canonicalDay?.createdAt ?? null),
-        updatedAt: toIsoString(row.updatedAt ?? latestDayUpdate(row.trips)),
-    };
 }
 
 export function toTripGroupDay(

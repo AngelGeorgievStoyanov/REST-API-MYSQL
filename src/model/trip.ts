@@ -22,10 +22,6 @@ export interface TripSelectValue {
     name: string;
 }
 
-export interface TripGroupInfo extends TripSelectValue {
-    id: number;
-}
-
 export interface TripAuthor {
     id: string;
     firstName: string;
@@ -127,32 +123,7 @@ export interface TripDay {
     social: SocialState;
 }
 
-export interface TripListItem {
-    id: number;
-    title: string;
-    description: string | null;
-    group: TripSelectValue;
-    transport: TripSelectValue;
-    author: TripAuthor;
-    coverImage: string | null;
-    createdAt: string | null;
-}
-
-export interface TripDetails {
-    id: number;
-    title: string;
-    description: string | null;
-    group: TripGroupInfo;
-    transport: TripSelectValue;
-    author: TripAuthor;
-    coverImage: string | null;
-    days: TripDay[];
-    social: SocialState;
-    createdAt: string | null;
-    updatedAt: string | null;
-}
-
-/** TripGroupDay represents a single day within a trip group for the new unified response. */
+/** TripGroupDay represents a single day within a trip group for the unified response. */
 export interface TripGroupDay {
     id: number;
     dayNumber: number;
@@ -174,18 +145,6 @@ export interface TripGroupResponse {
     tripGroupId: number;
     social: SocialState;
     days: TripGroupDay[];
-}
-
-export interface TripPagination {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-}
-
-export interface TripListResponse {
-    items: TripListItem[];
-    pagination: TripPagination;
 }
 
 export type TripSort = 'newest' | 'oldest';
