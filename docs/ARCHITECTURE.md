@@ -1124,7 +1124,7 @@ authenticated actor favorite lookup by tripGroupId
     ->
 corresponding trip groups/trips
     ->
-TripGroupResponse[] preparation
+shared trip response preparation (toGroupResponses -> toTripGroupResponse)
     ->
 controller
     ->
