@@ -845,7 +845,7 @@ The controller must not contain GCS access logic, random-selection logic, file-l
 
 * Auth: `requireAuthentication`.
 * Body (strict): `{ title, description, group, transport }`.
-* Response `201`: `TripDetails`.
+* Response `201`: `TripGroupResponse` (same complete trip-group response structure as the GET endpoints).
 
 ### 8.9 DELETE `/trips/:id`
 
@@ -857,7 +857,7 @@ The controller must not contain GCS access logic, random-selection logic, file-l
 
 * Auth: `requireAuthentication` + owner/moderator.
 * Path params (strict): `{ tripId }`. Body (strict): `{ dayNumber?, title?, description? }`.
-* Response `201`: `TripDay`.
+* Response `201`: `TripGroupResponse` (same complete trip-group response structure as `GET /trips/:id`).
 * `dayNumber` omitted -> assigned `max(dayNumber)+1`. Duplicate `dayNumber` -> `409 CONFLICT` ("Day N already exists in this trip.").
 
 ### 8.11 PUT `/trips/:tripId/days/reorder`
@@ -872,7 +872,7 @@ The controller must not contain GCS access logic, random-selection logic, file-l
 * Auth: `requireAuthentication` + owner/moderator.
 * Path params (strict): `{ tripId, dayId }` (`dayId` = the day row's `Trip.id`).
 * Body (strict): `{ title?, description? }` (at least one required).
-* Response `200`: `TripDay`.
+* Response `200`: `TripGroupResponse` (same complete trip-group response structure as `GET /trips/:id`).
 
 ### 8.13 DELETE `/trips/:tripId/days/:dayId`
 
@@ -1536,8 +1536,8 @@ The API returns DTOs, not database models. The following are the API response sh
 | `SocialImageDto`                      | trip/point image lists                                      |
 | `SocialState`                         | trip detail, day, point, image, like/favorite responses     |
 | `TripListItem`                        | trip list items, Top 5, My Trips, My Favorites              |
-| `TripDetails`                         | POST /trips                                                 |
-| `TripDay`                             | day create/update/reorder, trip detail days                 |
+| `TripGroupResponse`                   | POST /trips, POST /trips/:tripId/days, PUT /trips/:tripId/days/:dayId |
+| `TripDay`                             | PUT /trips/:tripId/days/reorder                              |
 | `TripPoint`                           | point GET/POST/PUT, point reorder                           |
 | `TripGroupResponse`                    | GET /trips, GET /trips/top, GET /trips/:id                 |
 | `CommentDto`                          | comment list/create/update                                  |
@@ -1615,12 +1615,11 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | GET    | `/me/trips`                | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
 | GET    | `/me/favorites`            | Auth             | none                                                                    | 200 `TripListItem[]`                 | 401, 403                |
 | GET    | `/trips/background`              | Public           | none                                                                    | 200 `{ url }`                        | 401, 404                |
-| POST   | `/trips`                              | Auth             | `{ title, description, group, transport }`                              | 201 `TripDetails`                    | 400, 401, 403           |
-| PUT    | `/trips/:id`                          | Owner/Mod        | param `id`; body `{ title, description, group, transport }`             | 200 `TripDetails`                    | 400, 401, 403, 404      |
+| POST   | `/trips`                              | Auth             | `{ title, description, group, transport }`                              | 201 `TripGroupResponse`              | 400, 401, 403           |
 | DELETE | `/trips/:id`                          | Owner/Mod        | param `id`                                                              | 204                                  | 400, 401, 403, 404      |
-| POST   | `/trips/:tripId/days`                 | Owner/Mod        | param `tripId`; body `{ dayNumber?, title?, description? }`             | 201 `TripDay`                        | 400, 401, 403, 404, 409 |
+| POST   | `/trips/:tripId/days`                 | Owner/Mod        | param `tripId`; body `{ dayNumber?, title?, description? }`             | 201 `TripGroupResponse`              | 400, 401, 403, 404, 409 |
 | PUT    | `/trips/:tripId/days/reorder`         | Owner/Mod        | param `tripId`; body `{ dayIds }`                                       | 200 `TripDay[]`                      | 400, 401, 403, 404      |
-| PUT    | `/trips/:tripId/days/:dayId`          | Owner/Mod        | params `tripId,dayId`; body `{ title?, description? }`                  | 200 `TripDay`                        | 400, 401, 403, 404      |
+| PUT    | `/trips/:tripId/days/:dayId`          | Owner/Mod        | params `tripId,dayId`; body `{ title?, description? }`                  | 200 `TripGroupResponse`              | 400, 401, 403, 404      |
 | DELETE | `/trips/:tripId/days/:dayId`          | Owner/Mod        | params `tripId,dayId`                                                   | 204                                  | 400, 401, 403, 404, 409 |
 | POST   | `/trips/:tripId/days/:dayId/images`   | Owner/Mod        | params `tripId,dayId`; multipart `file`                                 | 201 `ImageDto`                       | 400, 401, 403, 404, 409 |
 | POST   | `/points`                             | Owner/Mod        | `{ dayId, title, description?, latitude, longitude }`                   | 201 `TripPoint`                      | 400, 401, 403, 404      |
