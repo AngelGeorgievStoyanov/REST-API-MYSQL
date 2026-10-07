@@ -239,6 +239,17 @@ export class TripRepository {
         return rows.map(toTripListRecord);
     }
 
+    /** IDs of trip groups owned by this user, ordered newest first. */
+    async findOwnedGroupIds(ownerId: string): Promise<number[]> {
+        const rows = await this.prisma.tripGroup.findMany({
+            where: { ownerId },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            select: { id: true },
+        });
+
+        return rows.map((row) => row.id);
+    }
+
     /**
      * List-shaped groups for the given ids. Callers that care about an order
      * (favorites, the like ranking) reorder the result by their own id sequence.

@@ -1,12 +1,12 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { SocialState } from '../model/social';
-import { TripActor, TripGroupListRecord, TripListItem } from '../model/trip';
+import { TripActor, TripGroupResponse } from '../model/trip';
 import { parseTripGroupId } from '../utils/social';
 import { FavoriteRepository } from '../repositories/favoriteRepository';
 import { TripRepository } from '../repositories/tripRepository';
 import { SocialStateService } from './socialStateService';
 import { SocialTargetRepository } from '../repositories/socialTargetRepository';
-import { prepareTripListItems } from './tripService';
+import { toGroupResponses } from './tripService';
 
 export class FavoriteService {
     constructor(
@@ -39,19 +39,16 @@ export class FavoriteService {
      * persisted favorite record for, most recently favorited first. The user id
      * comes exclusively from the request context; an empty favorite set is the
      * contract-defined empty collection, never "all trips".
+     *
+     * Returns the canonical TripGroupResponse shape — the same structure as
+     * GET /trips, GET /trips/top, GET /trips/:id.
      */
-    async listFavorites(actor: TripActor): Promise<TripListItem[]> {
+    async listFavorites(actor: TripActor): Promise<TripGroupResponse[]> {
         const groupIds = await this.repository.listFavoriteGroupIds(actor.id);
         if (groupIds.length === 0) return [];
 
-        const rows = await this.trips.findGroupsByIds(groupIds);
-        const byId = new Map(rows.map((row) => [row.id, row]));
-        const ordered = groupIds.flatMap((groupId): TripGroupListRecord[] => {
-            const row = byId.get(groupId);
-            return row ? [row] : [];
-        });
-
-        return prepareTripListItems(this.trips, ordered);
+        const rows = await this.trips.findGroupsByIdsWithDetails(groupIds);
+        return toGroupResponses(rows, this.states, actor);
     }
 
     private async resolveTripGroup(tripGroupId: number): Promise<number> {

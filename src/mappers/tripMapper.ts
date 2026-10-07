@@ -10,17 +10,13 @@ import {
     TripGroupDay,
     TripGroupInfo,
     TripGroupResponse,
-    TripListItem,
-    TripListResponse,
     TripSelectValue,
     TripDayRecord,
     TripGroupDetailsRecord,
-    TripGroupListRecord,
     TripMetadataInput,
     TripWriteRequest,
 } from '../model/trip';
 import { toIsoString } from '../utils/utils';
-import { TripPagination } from '../model/trip';
 import { toImageUrl, toSocialImageDto } from './imageMapper';
 import { toPointDto } from './pointMapper';
 type SelectDisplayOption = { id: number; key: string; value: string };
@@ -85,54 +81,6 @@ export function toTripDayDto(row: TripDayRecord, states: SocialStates, imageBase
 
 export function toTripDayDtoList(rows: TripDayRecord[], states: SocialStates, imageBaseUrl: string | null): TripDay[] {
     return rows.map((row) => toTripDayDto(row, states, imageBaseUrl));
-}
-
-export function toTripListItem(
-    row: TripGroupListRecord,
-    covers: Map<number, string>,
-    imageBaseUrl: string | null,
-    groupOptions: SelectDisplayOption[],
-    transportOptions: SelectDisplayOption[],
-): TripListItem {
-    const canonicalDay = row.trips[0];
-    const coverFilePath = canonicalDay ? covers.get(canonicalDay.id) : undefined;
-
-    return {
-        id: row.id,
-        title: canonicalDay?.title ?? '',
-        description: canonicalDay?.description ?? null,
-        group: toTripSelectValue(canonicalDay?.typeOfPeople ?? null, groupOptions),
-        transport: toTripSelectValue(canonicalDay?.transport ?? null, transportOptions),
-        author: toTripAuthor(row.owner),
-        coverImage: coverFilePath ? toImageUrl(coverFilePath, imageBaseUrl) : null,
-        createdAt: toIsoString(row.createdAt ?? canonicalDay?.createdAt ?? null),
-    };
-}
-
-export function toTripListResponse(
-    items: TripListItem[],
-    page: number,
-    limit: number,
-    total: number,
-): TripListResponse {
-    const pagination: TripPagination = {
-        page,
-        limit,
-        total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
-    };
-
-    return { items, pagination };
-}
-
-export function toTripListItemList(
-    rows: TripGroupListRecord[],
-    covers: Map<number, string>,
-    imageBaseUrl: string | null,
-    groupOptions: SelectDisplayOption[],
-    transportOptions: SelectDisplayOption[],
-): TripListItem[] {
-    return rows.map((row) => toTripListItem(row, covers, imageBaseUrl, groupOptions, transportOptions));
 }
 
 export function toTripDetailsDto(

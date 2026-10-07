@@ -3,7 +3,7 @@ import { GROUP_SELECT_TYPE, TOP_TRIPS_LIMIT, TRANSPORT_SELECT_TYPE, CURRENCY_SEL
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { ImageDto } from '../model/image';
 import { SocialTargetRef } from '../model/social';
-import { TripActor, TripDay, TripGroupResponse, TripListItem } from '../model/trip';
+import { TripActor, TripDay, TripGroupResponse } from '../model/trip';
 import { ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip } from '../utils/authorization';
@@ -13,7 +13,6 @@ import {
     toDayWriteInput,
     toTripDayDtoList,
     toTripGroupResponse,
-    toTripListItemList,
     toTripMetadataInput,
 } from '../mappers/tripMapper';
 import {
@@ -29,10 +28,10 @@ import { parseIdList, parsePositiveId } from '../utils/validation';
 import { attachUploadedImage } from './imageAttachment';
 import { SocialStateService } from './socialStateService';
 import { DayContext, TripRepository } from '../repositories/tripRepository';
-import { TripGroupDetailsRecord, TripGroupListRecord } from '../model/trip';
+import { TripGroupDetailsRecord } from '../model/trip';
 
 /** Social targets of one day row: the day itself, its images, its points and their images. */
-function toDayTargets(day: {
+export function toDayTargets(day: {
     id: number;
     images: { id: number }[];
     points: { id: number; images: { id: number }[] }[];
@@ -57,26 +56,35 @@ function toDayTargets(day: {
 
 
 /**
- * Shared TripListItem preparation of every list-shaped trip read (public list,
- * my trips, my favorites, top 5): cover image, public image base URL and the
- * dynamic select display values. Reordering stays with the caller.
+ * Shared batch preparation of TripGroupResponse for every trip-group read that
+ * serves the canonical response (GET /trips, GET /trips/top, GET /trips/:id,
+ * GET /me/trips, GET /me/favorites). Collects all social targets in one batch
+ * and resolves select display values from the dynamic config cache.
  */
-export async function prepareTripListItems(
-    repository: TripRepository,
-    rows: TripGroupListRecord[],
-): Promise<TripListItem[]> {
-    const coverTripIds = rows
-        .map((row) => row.trips[0]?.id)
-        .filter((tripId): tripId is number => tripId !== undefined);
+export async function toGroupResponses(
+    rows: TripGroupDetailsRecord[],
+    socialStates: SocialStateService,
+    actor: TripActor | null,
+): Promise<TripGroupResponse[]> {
+    const targets: SocialTargetRef[] = [];
+    for (const row of rows) {
+        targets.push({ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id });
+        for (const day of row.trips) {
+            targets.push(...toDayTargets(day));
+        }
+    }
 
-    const covers = await repository.findCoverImages(coverTripIds);
+    const states = await socialStates.statesFor(actor?.id ?? null, targets);
 
-    return toTripListItemList(
-        rows,
-        covers,
-        getImageBaseUrl(),
-        dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
-        dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
+    return rows.map((row) =>
+        toTripGroupResponse(
+            row,
+            states,
+            getImageBaseUrl(),
+            dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
+            dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
+            dynamicConfig.getSelectType(CURRENCY_SELECT_TYPE)?.options ?? [],
+        )
     );
 }
 
@@ -103,7 +111,6 @@ export class TripService {
             sort: query.sort,
         });
 
-        // Fetch full details for each trip group to get all days with images, points, price, currency
         const groupIds = rows.map((row) => row.id);
         if (groupIds.length === 0) return [];
 
@@ -114,28 +121,7 @@ export class TripService {
             return row ? [row] : [];
         });
 
-        // Collect all social targets
-        const targets: SocialTargetRef[] = [];
-        for (const row of orderedDetails) {
-            targets.push({ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id });
-            for (const day of row.trips) {
-                targets.push(...toDayTargets(day));
-            }
-        }
-
-        const actorId = null; // For public list, no authenticated actor
-        const states = await this.socialStates.statesFor(actorId, targets);
-
-        return orderedDetails.map((row) =>
-            toTripGroupResponse(
-                row,
-                states,
-                getImageBaseUrl(),
-                dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
-                dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
-                dynamicConfig.getSelectType(CURRENCY_SELECT_TYPE)?.options ?? [],
-            )
-        );
+        return toGroupResponses(orderedDetails, this.socialStates, null);
     }
 
     /**
@@ -143,10 +129,12 @@ export class TripService {
      * read from `trip_groups.ownerId` for the actor's id only; the request never
      * carries a user id, so another user's trips cannot be requested.
      */
-    async listOwnTrips(actor: TripActor): Promise<TripListItem[]> {
-        const rows = await this.repository.findOwnedGroups(actor.id);
+    async listOwnTrips(actor: TripActor): Promise<TripGroupResponse[]> {
+        const groupIds = await this.repository.findOwnedGroupIds(actor.id);
+        if (groupIds.length === 0) return [];
 
-        return prepareTripListItems(this.repository, rows);
+        const detailRows = await this.repository.findGroupsByIdsWithDetails(groupIds);
+        return toGroupResponses(detailRows, this.socialStates, actor);
     }
 
     /**
@@ -165,28 +153,7 @@ export class TripService {
             return row ? [row] : [];
         });
 
-        // Collect all social targets
-        const targets: SocialTargetRef[] = [];
-        for (const row of ranked) {
-            targets.push({ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id });
-            for (const day of row.trips) {
-                targets.push(...toDayTargets(day));
-            }
-        }
-
-        const actorId = null; // For public top, no authenticated actor
-        const states = await this.socialStates.statesFor(actorId, targets);
-
-        return ranked.map((row) =>
-            toTripGroupResponse(
-                row,
-                states,
-                getImageBaseUrl(),
-                dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
-                dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
-                dynamicConfig.getSelectType(CURRENCY_SELECT_TYPE)?.options ?? [],
-            )
-        );
+        return toGroupResponses(ranked, this.socialStates, null);
     }
 
     /** `actor` is optional: the trip is public, but it carries the viewer's social state. */
@@ -216,21 +183,8 @@ export class TripService {
     }
 
     private async toDetails(row: TripGroupDetailsRecord, actor: TripActor | null): Promise<TripGroupResponse> {
-        const targets: SocialTargetRef[] = [{ targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: row.id }];
-        for (const day of row.trips) {
-            targets.push(...toDayTargets(day));
-        }
-
-        const states = await this.socialStates.statesFor(actor?.id ?? null, targets);
-
-        return toTripGroupResponse(
-            row,
-            states,
-            getImageBaseUrl(),
-            dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
-            dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
-            dynamicConfig.getSelectType(CURRENCY_SELECT_TYPE)?.options ?? [],
-        );
+        const responses = await toGroupResponses([row], this.socialStates, actor);
+        return responses[0];
     }
 
     async createDay(actor: TripActor, rawTripId: string, body: unknown): Promise<TripGroupResponse> {
