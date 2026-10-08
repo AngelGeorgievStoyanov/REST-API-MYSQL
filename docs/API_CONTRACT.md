@@ -994,7 +994,7 @@ Non-negotiable point field rules:
 * `name` is the database `Point.name` field; do not rename it to `title`.
 * `lat` and `lng` are the database coordinate fields; do not rename them to `latitude` / `longitude`.
 * `pointNumber` is returned and represents the persisted point order.
-* `countEdited`, `tripId`, `createdAt`, and `updatedAt` are returned as database-level point fields.
+* `tripId` is returned as the public parent-trip reference for the point. It is not accepted from the client in point create/update requests. `countEdited`, `createdAt`, and `updatedAt` are not part of the public point response.
 * `ownerId` is never returned to the Frontend. Ownership is resolved server-side.
 * `images` and `social` remain API-level nested fields.
 
