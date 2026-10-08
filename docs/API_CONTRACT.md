@@ -568,6 +568,10 @@ For `GET /trips` and `GET /trips/top`:
         "dayNumber": 1,
         "title": "Day 1 title",
         "description": "Day description",
+      "countPeoples": 2,
+      "destination": "Sofia, Bulgaria",
+      "lat": 42.6975,
+      "lng": 23.3241,
         "price": 250,
         "currency": {
           "id": 22,
@@ -653,6 +657,10 @@ Each element of `days[]` represents one existing day row belonging to the trip g
   "dayNumber": 1,
   "title": "Day 1 title",
   "description": "Day description",
+      "countPeoples": 2,
+      "destination": "Sofia, Bulgaria",
+      "lat": 42.6975,
+      "lng": 23.3241,
   "price": 250,
   "currency": {
     "id": 22,
@@ -686,6 +694,16 @@ The `currency` object is resolved from the backend `currency` select options:
 ```
 
 The Frontend displays `code` and may use `name` as the hover/tooltip text. Currency options are loaded from the Backend; the Frontend must not hard-code the currency list.
+
+The complete TripGroupDay response includes all public day-level data stored on the `trips` row that is part of the API contract: `id`, `dayNumber`, `title`, `description`, `countPeoples`, `destination`, `lat`, `lng`, `price`, `currency`, `transport`, `group`, `images`, `social`, `points`, `createdAt`, and `updatedAt`.
+
+Field semantics:
+* `countPeoples`: integer number of people for this day/trip row.
+* `destination`: destination text stored on the day/trip row; nullable.
+* `lat`: day/trip-level latitude; nullable.
+* `lng`: day/trip-level longitude; nullable.
+* These four fields belong to the day level (the `trips` row), not the trip-group level.
+* `ownerId` is intentionally NOT part of the response. Ownership is resolved server-side and must never be serialized into the public TripGroup response.
 
 Day images and point images keep the existing `SocialImageDto` structure:
 
