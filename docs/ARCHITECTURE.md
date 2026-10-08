@@ -427,7 +427,7 @@ For `GET /trips/:id`:
 
 ```json
 {
-  "tripGroupId": "<uuid>",
+  "tripGroupId": 123,
   "social": SocialState,
   "days": [ TripGroupDay ]
 }
@@ -444,8 +444,8 @@ For `GET /trips/:id`:
   "price": 0,
   "countPeoples": 1,
   "destination": null,
-  "latitude": null,
-  "longitude": null,
+  "lat": null,
+  "lng": null,
   "currency": {
     "id": 0,
     "code": "<string>",
@@ -459,6 +459,8 @@ For `GET /trips/:id`:
     "key": "<string>",
     "name": "<string>"
   },
+  "countEdited": 0,
+  "tripGroupId": 123,
   "images": [ SocialImageDto ],
   "social": SocialState,
   "points": [ TripPoint ],
@@ -466,6 +468,10 @@ For `GET /trips/:id`:
   "updatedAt": null
 }
 ```
+
+The complete `TripGroupDay` response contains the public day-level fields from the `trips` database row: `id`, `dayNumber`, `title`, `description`, `countPeoples`, `destination`, `lat`, `lng`, `price`, `currency`, `transport`, `group`, `countEdited`, `tripGroupId`, `images`, `social`, `points`, `createdAt`, and `updatedAt`.
+
+These fields belong to `days[]`, not to the Trip Group root. `tripGroupId` at day level is the same integer grouping id as the root `TripGroupResponse.tripGroupId`.
 
 The `currency` object is resolved from backend configuration and is returned as:
 
@@ -490,7 +496,26 @@ Day images keep the existing `SocialImageDto` structure:
 }
 ```
 
-Points keep the existing `TripPoint` structure, including their existing `images[]` and `social` fields.
+Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; day-level coordinates use `lat`/`lng`, not `latitude`/`longitude`.
+
+```json
+{
+  "id": 2001,
+  "name": "Point title",
+  "description": "Point description",
+  "lat": 42.6975,
+  "lng": 23.3241,
+  "pointNumber": 1,
+  "countEdited": 0,
+  "tripId": 1001,
+  "createdAt": "ISO 8601 timestamp",
+  "updatedAt": "ISO 8601 timestamp",
+  "images": [ SocialImageDto ],
+  "social": SocialState
+}
+```
+
+`ownerId` is intentionally excluded from both Day and Point API responses. It remains server-side ownership data and must never be serialized to the Frontend.
 
 Social state is present at:
 * trip-group level;
