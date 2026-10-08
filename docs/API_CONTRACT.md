@@ -702,7 +702,7 @@ The `currency` object is resolved from the backend `currency` select options:
 
 The Frontend displays `code` and may use `name` as the hover/tooltip text. Currency options are loaded from the Backend; the Frontend must not hard-code the currency list.
 
-The complete TripGroupDay response includes all public day-level data stored on the `trips` row that is part of the API contract: `id`, `dayNumber`, `title`, `description`, `countPeoples`, `destination`, `lat`, `lng`, `price`, `currency`, `transport`, `group`, `countEdited`, `tripGroupId`, `images`, `social`, `points`, `createdAt`, and `updatedAt`.
+The complete TripGroupDay response includes all public day-level data stored on the `trips` row that is part of the API contract: `id`, `dayNumber`, `title`, `description`, `countPeoples`, `destination`, `lat`, `lng`, `price`, `currency`, `transport`, `group`, `images`, `social`, `points`, `createdAt`, and `updatedAt`. `countEdited`, `tripGroupId`, and `ownerId` are not part of the public day response.
 
 Field semantics:
 * `countPeoples`: integer number of people for this day/trip row.
@@ -978,7 +978,7 @@ Mounted at `/api/v1/points`.
 
 ### 10.7 `TripPoint` (point response DTO)
 
-The point response keeps the database field names and types for the point data. The only database ownership field that is never exposed is `ownerId`. Social and image data are API-level additions.
+The point response keeps the public database-aligned field names and types for the point data. `tripId` is included as the public parent-trip reference. Internal fields `ownerId`, `countEdited`, `createdAt`, and `updatedAt` are never exposed. Social and image data are API-level additions.
 
 ```json
 {
