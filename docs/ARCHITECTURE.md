@@ -494,7 +494,7 @@ Day images keep the existing `SocialImageDto` structure:
 }
 ```
 
-Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; day-level coordinates use `lat`/`lng`, not `latitude`/`longitude`.
+Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; coordinates use `lat`/`lng`, not `latitude`/`longitude`. `tripId` is included as the public parent-trip reference. Internal fields `countEdited`, `ownerId`, `createdAt`, and `updatedAt` are excluded.
 
 ```json
 {
@@ -505,8 +505,6 @@ Points use the following public `TripPoint` structure. Field names follow the da
   "lng": 23.3241,
   "pointNumber": 1,
   "tripId": 1001,
-  "createdAt": "ISO 8601 timestamp",
-  "updatedAt": "ISO 8601 timestamp",
   "images": [ SocialImageDto ],
   "social": SocialState
 }
