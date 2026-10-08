@@ -44,6 +44,7 @@ const socialStateService = new SocialStateService(
     commentRepository,
     likeRepository,
     favoriteRepository,
+    reportRepository,
 );
 
 const tripRepository = new TripRepository(prisma);
@@ -52,7 +53,7 @@ const tripService = new TripService(tripRepository, gcsImageFileStorage, socialS
 const pointRepository = new PointRepository(prisma);
 const pointService = new PointService(pointRepository, gcsImageFileStorage, socialStateService);
 
-const commentService = new CommentService(commentRepository, socialTargetRepository, targetTypeRepository);
+const commentService = new CommentService(commentRepository, socialTargetRepository, targetTypeRepository, socialStateService);
 const likeService = new LikeService(likeRepository, socialTargetRepository, targetTypeRepository, socialStateService);
 const favoriteService = new FavoriteService(favoriteRepository, socialTargetRepository, socialStateService, tripRepository);
 const reportService = new ReportService(reportRepository, socialTargetRepository, targetTypeRepository);

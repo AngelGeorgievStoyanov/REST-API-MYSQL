@@ -16,10 +16,10 @@ import {
 } from './validation';
 
 const POINT_SEQUENCE_FIELDS = ['pointNumber', 'numberPoint'];
-const EDITABLE_POINT_FIELDS = ['title', 'description', 'latitude', 'longitude'];
+const EDITABLE_POINT_FIELDS = ['name', 'description', 'lat', 'lng'];
 /** Geographic bounds of `points.lat` / `points.lng`, canonical in the validation limits. */
-const LATITUDE = VALIDATION_LIMITS.point.latitude;
-const LONGITUDE = VALIDATION_LIMITS.point.longitude;
+const LATITUDE = VALIDATION_LIMITS.point.lat;
+const LONGITUDE = VALIDATION_LIMITS.point.lng;
 
 export function parsePointCreateBody(body: unknown): PointCreateRequest {
     const record = asRecord(body, 'Request body');
@@ -27,10 +27,10 @@ export function parsePointCreateBody(body: unknown): PointCreateRequest {
 
     return {
         dayId: parsePositiveId(record.dayId, 'dayId'),
-        title: requireTrimmedString(record.title, 'title', MAX_POINT_NAME_LENGTH),
+        name: requireTrimmedString(record.name, 'name', MAX_POINT_NAME_LENGTH),
         description: optionalString(record.description, 'description', MAX_POINT_DESCRIPTION_LENGTH),
-        latitude: requireNumberInRange(record.latitude, 'latitude', LATITUDE.min, LATITUDE.max),
-        longitude: requireNumberInRange(record.longitude, 'longitude', LONGITUDE.min, LONGITUDE.max),
+        lat: requireNumberInRange(record.lat, 'lat', LATITUDE.min, LATITUDE.max),
+        lng: requireNumberInRange(record.lng, 'lng', LONGITUDE.min, LONGITUDE.max),
     };
 }
 
@@ -40,15 +40,15 @@ export function parsePointUpdateBody(body: unknown): PointUpdateRequest {
     rejectClientControlledFields(record, POINT_SEQUENCE_FIELDS, 'Point');
 
     const request: PointUpdateRequest = {};
-    if (record.title !== undefined) request.title = requireTrimmedString(record.title, 'title', MAX_POINT_NAME_LENGTH);
+    if (record.name !== undefined) request.name = requireTrimmedString(record.name, 'name', MAX_POINT_NAME_LENGTH);
     if (record.description !== undefined) {
         request.description = optionalString(record.description, 'description', MAX_POINT_DESCRIPTION_LENGTH);
     }
-    if (record.latitude !== undefined) {
-        request.latitude = optionalNumberInRange(record.latitude, 'latitude', LATITUDE.min, LATITUDE.max);
+    if (record.lat !== undefined) {
+        request.lat = optionalNumberInRange(record.lat, 'lat', LATITUDE.min, LATITUDE.max);
     }
-    if (record.longitude !== undefined) {
-        request.longitude = optionalNumberInRange(record.longitude, 'longitude', LONGITUDE.min, LONGITUDE.max);
+    if (record.lng !== undefined) {
+        request.lng = optionalNumberInRange(record.lng, 'lng', LONGITUDE.min, LONGITUDE.max);
     }
 
     if (EDITABLE_POINT_FIELDS.every((field) => record[field] === undefined)) {

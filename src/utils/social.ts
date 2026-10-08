@@ -90,13 +90,13 @@ export function parseTripGroupId(value: unknown): number {
 export function parseCommentCreateBody(body: unknown): CommentCreateRequest {
     const record = asRecord(body, 'Request body');
 
-    return { text: requireTrimmedString(record.text, 'text', MAX_COMMENT_LENGTH) };
+    return { comment: requireTrimmedString(record.comment, 'comment', MAX_COMMENT_LENGTH) };
 }
 
 export function parseCommentUpdateBody(body: unknown): CommentUpdateRequest {
     const record = asRecord(body, 'Request body');
 
-    return { text: requireTrimmedString(record.text, 'text', MAX_COMMENT_LENGTH) };
+    return { comment: requireTrimmedString(record.comment, 'comment', MAX_COMMENT_LENGTH) };
 }
 
 export function parseReportBody(body: unknown): { reason: string | null } {

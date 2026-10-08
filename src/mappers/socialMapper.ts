@@ -8,11 +8,13 @@ export function toSocialState(input: {
     commentCount: number;
     favorites?: number;
     favoritedByMe?: boolean;
+    reportedByMe: boolean;
 }): SocialState {
     const state: SocialState = {
         likes: input.likes,
         likedByMe: input.likedByMe,
         comments: { count: input.commentCount },
+        reportedByMe: input.reportedByMe,
     };
 
     if (input.targetType === SOCIAL_TARGET_TYPE.TRIP_GROUP) {

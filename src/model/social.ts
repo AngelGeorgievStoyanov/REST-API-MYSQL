@@ -9,7 +9,9 @@ export interface SocialCommentsState {
 
 /**
  * Aggregated social state of one resource. Favorites are attached to trip groups
- * only, so they are absent on days, points and images.
+ * only, so they are absent on days, points and images; `reportedByMe` reflects
+ * the authenticated actor's report for the target and is `false` for anonymous
+ * callers.
  */
 export interface SocialState {
     likes: number;
@@ -17,6 +19,7 @@ export interface SocialState {
     comments: SocialCommentsState;
     favorites?: number;
     favoritedByMe?: boolean;
+    reportedByMe: boolean;
 }
 
 /** Pointer to one polymorphic target; `targetId` points at the resource of that type. */

@@ -1,7 +1,7 @@
 import express from 'express';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { commentService } from '../container';
-import { actorFrom, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
+import { actorFrom, optionalActor, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
@@ -26,6 +26,7 @@ commentController.get(
             SOCIAL_TARGET_TYPE.TRIP_GROUP,
             routeParam(req.params.tripGroupId),
             req.query,
+            optionalActor(req),
         );
         res.status(200).json(comments);
     }),
@@ -55,6 +56,7 @@ commentController.get(
             routeParam(req.params.tripId),
             routeParam(req.params.dayId),
             req.query,
+            optionalActor(req),
         );
         res.status(200).json(comments);
     }),
@@ -84,6 +86,7 @@ commentController.get(
             SOCIAL_TARGET_TYPE.POINT,
             routeParam(req.params.pointId),
             req.query,
+            optionalActor(req),
         );
         res.status(200).json(comments);
     }),
@@ -113,6 +116,7 @@ commentController.get(
             SOCIAL_TARGET_TYPE.IMAGE,
             routeParam(req.params.imageId),
             req.query,
+            optionalActor(req),
         );
         res.status(200).json(comments);
     }),

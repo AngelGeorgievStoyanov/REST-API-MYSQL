@@ -20,7 +20,7 @@ export const favoriteBodySchema = z.object({ tripGroupId: positiveId }).strict()
 export const favoriteQuerySchema = z.object({ tripGroupId: positiveId }).strict();
 
 export const commentBodySchema = z.object({
-    text: trimmedString(LIMITS.comment.text),
+    comment: trimmedString(LIMITS.comment.comment),
 }).strict();
 
 export const reportBodySchema = z.object({

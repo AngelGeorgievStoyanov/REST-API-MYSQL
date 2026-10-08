@@ -1,43 +1,59 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { SocialStates } from '../model/social';
-import { PointCreateRequest, PointRecord, PointUpdateRequest, PointWriteInput, TripPoint } from '../model/trip';
+import { PointCreateRequest, PointRecord, PointUpdateRequest, PointWriteInput, ResourcePermissions, TripPoint } from '../model/trip';
 import { toSocialImageDto } from './imageMapper';
+import { toIsoString } from '../utils/utils';
 
-export function toPointDto(row: PointRecord, states: SocialStates, imageBaseUrl: string | null): TripPoint {
+export function toPointDto(
+    row: PointRecord,
+    states: SocialStates,
+    imageBaseUrl: string | null,
+    permissions: ResourcePermissions,
+): TripPoint {
     return {
         id: row.id,
-        title: row.title,
+        name: row.name,
         description: row.description,
-        latitude: row.latitude,
-        longitude: row.longitude,
+        lat: row.lat,
+        lng: row.lng,
+        pointNumber: row.pointNumber,
+        tripId: row.tripId,
+        createdAt: toIsoString(row.createdAt),
+        updatedAt: toIsoString(row.updatedAt),
         images: row.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
+        permissions,
         social: states.get(SOCIAL_TARGET_TYPE.POINT, row.id),
     };
 }
 
-export function toPointDtoList(rows: PointRecord[], states: SocialStates, imageBaseUrl: string | null): TripPoint[] {
-    return rows.map((row) => toPointDto(row, states, imageBaseUrl));
+export function toPointDtoList(
+    rows: PointRecord[],
+    states: SocialStates,
+    imageBaseUrl: string | null,
+    permissions: ResourcePermissions,
+): TripPoint[] {
+    return rows.map((row) => toPointDto(row, states, imageBaseUrl, permissions));
 }
 
 export function toPointWriteInput(request: PointCreateRequest): PointWriteInput {
     return {
-        title: request.title,
+        name: request.name,
         description: request.description,
-        latitude: request.latitude,
-        longitude: request.longitude,
+        lat: request.lat,
+        lng: request.lng,
     };
 }
 
 export function toPointUpdateInput(request: PointUpdateRequest): Partial<PointWriteInput> {
     const patch: Partial<PointWriteInput> = {};
 
-    if (request.title !== undefined) patch.title = request.title;
+    if (request.name !== undefined) patch.name = request.name;
     if (request.description !== undefined) patch.description = request.description;
-    if (request.latitude !== undefined) {
-        patch.latitude = request.latitude;
+    if (request.lat !== undefined) {
+        patch.lat = request.lat;
     }
-    if (request.longitude !== undefined) {
-        patch.longitude = request.longitude;
+    if (request.lng !== undefined) {
+        patch.lng = request.lng;
     }
     return patch;
 }

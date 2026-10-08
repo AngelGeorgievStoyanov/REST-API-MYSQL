@@ -84,13 +84,13 @@ export const VALIDATION_LIMITS = {
         dayNumber: { min: 1, max: MAX_TRIP_DAYS },
     },
     point: {
-        title: { min: 1, max: MAX_POINT_NAME_LENGTH },
+        name: { min: 1, max: MAX_POINT_NAME_LENGTH },
         description: { max: MAX_POINT_DESCRIPTION_LENGTH },
-        latitude: { min: -90, max: 90 },
-        longitude: { min: -180, max: 180 },
+        lat: { min: -90, max: 90 },
+        lng: { min: -180, max: 180 },
     },
     comment: {
-        text: { min: 1, max: MAX_COMMENT_LENGTH },
+        comment: { min: 1, max: MAX_COMMENT_LENGTH },
     },
     report: {
         reason: { max: MAX_REPORT_REASON_LENGTH },

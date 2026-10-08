@@ -12,7 +12,7 @@ import {
 } from '../model/trip';
 import { sortPointsByNumber } from '../utils/point';
 import { toPointRecord } from '../mappers/pointPersistenceMapper';
-import { clearPolymorphicTargets } from './polymorphicTargets';
+import { deleteSocialRecordsForTargets, socialCleanupTargets } from './polymorphicTargets';
 import { attachImageWithinLimit } from './imageAttachment';
 import { pointInclude } from './pointRepository';
 
@@ -144,6 +144,9 @@ function toTripDayRecord(row: DayRow | TripGroupDetailsRow['trips'][number]): Tr
         price: row.price ?? null,
         currency: row.currency ?? null,
         destination: row.destination ?? null,
+        countPeoples: row.countPeoples,
+        lat: row.lat ?? null,
+        lng: row.lng ?? null,
         images: row.images.map((image) => ({ id: image.id, filePath: image.filePath })),
         points: sortPointsByNumber(row.points).map(toPointRecord),
     };
@@ -321,23 +324,31 @@ export class TripRepository {
     }
 
     /**
-     * Deletes the whole trip. Day rows cascade to points/images through the FKs,
-     * while polymorphic likes/comments/reports have no FK and must be cleared
-     * explicitly; favorites are removed explicitly because their FK blocks the
-     * group delete.
+     * Deletes the whole trip. Day rows cascade to points/images through the FKs;
+     * the social records of the group, its days, their points and all images are
+     * removed by the central social cleanup in the same transaction, including
+     * the favorites whose FK would otherwise block the group delete.
      */
     async delete(id: number): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
             const days = await tx.trip.findMany({ where: { tripGroupId: id }, select: { id: true } });
-            for (const day of days) {
-                const points = await tx.point.findMany({ where: { tripId: day.id }, select: { id: true } });
-                for (const point of points) {
-                    await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.POINT, point.id);
-                }
-                await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.DAY, day.id);
-            }
+            const dayIds = days.map((day) => day.id);
 
-            await tx.favorite.deleteMany({ where: { tripGroupId: id } });
+            const points = await tx.point.findMany({ where: { tripId: { in: dayIds } }, select: { id: true } });
+            const pointIds = points.map((point) => point.id);
+
+            const images = await tx.image.findMany({
+                where: { OR: [{ tripId: { in: dayIds } }, { pointId: { in: pointIds } }] },
+                select: { id: true },
+            });
+
+            await deleteSocialRecordsForTargets(tx, [
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.TRIP_GROUP, [id]),
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.DAY, dayIds),
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.POINT, pointIds),
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, images.map((image) => image.id)),
+            ]);
+
             await tx.tripGroup.delete({ where: { id } });
         });
     }
@@ -433,16 +444,26 @@ export class TripRepository {
 
     /**
      * Removes the day row in one transaction. Points and images cascade through
-     * their FKs; polymorphic targets (the day and its points) have no FK and are
-     * cleared explicitly.
+     * their FKs; the social records of the day, its points and every image that
+     * hangs off the day row or off one of its points are removed by the central
+     * social cleanup in the same transaction.
      */
     async deleteDay(tripId: number): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
             const points = await tx.point.findMany({ where: { tripId }, select: { id: true } });
-            for (const point of points) {
-                await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.POINT, point.id);
-            }
-            await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.DAY, tripId);
+            const pointIds = points.map((point) => point.id);
+
+            const images = await tx.image.findMany({
+                where: { OR: [{ tripId }, { pointId: { in: pointIds } }] },
+                select: { id: true },
+            });
+
+            await deleteSocialRecordsForTargets(tx, [
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.DAY, [tripId]),
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.POINT, pointIds),
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, images.map((image) => image.id)),
+            ]);
+
             await tx.trip.delete({ where: { id: tripId } });
         });
     }
@@ -504,7 +525,13 @@ export class TripRepository {
     }
 
     async deleteImage(imageId: number): Promise<void> {
-        await this.prisma.image.delete({ where: { id: imageId } });
+        await this.prisma.$transaction(async (tx) => {
+            // The image row is removed together with every social record that
+            // targets it (likes/comments/reports and any future relationship).
+            await deleteSocialRecordsForTargets(tx, socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, [imageId]));
+
+            await tx.image.delete({ where: { id: imageId } });
+        });
     }
 
     private dayCreateData(

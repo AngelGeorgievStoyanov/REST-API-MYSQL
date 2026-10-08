@@ -16,6 +16,12 @@ export interface TripActor {
     role: string;
 }
 
+/** Server-side computed edit/delete rights of one resource for the requesting actor. */
+export interface ResourcePermissions {
+    canEdit: boolean;
+    canDelete: boolean;
+}
+
 /** Key/name pair resolved through the dynamic config selects (`group_type` / `transport` / `currency`). */
 export interface TripSelectValue {
     key: string;
@@ -38,10 +44,14 @@ export interface CurrencyDto {
 /** Application read shape returned by point/trip repositories. */
 export interface PointRecord {
     id: number;
-    title: string;
+    name: string;
     description: string | null;
-    latitude: number | null;
-    longitude: number | null;
+    lat: number | null;
+    lng: number | null;
+    pointNumber: string;
+    tripId: number | null;
+    createdAt: Date | null;
+    updatedAt: Date | null;
     images: ImageRecord[];
 }
 
@@ -60,6 +70,9 @@ export interface TripDayRecord extends TripListDayRecord {
     price: number | null;
     currency: string | null;
     destination: string | null;
+    countPeoples: number;
+    lat: number | null;
+    lng: number | null;
     images: ImageRecord[];
     points: PointRecord[];
 }
@@ -80,10 +93,10 @@ export interface TripGroupDetailsRecord {
 }
 
 export interface PointWriteInput {
-    title: string;
+    name: string;
     description: string | null;
-    latitude: number | null;
-    longitude: number | null;
+    lat: number | null;
+    lng: number | null;
 }
 
 export interface TripMetadataInput {
@@ -106,20 +119,26 @@ export interface DayUpdateInput {
 
 export interface TripPoint {
     id: number;
-    title: string;
+    name: string;
     description: string | null;
-    latitude: number | null;
-    longitude: number | null;
+    lat: number | null;
+    lng: number | null;
+    pointNumber: string;
+    tripId: number | null;
+    createdAt: string | null;
+    updatedAt: string | null;
     images: SocialImageDto[];
+    permissions: ResourcePermissions;
     social: SocialState;
 }
 
 export interface TripDay {
     id: number;
-    day: number;
+    dayNumber: number;
     title: string | null;
     images: SocialImageDto[];
     points: TripPoint[];
+    permissions: ResourcePermissions;
     social: SocialState;
 }
 
@@ -133,16 +152,22 @@ export interface TripGroupDay {
     currency: CurrencyDto | null;
     transport: TripSelectValue;
     group: TripSelectValue;
+    countPeoples: number;
+    destination: string | null;
+    lat: number | null;
+    lng: number | null;
     images: SocialImageDto[];
+    permissions: ResourcePermissions;
     social: SocialState;
     points: TripPoint[];
     createdAt: string | null;
     updatedAt: string | null;
 }
 
-/** TripGroupResponse is the unified response for GET /trips, GET /trips/top, GET /trips/:id */
+/** TripGroupResponse is the unified response for GET /trips, GET /trips/top, GET /trips/:tripGroupId */
 export interface TripGroupResponse {
-    tripGroupId: number;
+    id: number;
+    permissions: ResourcePermissions;
     social: SocialState;
     days: TripGroupDay[];
 }
@@ -171,17 +196,17 @@ export interface PointCreateRequest {
      * `Trip.id` of that day row — a day row has no separate identifier.
      */
     dayId: number;
-    title: string;
+    name: string;
     description: string | null;
-    latitude: number;
-    longitude: number;
+    lat: number;
+    lng: number;
 }
 
 export interface PointUpdateRequest {
-    title?: string;
+    name?: string;
     description?: string | null;
-    latitude?: number | null;
-    longitude?: number | null;
+    lat?: number | null;
+    lng?: number | null;
 }
 
 export interface DayCreateRequest {

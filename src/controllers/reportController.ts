@@ -4,10 +4,12 @@ import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
+import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
+import { reportIdParams } from '../validation/schemas/common.schemas';
 import { reportBodySchema } from '../validation/schemas/social.schemas';
 
-/** Reporting is a write-only operation from the public API. */
+/** Reports are write-only from the public API: users create them and may remove their own. */
 const reportController = express.Router();
 
 reportController.post(
@@ -17,6 +19,16 @@ reportController.post(
     asyncHandler(async (req, res) => {
         const report = await reportService.create(actorFrom(req), req.body);
         res.status(201).json(report);
+    }),
+);
+
+reportController.delete(
+    '/:reportId',
+    validateRequest({ params: reportIdParams }),
+    requireAuthentication,
+    asyncHandler(async (req, res) => {
+        await reportService.removeOwned(actorFrom(req), routeParam(req.params.reportId));
+        res.status(204).send();
     }),
 );
 

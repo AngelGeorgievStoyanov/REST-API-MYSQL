@@ -1,8 +1,9 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import { MAX_COMMENT_AUTHOR_LENGTH } from '../constants/social';
+import { COMMENT_TARGET_TYPE, MAX_COMMENT_AUTHOR_LENGTH } from '../constants/social';
 import { CommentRecord } from '../model/comment';
 import { ApiError } from '../utils/apiError';
 import { socialTargetKey } from '../utils/social';
+import { deleteSocialRecordsForTargets, socialCleanupTargets } from './polymorphicTargets';
 
 
 const commentSelect = {
@@ -22,10 +23,10 @@ type CommentRow = Prisma.CommentGetPayload<{ select: typeof commentSelect }>;
 function toCommentRecord(row: CommentRow): CommentRecord {
     return {
         id: row.id,
-        authorId: row.ownerId,
-        authorName: row.nameAuthor,
-        text: row.comment,
-        editCount: row.countEdited,
+        ownerId: row.ownerId,
+        nameAuthor: row.nameAuthor,
+        comment: row.comment,
+        countEdited: row.countEdited,
         targetTypeId: row.targetTypeId,
         targetId: row.targetId,
         createdAt: row.createdAt,
@@ -75,7 +76,7 @@ export class CommentRepository {
         targetId: number;
         ownerId: string;
         nameAuthor: string;
-        text: string;
+        comment: string;
     }): Promise<CommentRecord> {
         const row = await this.prisma.comment.create({
             data: {
@@ -83,7 +84,7 @@ export class CommentRepository {
                 targetId: data.targetId,
                 ownerId: data.ownerId,
                 nameAuthor: data.nameAuthor,
-                comment: data.text,
+                comment: data.comment,
                 createdAt: new Date(),
             },
             select: commentSelect,
@@ -91,17 +92,23 @@ export class CommentRepository {
         return toCommentRecord(row);
     }
 
-    async update(commentId: number, text: string, editCount: number): Promise<CommentRecord> {
+    async update(commentId: number, comment: string, countEdited: number): Promise<CommentRecord> {
         const row = await this.prisma.comment.update({
             where: { id: commentId },
-            data: { comment: text, countEdited: editCount },
+            data: { comment, countEdited },
             select: commentSelect,
         });
         return toCommentRecord(row);
     }
 
     async delete(commentId: number): Promise<void> {
-        await this.prisma.comment.delete({ where: { id: commentId } });
+        await this.prisma.$transaction(async (tx) => {
+            // A comment is itself a report target, so the central cleanup removes
+            // the reports pointing at it together with the row.
+            await deleteSocialRecordsForTargets(tx, socialCleanupTargets(COMMENT_TARGET_TYPE, [commentId]));
+
+            await tx.comment.delete({ where: { id: commentId } });
+        });
     }
 
     /** `comments.nameAuthor` is a NOT NULL snapshot of the author's name. */

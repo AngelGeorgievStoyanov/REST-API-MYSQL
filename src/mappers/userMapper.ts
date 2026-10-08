@@ -1,7 +1,28 @@
-import { AuthActor, AuthSessionDto, AuthUserDto, AuthUserRecord, AuthUserResponse, MessageResponse, SessionPresenceResponse } from '../model/auth';
+import { AuthActor, AuthSessionDto, AuthUserDto, AuthUserRecord, AuthUserResponse, MessageResponse, Permissions, ProfileDto, SessionPresenceResponse } from '../model/auth';
 
 export function toSessionPresenceResponse(hasSession: boolean): SessionPresenceResponse {
     return { hasSession };
+}
+
+function toPermissions(role: string): Permissions | undefined {
+    const isManager = role === 'manager';
+    const isAdmin = role === 'admin';
+    if (!isManager && !isAdmin) return undefined;
+
+    return { isManager, isAdmin };
+}
+
+export function toProfileDto(user: AuthUserRecord): ProfileDto {
+    const dto: ProfileDto = {
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+    };
+
+    const permissions = toPermissions(user.role);
+    if (permissions) dto.permissions = permissions;
+
+    return dto;
 }
 
 export function toAuthUserDto(user: AuthUserRecord): AuthUserDto {
@@ -17,7 +38,7 @@ export function toAuthUserDto(user: AuthUserRecord): AuthUserDto {
 }
 
 export function toAuthUserResponse(user: AuthUserRecord): AuthUserResponse {
-    return { user: toAuthUserDto(user) };
+    return { user: toProfileDto(user) };
 }
 
 export function toAuthUserDtoList(users: AuthUserRecord[]): AuthUserDto[] {
@@ -41,6 +62,6 @@ export function toAuthSessionDto(user: AuthUserRecord, accessToken: string, expi
         accessToken,
         tokenType: 'Bearer',
         expiresIn,
-        user: toAuthUserDto(user),
+        user: toProfileDto(user),
     };
 }

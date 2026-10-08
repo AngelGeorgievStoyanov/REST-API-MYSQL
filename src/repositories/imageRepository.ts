@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { deleteSocialRecordsForTargets, socialCleanupTargets } from './polymorphicTargets';
 
 export interface ImageRow {
     id: number;
@@ -64,6 +66,12 @@ export class ImageRepository {
     }
 
     async delete(imageId: number): Promise<void> {
-        await this.prisma.image.delete({ where: { id: imageId }, select: { id: true } });
+        await this.prisma.$transaction(async (tx) => {
+            // The image row (profile image or any other image without a day/point
+            // parent) is removed together with every social record that targets it.
+            await deleteSocialRecordsForTargets(tx, socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, [imageId]));
+
+            await tx.image.delete({ where: { id: imageId }, select: { id: true } });
+        });
     }
 }

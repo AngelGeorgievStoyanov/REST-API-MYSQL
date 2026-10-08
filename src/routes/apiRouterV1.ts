@@ -9,7 +9,7 @@ import likeController from '../controllers/likeController';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { ApiError } from '../utils/apiError';
-import pointController, { dayPointController } from '../controllers/pointController';
+import pointController, { dayPointController, tripPointController } from '../controllers/pointController';
 import meController from '../controllers/meController';
 import reportController from '../controllers/reportController';
 import tripController from '../controllers/tripController';
@@ -19,7 +19,8 @@ import tripController from '../controllers/tripController';
  *
  * The comment collections live below the `/trip-groups`, `/trips`, `/points` and
  * `/images` prefixes, so that router is mounted before `tripController`, which
- * ends with a catch-all 404.
+ * ends with a catch-all 404. The point collection read sits below `/trips` for
+ * the same reason and is mounted before `tripController` as well.
  */
 const apiRouterV1 = express.Router();
 
@@ -35,6 +36,7 @@ apiRouterV1.use('/comments', routeNotFoundLogsMiddleware);
 apiRouterV1.use('/likes', likeController);
 apiRouterV1.use('/favorites', favoriteController);
 apiRouterV1.use('/reports', reportController);
+apiRouterV1.use('/trips', tripPointController);
 apiRouterV1.use('/trips', tripController);
 apiRouterV1.use('/points', pointController);
 apiRouterV1.use('/days', dayPointController);

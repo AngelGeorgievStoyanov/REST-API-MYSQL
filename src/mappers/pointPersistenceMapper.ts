@@ -7,6 +7,10 @@ interface PointPersistenceInput {
     description: string | null;
     lat: string | null;
     lng: string | null;
+    pointNumber: string;
+    tripId: number | null;
+    createdAt: Date | null;
+    updatedAt: Date | null;
     images: { id: number; filePath: string }[];
 }
 
@@ -14,10 +18,14 @@ interface PointPersistenceInput {
 export function toPointRecord(row: PointPersistenceInput): PointRecord {
     return {
         id: row.id,
-        title: row.name,
+        name: row.name,
         description: row.description,
-        latitude: toNumberOrNull(row.lat),
-        longitude: toNumberOrNull(row.lng),
+        lat: toNumberOrNull(row.lat),
+        lng: toNumberOrNull(row.lng),
+        pointNumber: row.pointNumber,
+        tripId: row.tripId,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
         images: row.images.map((image) => ({ id: image.id, filePath: image.filePath })),
     };
 }

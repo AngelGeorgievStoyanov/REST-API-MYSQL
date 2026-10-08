@@ -67,4 +67,22 @@ export class ReportService {
         const removed = await this.repository.delete(parsePositiveId(rawReportId, 'Report id'));
         if (!removed) throw ApiError.notFound('Report not found.');
     }
+
+    /**
+     * Withdrawal by the report's author: the ownership comes exclusively from the
+     * authenticated actor, so a known id can never remove another user's report.
+     * The delete itself reuses the same repository operation as the admin removal.
+     */
+    async removeOwned(actor: TripActor, rawReportId: string): Promise<void> {
+        const reportId = parsePositiveId(rawReportId, 'Report id');
+        const report = await this.repository.findOwner(reportId);
+        if (!report) throw ApiError.notFound('Report not found.');
+
+        if (report.userId !== actor.id) {
+            throw ApiError.forbidden('Only the report author can delete this report.');
+        }
+
+        const removed = await this.repository.delete(reportId);
+        if (!removed) throw ApiError.notFound('Report not found.');
+    }
 }

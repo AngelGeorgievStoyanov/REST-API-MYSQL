@@ -4,6 +4,7 @@ import {
     CurrencyDto,
     DayCreateRequest,
     DayWriteInput,
+    ResourcePermissions,
     TripDay,
     TripGroupDay,
     TripGroupResponse,
@@ -54,19 +55,30 @@ export function toDayWriteInput(request: DayCreateRequest): DayWriteInput {
     return { title: request.title, description: request.description };
 }
 
-export function toTripDayDto(row: TripDayRecord, states: SocialStates, imageBaseUrl: string | null): TripDay {
+export function toTripDayDto(
+    row: TripDayRecord,
+    states: SocialStates,
+    imageBaseUrl: string | null,
+    permissions: ResourcePermissions,
+): TripDay {
     return {
         id: row.id,
-        day: row.dayNumber ?? 0,
+        dayNumber: row.dayNumber ?? 0,
         title: row.title,
         images: row.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
-        points: row.points.map((point) => toPointDto(point, states, imageBaseUrl)),
+        points: row.points.map((point) => toPointDto(point, states, imageBaseUrl, permissions)),
+        permissions,
         social: states.get(SOCIAL_TARGET_TYPE.DAY, row.id),
     };
 }
 
-export function toTripDayDtoList(rows: TripDayRecord[], states: SocialStates, imageBaseUrl: string | null): TripDay[] {
-    return rows.map((row) => toTripDayDto(row, states, imageBaseUrl));
+export function toTripDayDtoList(
+    rows: TripDayRecord[],
+    states: SocialStates,
+    imageBaseUrl: string | null,
+    permissions: ResourcePermissions,
+): TripDay[] {
+    return rows.map((row) => toTripDayDto(row, states, imageBaseUrl, permissions));
 }
 
 export function toTripGroupDay(
@@ -76,6 +88,7 @@ export function toTripGroupDay(
     groupOptions: SelectDisplayOption[],
     transportOptions: SelectDisplayOption[],
     currencyOptions: SelectDisplayOption[],
+    permissions: ResourcePermissions,
 ): TripGroupDay {
     return {
         id: row.id,
@@ -86,9 +99,14 @@ export function toTripGroupDay(
         currency: toCurrencyDto(row.currency, currencyOptions),
         transport: toTripSelectValue(row.transport, transportOptions),
         group: toTripSelectValue(row.typeOfPeople, groupOptions),
+        countPeoples: row.countPeoples,
+        destination: row.destination ?? null,
+        lat: row.lat ?? null,
+        lng: row.lng ?? null,
         images: row.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
+        permissions,
         social: states.get(SOCIAL_TARGET_TYPE.DAY, row.id),
-        points: row.points.map((point) => toPointDto(point, states, imageBaseUrl)),
+        points: row.points.map((point) => toPointDto(point, states, imageBaseUrl, permissions)),
         createdAt: toIsoString(row.createdAt),
         updatedAt: toIsoString(row.updatedAt),
     };
@@ -101,13 +119,15 @@ export function toTripGroupResponse(
     groupOptions: SelectDisplayOption[],
     transportOptions: SelectDisplayOption[],
     currencyOptions: SelectDisplayOption[],
+    permissions: ResourcePermissions,
 ): TripGroupResponse {
     const days: TripGroupDay[] = row.trips.map((trip) =>
-        toTripGroupDay(trip, states, imageBaseUrl, groupOptions, transportOptions, currencyOptions)
+        toTripGroupDay(trip, states, imageBaseUrl, groupOptions, transportOptions, currencyOptions, permissions)
     );
 
     return {
-        tripGroupId: row.id,
+        id: row.id,
+        permissions,
         social: states.get(SOCIAL_TARGET_TYPE.TRIP_GROUP, row.id),
         days,
     };

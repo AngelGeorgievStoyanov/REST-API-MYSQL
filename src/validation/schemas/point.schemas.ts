@@ -11,22 +11,22 @@ const LIMITS = VALIDATION_LIMITS;
  */
 export const pointCreateSchema = z.object({
     dayId: positiveId,
-    title: trimmedString(LIMITS.point.title),
+    name: trimmedString(LIMITS.point.name),
     description: optionalText(LIMITS.point.description),
-    latitude: requiredNumber(LIMITS.point.latitude),
-    longitude: requiredNumber(LIMITS.point.longitude),
+    lat: requiredNumber(LIMITS.point.lat),
+    lng: requiredNumber(LIMITS.point.lng),
 }).strict();
 
 export const pointUpdateSchema = z.object({
-    title: trimmedString(LIMITS.point.title).optional(),
+    name: trimmedString(LIMITS.point.name).optional(),
     description: patchText(LIMITS.point.description),
-    latitude: patchNumber(LIMITS.point.latitude),
-    longitude: patchNumber(LIMITS.point.longitude),
+    lat: patchNumber(LIMITS.point.lat),
+    lng: patchNumber(LIMITS.point.lng),
 }).strict()
     .refine(
-        (body) => body.title !== undefined
+        (body) => body.name !== undefined
             || body.description !== undefined
-            || body.latitude !== undefined
-            || body.longitude !== undefined,
-        { message: 'Provide at least one of "title", "description", "latitude" or "longitude".' },
+            || body.lat !== undefined
+            || body.lng !== undefined,
+        { message: 'Provide at least one of "name", "description", "lat" or "lng".' },
     );

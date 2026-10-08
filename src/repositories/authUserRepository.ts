@@ -6,8 +6,11 @@ import { AuthUserRecord } from '../model/auth';
 export interface AdminUserUpdate {
     firstName?: string;
     lastName?: string;
+    email?: string;
     role?: UserRole;
     status?: UserStatus;
+    emailVerifiedAt?: Date | null;
+    hashedPassword?: string;
 }
 
 /** Fields the owner of an account may change on their own profile. */

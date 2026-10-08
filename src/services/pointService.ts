@@ -5,7 +5,7 @@ import { SocialTargetRef } from '../model/social';
 import { PointRecord, TripActor, TripPoint } from '../model/trip';
 import { ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
-import { canModifyTrip } from '../utils/authorization';
+import { canModifyTrip, toResourcePermissions } from '../utils/authorization';
 import { getImageBaseUrl } from '../utils/image';
 import { toImageDto } from '../mappers/imageMapper';
 import { toPointDtoList, toPointUpdateInput, toPointWriteInput } from '../mappers/pointMapper';
@@ -37,30 +37,49 @@ export class PointService {
     ) { }
 
     async getPoint(rawPointId: string, actor: TripActor | null): Promise<TripPoint> {
-        const row = await this.repository.findRow(parsePositiveId(rawPointId, 'Point id'));
+        const pointId = parsePositiveId(rawPointId, 'Point id');
+        const row = await this.repository.findRow(pointId);
         if (!row) throw ApiError.notFound('Point not found.');
 
-        return (await this.mapRows([row], actor))[0];
+        // The day context carries the group owner the response permissions are computed from.
+        const context = await this.repository.findContext(pointId);
+        return (await this.mapRows([row], actor, context?.groupOwnerId ?? null))[0];
     }
 
-    async createPoint(actor: TripActor, body: unknown): Promise<TripPoint> {
+    /**
+     * The complete point collection of one day, in the shared `TripPoint` shape.
+     * The collection read and the create/update responses all answer with this
+     * construction, so every collection response comes from the same mapper and
+     * one social batch for the points and their images.
+     */
+    async getTripPoints(rawTripId: string, actor: TripActor | null): Promise<TripPoint[]> {
+        const tripId = parsePositiveId(rawTripId, 'Trip id');
+        const day = await this.repository.findDayContext(tripId);
+        if (!day) throw ApiError.notFound('Day not found.');
+
+        return this.listCollection(tripId, actor, day.groupOwnerId);
+    }
+
+    async createPoint(actor: TripActor, body: unknown): Promise<TripPoint[]> {
         const request = parsePointCreateBody(body);
         // The request field is the API's `dayId`; its value is the day row's `Trip.id`.
         const day = await this.assertDayAccess(actor, request.dayId);
 
-        const pointId = await this.repository.create(day.tripId, actor.id, toPointWriteInput(request));
+        await this.repository.create(day.tripId, actor.id, toPointWriteInput(request));
 
-        return this.getPoint(String(pointId), actor);
+        // The response is the current collection of the day the new point belongs to.
+        return this.listCollection(day.tripId, actor, day.groupOwnerId);
     }
 
-    async updatePoint(actor: TripActor, rawPointId: string, body: unknown): Promise<TripPoint> {
+    async updatePoint(actor: TripActor, rawPointId: string, body: unknown): Promise<TripPoint[]> {
         const pointId = parsePositiveId(rawPointId, 'Point id');
-        await this.assertPointAccess(actor, pointId);
+        const point = await this.assertPointAccess(actor, pointId);
 
         const request = parsePointUpdateBody(body);
         await this.repository.update(pointId, toPointUpdateInput(request));
 
-        return this.getPoint(String(pointId), actor);
+        // The response is the current collection of the day the point belongs to.
+        return this.listCollection(point.tripId, actor, point.groupOwnerId);
     }
 
     async deletePoint(actor: TripActor, rawPointId: string): Promise<void> {
@@ -76,7 +95,7 @@ export class PointService {
     /** `pointIds` is the complete, ordered list of the points of one day. */
     async reorderPoints(actor: TripActor, rawDayId: string, body: unknown): Promise<TripPoint[]> {
         const tripId = parsePositiveId(rawDayId, 'Day id');
-        await this.assertDayAccess(actor, tripId);
+        const day = await this.assertDayAccess(actor, tripId);
 
         const pointIds = parseIdList(body, 'pointIds', 0);
         const existing = await this.repository.listIds(tripId);
@@ -86,7 +105,7 @@ export class PointService {
 
         await this.repository.reorder(tripId, pointIds);
 
-        return this.mapRows(await this.repository.listRows(tripId), actor);
+        return this.listCollection(tripId, actor, day.groupOwnerId);
     }
 
     /**
@@ -137,11 +156,16 @@ export class PointService {
         await this.repository.deleteImage(image.id);
     }
 
+    /** Batch load of one day's points through the shared collection mapper. */
+    private async listCollection(tripId: number, actor: TripActor | null, ownerId: string | null): Promise<TripPoint[]> {
+        return this.mapRows(await this.repository.listRows(tripId), actor, ownerId);
+    }
+
     /** One social batch for all given points and their images. */
-    private async mapRows(rows: PointRecord[], actor: TripActor | null): Promise<TripPoint[]> {
+    private async mapRows(rows: PointRecord[], actor: TripActor | null, ownerId: string | null): Promise<TripPoint[]> {
         const states = await this.socialStates.statesFor(actor?.id ?? null, toPointTargets(rows));
 
-        return toPointDtoList(rows, states, getImageBaseUrl());
+        return toPointDtoList(rows, states, getImageBaseUrl(), toResourcePermissions(actor, ownerId));
     }
 
     /** The day row the points live in: `tripId` is that row's `Trip.id`. */

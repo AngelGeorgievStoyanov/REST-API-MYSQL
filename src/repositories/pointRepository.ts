@@ -4,7 +4,7 @@ import { PointRecord, PointWriteInput } from '../model/trip';
 import { toPointRecord } from '../mappers/pointPersistenceMapper';
 import { sortPointsByNumber } from '../utils/point';
 import { toNumberOrNull } from '../utils/utils';
-import { clearPolymorphicTargets } from './polymorphicTargets';
+import { deleteSocialRecordsForTargets, socialCleanupTargets } from './polymorphicTargets';
 import { attachImageWithinLimit } from './imageAttachment';
 import { runSerializableWithRetry } from './serializableTransaction';
 
@@ -104,10 +104,10 @@ export class PointRepository {
             const pointNumber = (await maxPointNumber(tx, tripId)) + 1;
             const point = await tx.point.create({
                 data: {
-                    name: fields.title,
+                    name: fields.name,
                     description: fields.description,
-                    lat: fields.latitude === null ? null : String(fields.latitude),
-                    lng: fields.longitude === null ? null : String(fields.longitude),
+                    lat: fields.lat === null ? null : String(fields.lat),
+                    lng: fields.lng === null ? null : String(fields.lng),
                     pointNumber: String(pointNumber),
                     ownerId,
                     tripId,
@@ -124,22 +124,30 @@ export class PointRepository {
         await this.prisma.point.update({
             where: { id: pointId },
             data: {
-                ...(fields.title !== undefined ? { name: fields.title } : {}),
+                ...(fields.name !== undefined ? { name: fields.name } : {}),
                 ...(fields.description !== undefined ? { description: fields.description } : {}),
-                ...(fields.latitude !== undefined ? { lat: fields.latitude === null ? null : String(fields.latitude) } : {}),
-                ...(fields.longitude !== undefined ? { lng: fields.longitude === null ? null : String(fields.longitude) } : {}),
+                ...(fields.lat !== undefined ? { lat: fields.lat === null ? null : String(fields.lat) } : {}),
+                ...(fields.lng !== undefined ? { lng: fields.lng === null ? null : String(fields.lng) } : {}),
             },
         });
     }
 
     /**
      * Deletes the point in one transaction and closes the gap it leaves behind, so
-     * `pointNumber` stays a dense 1..n sequence. The decrement runs over the
-     * remaining rows of the day fetched inside the same transaction.
+     * `pointNumber` stays a dense 1..n sequence. The point's images cascade
+     * through their FK, so the social records of the point AND of those images
+     * are removed by the central social cleanup in this same transaction. The
+     * decrement runs over the remaining rows of the day fetched inside the same
+     * transaction.
      */
     async deleteAndCompact(tripId: number, pointId: number, deletedNumber: number): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
-            await clearPolymorphicTargets(tx, SOCIAL_TARGET_TYPE.POINT, pointId);
+            const images = await tx.image.findMany({ where: { pointId }, select: { id: true } });
+            await deleteSocialRecordsForTargets(tx, [
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.POINT, [pointId]),
+                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, images.map((image) => image.id)),
+            ]);
+
             await tx.point.delete({ where: { id: pointId } });
 
             const remaining = await tx.point.findMany({
@@ -186,7 +194,13 @@ export class PointRepository {
     }
 
     async deleteImage(imageId: number): Promise<void> {
-        await this.prisma.image.delete({ where: { id: imageId } });
+        await this.prisma.$transaction(async (tx) => {
+            // The image row is removed together with every social record that
+            // targets it (likes/comments/reports and any future relationship).
+            await deleteSocialRecordsForTargets(tx, socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, [imageId]));
+
+            await tx.image.delete({ where: { id: imageId } });
+        });
     }
 
     /**

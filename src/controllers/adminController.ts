@@ -1,6 +1,6 @@
 import express from 'express';
 import { authConfig } from '../config/auth';
-import { ADMIN_OR_MODERATOR_ROLES, ADMIN_RATE_LIMIT_MAX, ADMIN_ROLES } from '../constants/admin';
+import { ADMIN_OR_MODERATOR_ROLES, ADMIN_RATE_LIMIT_MAX } from '../constants/admin';
 import {
     adminUserService,
     failedLogService,
@@ -9,7 +9,7 @@ import {
     routeNotFoundLogsService,
 } from '../container';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
-import { requireRole } from '../middlewares/authBoundary';
+import { actorFrom, requireRole } from '../middlewares/authBoundary';
 import { authRateLimit } from '../middlewares/authRateLimit';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -27,7 +27,6 @@ const adminController = express.Router();
 /** Abuse protection of an expensive, privileged surface. */
 const adminLimiter = authRateLimit('admin', ADMIN_RATE_LIMIT_MAX, authConfig.rateLimit);
 const adminOrModerator = requireRole([...ADMIN_OR_MODERATOR_ROLES]);
-const adminOnly = requireRole([...ADMIN_ROLES]);
 
 adminController.get('/users', adminLimiter, validateRequest({ query: adminPaginationQuerySchema }), adminOrModerator, asyncHandler(async (req, res) => {
     res.status(200).json(await adminUserService.listUsers(req.query));
@@ -37,9 +36,9 @@ adminController.put(
     '/users/:userId',
     adminLimiter,
     validateRequest({ params: userIdParams, body: adminUserUpdateSchema }),
-    adminOnly,
+    adminOrModerator,
     asyncHandler(async (req, res) => {
-        res.status(200).json(await adminUserService.updateUser(routeParam(req.params.userId), req.body));
+        res.status(200).json(await adminUserService.updateUser(actorFrom(req), routeParam(req.params.userId), req.body));
     }),
 );
 

@@ -6,7 +6,7 @@ import { SocialTargetRef } from '../model/social';
 import { TripActor, TripDay, TripGroupResponse } from '../model/trip';
 import { ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
-import { canModifyTrip } from '../utils/authorization';
+import { canModifyTrip, toResourcePermissions } from '../utils/authorization';
 import { getImageBaseUrl } from '../utils/image';
 import { toImageDto } from '../mappers/imageMapper';
 import {
@@ -20,7 +20,7 @@ import {
     parseDayUpdateBody,
     parseListQuery,
     parseTripBody,
-    parseTripId,
+    parseTripGroupId,
     resolveSelectFilterValues,
 } from '../utils/trip';
 import { dynamicConfig } from './dynamicConfig';
@@ -57,7 +57,7 @@ export function toDayTargets(day: {
 
 /**
  * Shared batch preparation of TripGroupResponse for every trip-group read that
- * serves the canonical response (GET /trips, GET /trips/top, GET /trips/:id,
+ * serves the canonical response (GET /trips, GET /trips/top, GET /trips/:tripGroupId,
  * GET /me/trips, GET /me/favorites). Collects all social targets in one batch
  * and resolves select display values from the dynamic config cache.
  */
@@ -84,6 +84,7 @@ export async function toGroupResponses(
             dynamicConfig.getSelectType(GROUP_SELECT_TYPE)?.options ?? [],
             dynamicConfig.getSelectType(TRANSPORT_SELECT_TYPE)?.options ?? [],
             dynamicConfig.getSelectType(CURRENCY_SELECT_TYPE)?.options ?? [],
+            toResourcePermissions(actor, row.owner.id),
         )
     );
 }
@@ -95,7 +96,7 @@ export class TripService {
         private readonly socialStates: SocialStateService,
     ) { }
 
-    async listTrips(rawQuery: unknown): Promise<TripGroupResponse[]> {
+    async listTrips(rawQuery: unknown, actor: TripActor | null): Promise<TripGroupResponse[]> {
         const query = parseListQuery(rawQuery);
 
         const { rows } = await this.repository.findPage({
@@ -121,7 +122,7 @@ export class TripService {
             return row ? [row] : [];
         });
 
-        return toGroupResponses(orderedDetails, this.socialStates, null);
+        return toGroupResponses(orderedDetails, this.socialStates, actor);
     }
 
     /**
@@ -142,7 +143,7 @@ export class TripService {
      * of likes on the group itself. The ranking is per trip group and independent
      * of the requesting user; ties keep the database's order.
      */
-    async getTopTrips(): Promise<TripGroupResponse[]> {
+    async getTopTrips(actor: TripActor | null): Promise<TripGroupResponse[]> {
         const groupIds = await this.repository.findTopGroupIds(TOP_TRIPS_LIMIT);
         if (groupIds.length === 0) return [];
 
@@ -153,12 +154,12 @@ export class TripService {
             return row ? [row] : [];
         });
 
-        return toGroupResponses(ranked, this.socialStates, null);
+        return toGroupResponses(ranked, this.socialStates, actor);
     }
 
     /** `actor` is optional: the trip is public, but it carries the viewer's social state. */
-    async getTrip(rawId: string, actor: TripActor | null): Promise<TripGroupResponse> {
-        const row = await this.repository.findById(parseTripId(rawId));
+    async getTrip(rawTripGroupId: string, actor: TripActor | null): Promise<TripGroupResponse> {
+        const row = await this.repository.findById(parseTripGroupId(rawTripGroupId));
         if (!row) throw ApiError.tripNotFound();
 
         return this.toDetails(row, actor);
@@ -174,8 +175,8 @@ export class TripService {
         return this.toDetails(row, actor);
     }
 
-    async deleteTrip(actor: TripActor, rawId: string): Promise<void> {
-        const tripGroupId = parseTripId(rawId);
+    async deleteTrip(actor: TripActor, rawTripGroupId: string): Promise<void> {
+        const tripGroupId = parseTripGroupId(rawTripGroupId);
         await this.assertCanModify(actor, tripGroupId);
 
         await this.imageStorage.removeMany(await this.repository.listTripImagePaths(tripGroupId));
@@ -187,8 +188,8 @@ export class TripService {
         return responses[0];
     }
 
-    async createDay(actor: TripActor, rawTripId: string, body: unknown): Promise<TripGroupResponse> {
-        const tripGroupId = parseTripId(rawTripId);
+    async createDay(actor: TripActor, rawTripGroupId: string, body: unknown): Promise<TripGroupResponse> {
+        const tripGroupId = parseTripGroupId(rawTripGroupId);
         await this.assertCanModify(actor, tripGroupId);
 
         const request = parseDayCreateBody(body);
@@ -213,8 +214,8 @@ export class TripService {
         return this.toDetails(row, actor);
     }
 
-    async updateDay(actor: TripActor, rawTripId: string, rawDayId: string, body: unknown): Promise<TripGroupResponse> {
-        const tripGroupId = parseTripId(rawTripId);
+    async updateDay(actor: TripActor, rawTripGroupId: string, rawDayId: string, body: unknown): Promise<TripGroupResponse> {
+        const tripGroupId = parseTripGroupId(rawTripGroupId);
         const tripId = parsePositiveId(rawDayId, 'Day id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
 
@@ -227,9 +228,9 @@ export class TripService {
         return this.toDetails(row, actor);
     }
 
-    async reorderDays(actor: TripActor, rawTripId: string, body: unknown): Promise<TripDay[]> {
-        const tripGroupId = parseTripId(rawTripId);
-        await this.assertCanModify(actor, tripGroupId);
+    async reorderDays(actor: TripActor, rawTripGroupId: string, body: unknown): Promise<TripDay[]> {
+        const tripGroupId = parseTripGroupId(rawTripGroupId);
+        const ownerId = await this.assertCanModify(actor, tripGroupId);
 
         // The API calls the ordered ids `dayIds`; each entry is a `trips` row id.
         const tripIds = parseIdList(body, 'dayIds', 1);
@@ -242,11 +243,11 @@ export class TripService {
 
         const days = await this.repository.listDayRows(tripGroupId);
         const states = await this.socialStates.statesFor(actor.id, days.flatMap((day) => toDayTargets(day)));
-        return toTripDayDtoList(days, states, getImageBaseUrl());
+        return toTripDayDtoList(days, states, getImageBaseUrl(), toResourcePermissions(actor, ownerId));
     }
 
-    async deleteDay(actor: TripActor, rawTripId: string, rawDayId: string): Promise<void> {
-        const tripGroupId = parseTripId(rawTripId);
+    async deleteDay(actor: TripActor, rawTripGroupId: string, rawDayId: string): Promise<void> {
+        const tripGroupId = parseTripGroupId(rawTripGroupId);
         const tripId = parsePositiveId(rawDayId, 'Day id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
 
@@ -271,8 +272,8 @@ export class TripService {
      * the URL, the actor must be allowed to change that group, and the day must
      * still have a free image slot. A refusal therefore never touches storage.
      */
-    async assertDayImageUpload(actor: TripActor, rawTripId: string, rawDayId: string): Promise<void> {
-        const tripGroupId = parseTripId(rawTripId);
+    async assertDayImageUpload(actor: TripActor, rawTripGroupId: string, rawDayId: string): Promise<void> {
+        const tripGroupId = parseTripGroupId(rawTripGroupId);
         const tripId = parsePositiveId(rawDayId, 'Day id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
         await this.assertImageSlot(tripId);
@@ -286,8 +287,8 @@ export class TripService {
      * The object is already in the bucket when this runs, so a row that cannot be
      * written removes it again.
      */
-    async addDayImage(actor: TripActor, rawTripId: string, rawDayId: string, filePath: string): Promise<ImageDto> {
-        const tripGroupId = parseTripId(rawTripId);
+    async addDayImage(actor: TripActor, rawTripGroupId: string, rawDayId: string, filePath: string): Promise<ImageDto> {
+        const tripGroupId = parseTripGroupId(rawTripGroupId);
         const tripId = parsePositiveId(rawDayId, 'Day id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
 

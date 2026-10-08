@@ -89,7 +89,6 @@ export const userIdParam = z.string().regex(UUID_PATTERN, 'must be a UUID.');
 
 /** Route parameters, one schema per path so every id is validated. */
 export const userIdParams = z.object({ userId: userIdParam }).strict();
-export const tripIdParams = z.object({ id: positiveIdParam }).strict();
 export const tripIdOnlyParams = z.object({ tripId: positiveIdParam }).strict();
 export const tripDayParams = z.object({ tripId: positiveIdParam, dayId: positiveIdParam }).strict();
 export const dayIdParams = z.object({ dayId: positiveIdParam }).strict();
@@ -99,6 +98,9 @@ export const imageIdParams = z.object({ imageId: positiveIdParam }).strict();
 export const commentIdParams = z.object({ commentId: positiveIdParam }).strict();
 export const tripGroupIdParams = z.object({ tripGroupId: positiveIdParam }).strict();
 export const adminReportIdParams = z.object({ reportId: positiveIdParam }).strict();
+
+/** `:reportId` of the author-facing report removal route. */
+export const reportIdParams = z.object({ reportId: positiveIdParam }).strict();
 
 /** Numeric resource id inside a JSON body or a query string. */
 export const positiveId = z.coerce.number()

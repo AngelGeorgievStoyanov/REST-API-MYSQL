@@ -362,7 +362,7 @@ The `/api/v1` endpoint inventory below is derived from the mounted routers and c
 | Trips and days | `GET /trips`, `/trips/:id`; `POST /trips`, `/trips/:tripId/days`, `/trips/:tripId/days/:dayId/images`; `PUT /trips/:tripId/days/reorder`, `/trips/:tripId/days/:dayId`; `DELETE /trips/:id`, `/trips/:tripId/days/:dayId` |
 | Trip discovery/social | `GET /trips/top`, `GET /trips/background`; public discovery endpoints use the public Frontend token |
 | Current-user trips/favorites | `GET /me/trips`, `GET /me/favorites`; authenticated user-specific endpoints resolve the user from authentication and do not accept a `userId` route parameter |
-| Points         | `POST /points`; `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:dayId/points/reorder`                                                                                                                                  |
+| Points         | `POST /points`; `GET /trips/:tripId/points`, `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:dayId/points/reorder`                                                                                                                                  |
 | Images         | `DELETE /images/:imageId`                                                                                                                                                                                                                                                                                                  |
 | Likes          | `POST` and `DELETE /likes`                                                                                                                                                                                                                                                                                                 |
 | Favorites      | `POST` and `DELETE /favorites`                                                                                                                                                                                                                                                                                             |
@@ -503,12 +503,18 @@ Points use the following public `TripPoint` structure. Field names follow the da
   "description": "Point description",
   "lat": 42.6975,
   "lng": 23.3241,
-  "pointNumber": 1,
+  "pointNumber": "1",
   "tripId": 1001,
   "images": [ SocialImageDto ],
+  "permissions": {
+    "canEdit": true,
+    "canDelete": true
+  },
   "social": SocialState
 }
 ```
+
+`permissions` is server-computed per request from the resource owner and the authenticated actor; anonymous callers receive `canEdit: false` and `canDelete: false`.
 
 `ownerId` is intentionally excluded from both Day and Point API responses. It remains server-side ownership data and must never be serialized to the Frontend.
 
@@ -611,6 +617,8 @@ Deletes the complete Trip Group and all of its Days.
 
 Response remains `204 No Content`.
 
+The delete removes the social records of the trip group, its days, points and images in the same transaction (see "Social cleanup on resource deletion"); this includes the favorites whose FK would otherwise block the group delete.
+
 ### DELETE /api/v1/trips/:tripId/days/:dayId
 
 Deletes one Day from a Trip Group.
@@ -619,6 +627,8 @@ Deletes one Day from a Trip Group.
 
 Response remains `204 No Content`.
 
+The delete removes the social records of the day, its points and all of their images in the same transaction (see "Social cleanup on resource deletion").
+
 ### POST /api/v1/trips/:tripId/days/:dayId/images
 
 Adds an image to a specific Day.
@@ -626,6 +636,52 @@ Adds an image to a specific Day.
 `:tripId` is the tripGroupId and `:dayId` is the Day row id.
 
 Response remains the existing `ImageDto` contract.
+
+### Points collection and create/update responses
+
+The point collection of one day row is a public read. `:tripId` addresses the day row (`Point.tripId`), the same value `POST /api/v1/points` accepts as `dayId`.
+
+* `GET /api/v1/trips/:tripId/points` -> `200` with the complete `TripPoint[]` collection of that day in `pointNumber` order, with the full point response (images with image social state, point social state and server-computed `permissions`).
+
+The point write responses return that same collection instead of a single point:
+
+* `POST /api/v1/points` -> `201` with the complete current `TripPoint[]` of the day the point was created in;
+* `PUT /api/v1/points/:pointId` -> `200` with the complete current `TripPoint[]` of the day the point belongs to.
+
+The Frontend adopts the returned collection directly as its state; no follow-up GET request is required. `pointNumber` remains server-generated (`max(existing pointNumber) + 1` of the day) and is never sent by the client.
+
+`DELETE /api/v1/points/:pointId` remains `204 No Content` and the server compacts the remaining `pointNumber` sequence.
+
+## Social cleanup on resource deletion
+
+No delete flow leaves a polymorphic social record behind that points at a resource that no longer exists. The cleanup is centralised in `src/repositories/polymorphicTargets.ts` (`deleteSocialRecordsForTargets`) and runs inside the same database transaction as the resource row delete it belongs to.
+
+The resource hierarchy is:
+
+```text
+TRIP_GROUP
+    └── DAY
+          └── POINT
+                └── IMAGE
+```
+
+Deleting a resource removes the social records of every level that is being removed:
+
+| Delete | Social records removed |
+| ------ | ---------------------- |
+| `DELETE /api/v1/images/:imageId`, `DELETE /api/v1/points/:pointId/images/:imageId` | the image's (likes/comments/reports and any future relationship) |
+| `DELETE /api/v1/points/:pointId` | the point's and every image's of that point |
+| `DELETE /api/v1/trips/:tripId/days/:dayId` | the day's, its points' and all of their images' |
+| `DELETE /api/v1/trips/:id` | the trip group's, its days', points' and images' |
+| `DELETE /api/v1/comments/:commentId` | the reports targeting the comment |
+
+Favorites are trip-group scoped (`favorites.tripGroupId`, FK NO ACTION). They are removed by the same cleanup before the trip group row is deleted, so a favorite can never survive as an orphan and can never block a group delete. Profile image removal and profile image replacement delete the replaced image's social records the same way.
+
+The cleanup is registry driven: every social relationship registers one batch deleter in `SOCIAL_RELATION_DELETERS`. A new social feature is integrated by adding its deleter there; the resource delete flows remain unchanged. All cleanup queries are batched (one `deleteMany` per relationship with a single `(targetTypeId, targetId IN (...))` filter), so deleting a day with many points and images does not issue per-row deletes.
+
+Comments removed by the cleanup are themselves report targets: their reports are collected and deleted in the same pass. This cascade is the one structural addition a relationship needs beyond its own batch deleter.
+
+The storage order is unchanged: image objects are removed from the bucket before the database transaction starts, so a storage failure leaves the database (and its social state) untouched.
 
 ## Session presence probe
 
@@ -1324,6 +1380,7 @@ The following are part of the current production architecture:
 * controllers remain thin;
 * services own business rules and authorization;
 * repositories own persistence;
+* deleting a resource removes every social record targeting it and its descendants in the same database transaction;
 * API mappers perform transformation only;
 * persistence mapping remains separate from API mapping;
 * request-path Prisma access uses the shared Prisma client;

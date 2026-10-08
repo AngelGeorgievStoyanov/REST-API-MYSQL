@@ -1,15 +1,16 @@
-import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { COMMENT_TARGET_TYPE, SOCIAL_TARGET_TYPE } from '../constants/social';
+import { MODERATOR_ROLES } from '../constants/trip';
 import { CommentDto, CommentListResponse, CommentRecord } from '../model/comment';
 import { SocialTargetRef, SocialTargetType } from '../model/social';
 import { TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
-import { canModifyTrip } from '../utils/authorization';
 import { parseCommentCreateBody, parseCommentPageQuery, parseCommentUpdateBody } from '../utils/social';
 import { parsePositiveId } from '../utils/validation';
 import { CommentRepository } from '../repositories/commentRepository';
 import { toCommentDto, toCommentListResponse } from '../mappers/commentMapper';
 import { SocialTargetRepository } from '../repositories/socialTargetRepository';
 import { TargetTypeRepository } from '../repositories/targetTypeRepository';
+import { SocialStateService } from './socialStateService';
 
 
 export class CommentService {
@@ -17,9 +18,10 @@ export class CommentService {
         private readonly repository: CommentRepository,
         private readonly targets: SocialTargetRepository,
         private readonly targetTypes: TargetTypeRepository,
+        private readonly socialStates: SocialStateService,
     ) { }
 
-    async listForTarget(targetType: SocialTargetType, rawId: string, query: unknown): Promise<CommentListResponse> {
+    async listForTarget(targetType: SocialTargetType, rawId: string, query: unknown, actor: TripActor | null): Promise<CommentListResponse> {
         const target = await this.resolveTarget(targetType, rawId);
         const page = parseCommentPageQuery(query);
         const typeId = await this.targetTypes.requireId(target.targetType);
@@ -29,14 +31,21 @@ export class CommentService {
             this.repository.countByTarget(typeId, target.targetId),
         ]);
 
-        return toCommentListResponse(rows, page.page, page.limit, total);
+        // One report batch for the whole page; an anonymous caller issues no report query.
+        const reportedCommentIds = await this.socialStates.reportedTargetIds(
+            actor?.id ?? null,
+            COMMENT_TARGET_TYPE,
+            rows.map((row) => row.id),
+        );
+
+        return toCommentListResponse(rows, actor, page.page, page.limit, total, reportedCommentIds);
     }
 
     /** The day must belong to the trip from the URL; the day resource is a `trips` row. */
-    async listForDay(rawTripId: string, rawDayId: string, query: unknown): Promise<CommentListResponse> {
+    async listForDay(rawTripId: string, rawDayId: string, query: unknown, actor: TripActor | null): Promise<CommentListResponse> {
         const dayId = await this.resolveDay(rawTripId, rawDayId);
 
-        return this.listForTarget(SOCIAL_TARGET_TYPE.DAY, String(dayId), query);
+        return this.listForTarget(SOCIAL_TARGET_TYPE.DAY, String(dayId), query, actor);
     }
 
     async create(
@@ -58,10 +67,12 @@ export class CommentService {
             targetId: target.targetId,
             ownerId: actor.id,
             nameAuthor,
-            text: request.text,
+            comment: request.comment,
         });
 
-        return toCommentDto(row);
+        // A comment that was just created carries no report from its author yet,
+        // so the report state handed to the shared mapper is empty.
+        return toCommentDto(row, actor, false);
     }
 
     async createForDay(
@@ -75,17 +86,19 @@ export class CommentService {
         return this.create(actor, SOCIAL_TARGET_TYPE.DAY, String(dayId), body);
     }
 
-    /** Only the author rewrites a comment; deleting is a moderation action. */
+    /** Only the author or a moderator may edit a comment; deleting is a moderation action. */
     async update(actor: TripActor, rawCommentId: string, body: unknown): Promise<CommentDto> {
         const comment = await this.findComment(rawCommentId);
-        if (comment.authorId !== actor.id) {
-            throw ApiError.forbidden('Only the author can edit a comment.');
+        if (comment.ownerId !== actor.id && !MODERATOR_ROLES.includes(actor.role)) {
+            throw ApiError.forbidden('Only the author or a moderator can edit a comment.');
         }
 
         const request = parseCommentUpdateBody(body);
-        const row = await this.repository.update(comment.id, request.text, (comment.editCount ?? 0) + 1);
+        const row = await this.repository.update(comment.id, request.comment, (comment.countEdited ?? 0) + 1);
 
-        return toCommentDto(row);
+        const reportedCommentIds = await this.socialStates.reportedTargetIds(actor.id, COMMENT_TARGET_TYPE, [row.id]);
+
+        return toCommentDto(row, actor, reportedCommentIds.has(row.id));
     }
 
     async delete(actor: TripActor, rawCommentId: string): Promise<void> {
@@ -124,19 +137,13 @@ export class CommentService {
     }
 
     /**
-     * The author, the owner of the trip group the target belongs to, or a moderator
-     * may delete a comment — the polymorphic target carries the ownership context.
+     * The author or a moderator may delete a comment. The trip-group owner has no
+     * special deletion right beyond being the author or a moderator.
      */
     private async assertCanDelete(actor: TripActor, comment: CommentRecord): Promise<void> {
-        if (comment.authorId === actor.id) return;
+        if (comment.ownerId === actor.id) return;
+        if (MODERATOR_ROLES.includes(actor.role)) return;
 
-        const names = await this.targetTypes.loadNames();
-        const targetType = names.get(comment.targetTypeId);
-        if (!targetType) throw ApiError.internal('The target type of this comment is unknown.');
-
-        const context = await this.targets.requireContext({ targetType, targetId: comment.targetId });
-        if (!canModifyTrip(actor, context.tripGroupOwnerId)) {
-            throw ApiError.forbidden('Only the author, the trip owner or a moderator can delete this comment.');
-        }
+        throw ApiError.forbidden('Only the author or a moderator can delete a comment.');
     }
 }

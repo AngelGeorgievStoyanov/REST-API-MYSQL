@@ -9,12 +9,10 @@ export const ADMIN_ROLES = ['admin'];
  */
 export const ADMIN_OR_MODERATOR_ROLES = MODERATOR_ROLES;
 
-/** Identity and credential fields are never settable through the admin update. */
+/** Identity and credential fields never settable directly through the admin update. */
 export const CLIENT_CONTROLLED_USER_FIELDS = [
     'id',
-    'email',
     'hashedPassword',
-    'password',
     'imageFile',
     'verifyEmail',
     'emailVerifiedAt',

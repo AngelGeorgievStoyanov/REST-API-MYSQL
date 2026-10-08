@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { AdminReportRecord, CreatedReportRecord } from '../model/report';
+import { socialTargetKey } from '../utils/social';
 
 export class ReportRepository {
     constructor(private readonly prisma: PrismaClient) { }
@@ -28,6 +29,14 @@ export class ReportRepository {
         }
     }
 
+    /** Reporter of one report, used for the ownership check of a withdrawal. */
+    async findOwner(reportId: number): Promise<{ id: number; userId: string } | null> {
+        return this.prisma.report.findUnique({
+            where: { id: reportId },
+            select: { id: true, userId: true },
+        });
+    }
+
     /** One page of the moderation queue: newest reports first, tie-break by id. */
     async listPage(skip: number, take: number): Promise<AdminReportRecord[]> {
         return this.prisma.report.findMany({
@@ -40,6 +49,18 @@ export class ReportRepository {
 
     async countAll(): Promise<number> {
         return this.prisma.report.count();
+    }
+
+    /** Keys of the targets the user has reported, as `targetTypeId:targetId`. */
+    async reportedTargetKeys(userId: string, targetIds: number[]): Promise<Set<string>> {
+        if (targetIds.length === 0) return new Set();
+
+        const rows = await this.prisma.report.findMany({
+            where: { userId, targetId: { in: targetIds } },
+            select: { targetTypeId: true, targetId: true },
+        });
+
+        return new Set(rows.map((row) => socialTargetKey(row.targetTypeId, row.targetId)));
     }
 
     /** `false` means the report no longer exists (already removed). */

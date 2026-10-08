@@ -7,15 +7,15 @@ import { imageUpload, uploadedFileName } from '../storage/imageUpload';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
-import { dayIdParams, pointIdParams, pointImageParams } from '../validation/schemas/common.schemas';
+import { dayIdParams, pointIdParams, pointImageParams, tripIdOnlyParams } from '../validation/schemas/common.schemas';
 import { pointCreateSchema, pointUpdateSchema } from '../validation/schemas/point.schemas';
 import { pointReorderSchema } from '../validation/schemas/trip.schemas';
 
 const pointController = express.Router();
 
 pointController.post('/', validateRequest({ body: pointCreateSchema }), requireAuthentication, asyncHandler(async (req, res) => {
-    const point = await pointService.createPoint(actorFrom(req), req.body);
-    res.status(201).json(point);
+    const points = await pointService.createPoint(actorFrom(req), req.body);
+    res.status(201).json(points);
 }));
 
 pointController.get('/:pointId', validateRequest({ params: pointIdParams }), optionalAuthentication, asyncHandler(async (req, res) => {
@@ -28,8 +28,8 @@ pointController.put(
     validateRequest({ params: pointIdParams, body: pointUpdateSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const point = await pointService.updatePoint(actorFrom(req), routeParam(req.params.pointId), req.body);
-        res.status(200).json(point);
+        const points = await pointService.updatePoint(actorFrom(req), routeParam(req.params.pointId), req.body);
+        res.status(200).json(points);
     }),
 );
 
@@ -91,5 +91,25 @@ dayPointController.put(
 dayPointController.use(apiErrorMiddleware);
 dayPointController.use(routeNotFoundLogsMiddleware);
 
-export { dayPointController };
+/**
+ * The point collection of a day is addressed through the trip path. The router is
+ * mounted at `/trips` before `tripController`, which ends with a catch-all 404,
+ * and deliberately carries no terminal route-not-found logger: every other
+ * `/trips` request must still reach the trip controller.
+ */
+const tripPointController = express.Router();
+
+tripPointController.get(
+    '/:tripId/points',
+    validateRequest({ params: tripIdOnlyParams }),
+    optionalAuthentication,
+    asyncHandler(async (req, res) => {
+        const points = await pointService.getTripPoints(routeParam(req.params.tripId), optionalActor(req));
+        res.status(200).json(points);
+    }),
+);
+
+tripPointController.use(apiErrorMiddleware);
+
+export { dayPointController, tripPointController };
 export default pointController;

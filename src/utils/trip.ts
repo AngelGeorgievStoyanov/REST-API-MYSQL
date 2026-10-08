@@ -35,10 +35,10 @@ interface SelectOptionLookup {
     isActive: boolean;
 }
 
-export function parseTripId(rawId: string): number {
+export function parseTripGroupId(rawId: string): number {
     const id = Number(rawId);
     if (!Number.isInteger(id) || id <= 0) {
-        throw ApiError.validation('Trip id must be a positive integer.');
+        throw ApiError.validation('Trip group id must be a positive integer.');
     }
     return id;
 }

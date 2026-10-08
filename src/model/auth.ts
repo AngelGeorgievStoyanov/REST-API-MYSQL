@@ -1,3 +1,22 @@
+/** Permissions for the authenticated caller, surfaced on self-profile responses. */
+export interface Permissions {
+    isManager: boolean;
+    isAdmin: boolean;
+}
+
+/**
+ * Self-facing representation of the authenticated account. Never carries the
+ * user UUID, DB role, status, or verification flags — those are computed as
+ * `permissions` (for elevated accounts only) and are never trusted from the
+ * client.
+ */
+export interface ProfileDto {
+    email: string;
+    firstName: string;
+    lastName: string;
+    permissions?: Permissions;
+}
+
 /** Public representation of the authenticated account; never carries the hash. */
 export interface AuthUserDto {
     id: string;
@@ -31,11 +50,11 @@ export interface AuthSessionDto {
     accessToken: string;
     tokenType: 'Bearer';
     expiresIn: number;
-    user: AuthUserDto;
+    user: ProfileDto;
 }
 
 export interface AuthUserResponse {
-    user: AuthUserDto;
+    user: ProfileDto;
 }
 
 export interface MessageResponse {

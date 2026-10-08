@@ -3,7 +3,8 @@ import { CLIENT_CONTROLLED_USER_FIELDS } from '../constants/admin';
 import { MAX_USER_ID_LENGTH } from '../constants/auth';
 import { AuthUserDto, AuthUserRecord } from '../model/auth';
 import { AdminPage } from '../model/admin';
-import { normalizeName } from '../utils/auth';
+import { TripActor } from '../model/trip';
+import { normalizeEmail, normalizeName, hashPassword } from '../utils/auth';
 import { ApiError } from '../utils/apiError';
 import { asRecord, rejectClientControlledFields, requireEnumValue, requireTrimmedString } from '../utils/validation';
 import { toAuthUserDto, toAuthUserDtoList } from '../mappers/userMapper';
@@ -24,22 +25,36 @@ export class AdminUserService {
         return toAdminPageDto(toAuthUserDtoList(rows), total, pagination.page, pagination.pageSize);
     }
 
-    async updateUser(rawUserId: string, body: unknown): Promise<AuthUserDto> {
+    async updateUser(actor: TripActor, rawUserId: string, body: unknown): Promise<AuthUserDto> {
         const userId = requireTrimmedString(rawUserId, 'userId', MAX_USER_ID_LENGTH);
         const record = asRecord(body, 'Request body');
         rejectClientControlledFields(record, CLIENT_CONTROLLED_USER_FIELDS, 'Request body');
 
+        const isAdmin = actor.role === 'admin';
         const update: AdminUserUpdate = {};
+
         if (record['firstName'] !== undefined) update.firstName = normalizeName(record['firstName'], 'firstName');
         if (record['lastName'] !== undefined) update.lastName = normalizeName(record['lastName'], 'lastName');
-        if (record['role'] !== undefined) update.role = requireEnumValue(record['role'], Object.values(UserRole), 'role');
+        if (record['email'] !== undefined) update.email = normalizeEmail(record['email']);
         if (record['status'] !== undefined) update.status = requireEnumValue(record['status'], Object.values(UserStatus), 'status');
+        if (record['emailVerified'] !== undefined) update.emailVerifiedAt = record['emailVerified'] === true ? new Date() : null;
 
-        if (Object.keys(update).length === 0) {
-            throw ApiError.validation('Provide at least one of "firstName", "lastName", "role", "status".');
+        if (isAdmin) {
+            if (record['role'] !== undefined) update.role = requireEnumValue(record['role'], Object.values(UserRole), 'role');
+            if (record['password'] !== undefined) update.hashedPassword = await hashPassword(record['password'] as string);
+        } else if (record['role'] !== undefined || record['password'] !== undefined) {
+            throw ApiError.forbidden('Only an admin can change role or password.');
         }
 
-        await this.requireUser(userId);
+        if (Object.keys(update).length === 0) {
+            throw ApiError.validation('Provide at least one of firstName, lastName, email, role, status, emailVerified, or password.');
+        }
+
+        const existing = await this.requireUser(userId);
+        if (update.email && existing.email !== update.email) {
+            const collision = await this.users.findByEmail(update.email);
+            if (collision) throw ApiError.conflict('Another account already uses this email address.');
+        }
 
         return toAuthUserDto(await this.users.updateAdmin(userId, update));
     }

@@ -1,10 +1,12 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { ReportTargetType } from '../model/report';
 import { SocialState, SocialStates, SocialTargetRef, SocialTargetType } from '../model/social';
 import { socialTargetKey } from '../utils/social';
 import { toSocialState } from '../mappers/socialMapper';
 import { CommentRepository } from '../repositories/commentRepository';
 import { FavoriteRepository } from '../repositories/favoriteRepository';
 import { LikeRepository } from '../repositories/likeRepository';
+import { ReportRepository } from '../repositories/reportRepository';
 import { TargetTypeRepository } from '../repositories/targetTypeRepository';
 
 function unique(values: number[]): number[] {
@@ -17,6 +19,7 @@ export class SocialStateService {
         private readonly comments: CommentRepository,
         private readonly likes: LikeRepository,
         private readonly favorites: FavoriteRepository,
+        private readonly reports: ReportRepository,
     ) { }
 
     /**
@@ -31,13 +34,14 @@ export class SocialStateService {
                 .map((target) => target.targetId),
         );
 
-        const [typeIds, likeCounts, commentCounts, favoriteCounts, likedKeys, favoritedGroups] = await Promise.all([
+        const [typeIds, likeCounts, commentCounts, favoriteCounts, likedKeys, favoritedGroups, reportedKeys] = await Promise.all([
             this.targetTypes.loadIds(),
             this.likes.countByTargets(targetIds),
             this.comments.countByTargets(targetIds),
             this.favorites.countByGroups(groupIds),
             actorId ? this.likes.likedTargetKeys(actorId, targetIds) : Promise.resolve(new Set<string>()),
             actorId ? this.favorites.favoritedGroupIds(actorId, groupIds) : Promise.resolve(new Set<number>()),
+            actorId ? this.reports.reportedTargetKeys(actorId, targetIds) : Promise.resolve(new Set<string>()),
         ]);
 
         return {
@@ -52,9 +56,27 @@ export class SocialStateService {
                     commentCount: commentCounts.get(key) ?? 0,
                     favorites: favoriteCounts.get(targetId) ?? 0,
                     favoritedByMe: favoritedGroups.has(targetId),
+                    reportedByMe: reportedKeys.has(key),
                 });
             },
         };
+    }
+
+    /**
+     * Batch viewer state of a report-only target such as a comment: the subset of
+     * `targetIds` the actor has reported. Reuses the report lookup of the social
+     * state, so a whole comment page costs one query and an anonymous call none.
+     */
+    async reportedTargetIds(actorId: string | null, targetType: ReportTargetType, targetIds: number[]): Promise<Set<number>> {
+        const ids = unique(targetIds);
+        if (actorId === null || ids.length === 0) return new Set();
+
+        const [typeId, reportedKeys] = await Promise.all([
+            this.targetTypes.requireIdByRowName(targetType),
+            this.reports.reportedTargetKeys(actorId, ids),
+        ]);
+
+        return new Set(ids.filter((targetId) => reportedKeys.has(socialTargetKey(typeId, targetId))));
     }
 
     async stateFor(actorId: string | null, target: SocialTargetRef): Promise<SocialState> {
