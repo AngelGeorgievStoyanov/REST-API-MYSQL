@@ -459,8 +459,6 @@ For `GET /trips/:id`:
     "key": "<string>",
     "name": "<string>"
   },
-  "countEdited": 0,
-  "tripGroupId": 123,
   "images": [ SocialImageDto ],
   "social": SocialState,
   "points": [ TripPoint ],
@@ -469,9 +467,9 @@ For `GET /trips/:id`:
 }
 ```
 
-The complete `TripGroupDay` response contains the public day-level fields from the `trips` database row: `id`, `dayNumber`, `title`, `description`, `countPeoples`, `destination`, `lat`, `lng`, `price`, `currency`, `transport`, `group`, `countEdited`, `tripGroupId`, `images`, `social`, `points`, `createdAt`, and `updatedAt`.
+The complete `TripGroupDay` response contains the public day-level fields from the `trips` database row: `id`, `dayNumber`, `title`, `description`, `countPeoples`, `destination`, `lat`, `lng`, `price`, `currency`, `transport`, `group`, `images`, `social`, `points`, `createdAt`, and `updatedAt`.
 
-These fields belong to `days[]`, not to the Trip Group root. `tripGroupId` at day level is the same integer grouping id as the root `TripGroupResponse.tripGroupId`.
+These fields belong to `days[]`, not to the Trip Group root. The grouping identifier is exposed only as `TripGroupResponse.tripGroupId` at the response root.
 
 The `currency` object is resolved from backend configuration and is returned as:
 
@@ -506,7 +504,6 @@ Points use the following public `TripPoint` structure. Field names follow the da
   "lat": 42.6975,
   "lng": 23.3241,
   "pointNumber": 1,
-  "countEdited": 0,
   "tripId": 1001,
   "createdAt": "ISO 8601 timestamp",
   "updatedAt": "ISO 8601 timestamp",
