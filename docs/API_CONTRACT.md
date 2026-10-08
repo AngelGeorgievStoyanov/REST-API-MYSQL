@@ -611,10 +611,7 @@ For `GET /trips` and `GET /trips/top`:
             "lat": 42.6975,
             "lng": 23.3241,
             "pointNumber": 1,
-            "countEdited": 0,
             "tripId": 1001,
-            "createdAt": "2026-01-15T10:30:00.000Z",
-            "updatedAt": "2026-01-20T14:45:00.000Z",
             "images": [
               {
                 "id": 5002,
@@ -680,8 +677,6 @@ Each element of `days[]` represents one existing day row belonging to the trip g
     "key": "friends",
     "name": "Friends"
   },
-  "countEdited": 0,
-  "tripGroupId": 123,
   "images": [ SocialImageDto ],
   "social": SocialState,
   "points": [ TripPoint ],
@@ -980,7 +975,7 @@ Mounted at `/api/v1/points`.
 
 The point response keeps the public database-aligned field names and types for the point data. `tripId` is included as the public parent-trip reference. Internal fields `ownerId`, `countEdited`, `createdAt`, and `updatedAt` are never exposed. Social and image data are API-level additions.
 
-```json
+ ```json
 {
   "id": 2001,
   "name": "Point title",
@@ -988,10 +983,7 @@ The point response keeps the public database-aligned field names and types for t
   "lat": 42.6975,
   "lng": 23.3241,
   "pointNumber": 1,
-  "countEdited": 0,
   "tripId": 1001,
-  "createdAt": "2026-01-15T10:30:00.000Z",
-  "updatedAt": "2026-01-20T14:45:00.000Z",
   "images": [ SocialImageDto ],
   "social": SocialState
 }
