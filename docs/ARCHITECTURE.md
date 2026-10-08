@@ -442,6 +442,10 @@ For `GET /trips/:id`:
   "title": null,
   "description": null,
   "price": 0,
+  "countPeoples": 1,
+  "destination": null,
+  "latitude": null,
+  "longitude": null,
   "currency": {
     "id": 0,
     "code": "<string>",
