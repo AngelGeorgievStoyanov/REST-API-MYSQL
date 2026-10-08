@@ -36,11 +36,13 @@ export function signAccessToken(userId: string, secret: string, ttlSeconds: numb
 /**
  * Only the access-token identity is taken from the JWT: `sub` plus the claim
  * that marks it as an access token. Role/status always come from the database.
+ * The algorithm is pinned to HS256 — the only one the shared HMAC secret can
+ * sign — so a token naming another algorithm is rejected as invalid.
  */
 export function verifyAccessToken(token: string, secret: string): { userId: string } {
     let payload: unknown;
     try {
-        payload = jwt.verify(token, secret);
+        payload = jwt.verify(token, secret, { algorithms: ['HS256'] });
     } catch {
         throw ApiError.unauthorized('The access token is invalid or expired.');
     }
@@ -103,7 +105,17 @@ export function readCookie(cookieHeader: string | undefined, name: string): stri
         if (separator < 0) continue;
         if (part.slice(0, separator).trim() === name) {
             const raw = part.slice(separator + 1).trim();
-            return raw === '' ? null : decodeURIComponent(raw);
+            if (raw === '') return null;
+
+            // A malformed percent-encoding is a broken credential, not a server
+            // fault: it is treated like a missing cookie and answered through the
+            // controlled authentication failure path instead of a URIError 500.
+            try {
+                return decodeURIComponent(raw);
+            } catch (error) {
+                if (error instanceof URIError) return null;
+                throw error;
+            }
         }
     }
 

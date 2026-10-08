@@ -1,7 +1,6 @@
 import { Storage } from '@google-cloud/storage';
 import { StorageEngine } from 'multer';
 import { randomUUID } from 'crypto';
-import path from 'path';
 import sharp from 'sharp';
 
 import {
@@ -12,13 +11,14 @@ import {
 import { thumbnailFileName } from '../storage/imageFileStorage';
 import { assertAcceptedImage, ImageObjectAlreadyExistsError } from '../storage/imageValidation';
 
-const KEY_FILENAME = path.join(
-    __dirname,
-    '../utils/hack-trip-414441f1b5d4.json'
-);
-
+/**
+ * Credentials come from the Google Application Default Credentials chain, never
+ * from a path in the source tree: `GOOGLE_APPLICATION_CREDENTIALS` may point at
+ * a service-account key file anywhere on the deployment machine, a `gcloud` login
+ * or the deployment's own identity. The key file's location is therefore machine
+ * configuration only, and no credential path or filename exists in the source.
+ */
 export const gcsClient = new Storage({
-    keyFilename: KEY_FILENAME,
     retryOptions: {
         autoRetry: true,
         maxRetries: STORAGE_MAX_RETRIES,
