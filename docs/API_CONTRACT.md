@@ -1529,7 +1529,7 @@ The initial report queue intentionally keeps the DTO minimal. The backend must n
 
 ## 18. Zod Request Schemas
 
-All schemas are `.strict()` unless noted. Numeric fields of a JSON body must be true JSON numbers (a string, boolean, `null`, or fractional value where an integer is required is rejected). Numeric query values arrive as strings and are parsed by the query schemas.
+All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use actual JSON numbers; numeric strings and booleans are rejected, and integer fields reject fractional values. `null` is rejected unless the specific schema explicitly permits it (for example, `lat` and `lng` in `pointUpdateSchema`, where `null` clears the coordinate). Numeric query values arrive as strings and are parsed by the query schemas.
 
 ### 18.1 Shared helpers
 

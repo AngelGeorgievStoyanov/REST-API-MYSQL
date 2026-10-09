@@ -1026,7 +1026,7 @@ Verification and password-reset emails use environment-provided SMTP configurati
 
 Development mail transport may write generated messages to the operating-system temporary directory.
 
-## User-specific reads and reports
+## Trip discovery, user-specific reads, and reports
 
 ### User-specific trip discovery
 
