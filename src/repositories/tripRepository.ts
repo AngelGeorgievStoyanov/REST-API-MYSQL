@@ -1,6 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { DEFAULT_COUNT_PEOPLES, FIRST_DAY_NUMBER } from '../constants/trip';
+import { DEFAULT_COUNT_PEOPLES } from '../constants/trip';
 import {
     DayUpdateInput,
     DayWriteInput,
@@ -216,8 +216,9 @@ export class TripRepository {
     }
 
     /**
-     * `points` are handed over in `pointNumber` order. The column is a VARCHAR, so
-     * the numeric sort happens in code instead of in the query.
+     * `points` are handed over in `pointNumber` order. The column is a signed
+     * INT, so the SQL `orderBy` is already numeric; the code sort below keeps
+     * the guarantee for readers of the mapped records.
      */
     async findById(id: number): Promise<TripGroupDetailsRecord | null> {
         const row = await this.prisma.tripGroup.findUnique({ where: { id }, include: detailsInclude });
@@ -279,13 +280,18 @@ export class TripRepository {
         return rows.map((row) => row.targetId);
     }
 
-    /** Creates the trip group plus its first day row, which carries the trip metadata. */
+    /**
+     * Creates the trip group plus its initial day row, which carries the trip
+     * metadata. One Prisma create with a nested day create: if the day row
+     * cannot be written, the group is not created either. `input.dayNumber` is
+     * the user-selected ordinal and is persisted exactly as submitted.
+     */
     async createTrip(input: TripMetadataInput): Promise<number> {
         const group = await this.prisma.tripGroup.create({
             data: {
                 ownerId: input.ownerId,
                 createdAt: new Date(),
-                trips: { create: [this.dayCreateData(input.ownerId, FIRST_DAY_NUMBER, input.title, input.description, input.group, input.transport)] },
+                trips: { create: [this.dayCreateData(input.ownerId, input.dayNumber, input.title, input.description, input.group, input.transport)] },
             },
             select: { id: true },
         });
@@ -368,15 +374,6 @@ export class TripRepository {
 
     async countDays(groupId: number): Promise<number> {
         return this.prisma.trip.count({ where: { tripGroupId: groupId } });
-    }
-
-    async findMaxDayNumber(groupId: number): Promise<number> {
-        const day = await this.prisma.trip.findFirst({
-            where: { tripGroupId: groupId },
-            orderBy: [{ dayNumber: 'desc' }, { id: 'desc' }],
-            select: { dayNumber: true },
-        });
-        return day?.dayNumber ?? 0;
     }
 
     async findDayContext(tripId: number): Promise<DayContext | null> {

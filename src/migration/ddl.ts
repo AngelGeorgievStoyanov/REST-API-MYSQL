@@ -28,6 +28,84 @@ const STATUS_TYPE = 'varchar(20)';
 const STATUS_DEFAULT = 'PENDING_VERIFICATION';
 const STATUS_DEFINITION = `VARCHAR(20) NOT NULL DEFAULT '${STATUS_DEFAULT}'`;
 
+/**
+ * Target definition of `points.pointNumber`: a signed MySQL INT NOT NULL. The
+ * column is signed deliberately — the reorder flow temporarily writes negative
+ * markers (`-(index + 1)`) before assigning the final positions. The legacy
+ * column is `VARCHAR(45)`; its values are always numeric.
+ */
+const POINT_NUMBER_TYPE = 'int';
+const POINT_NUMBER_DEFINITION = 'INT NOT NULL';
+export const SIGNED_INT_MIN = -2147483648;
+export const SIGNED_INT_MAX = 2147483647;
+
+/** Canonical integer string: optional sign, digits only — no decimals, blanks or gaps. */
+const POINT_NUMBER_INTEGER_PATTERN = /^-?\d+$/;
+
+export type PointNumberNormalization =
+  | 'missing' // column does not exist (dry-run before the ddl phase ran)
+  | 'already-int' // signed INT NOT NULL: idempotent no-op
+  | 'normalizable' // legacy VARCHAR: validate, then convert
+  | 'unsupported'; // any other type: refuse an unverified conversion
+
+/**
+ * Classifies the live `points.pointNumber` column type for the normalization
+ * step. Only the legacy VARCHAR shapes are converted; everything else fails
+ * safely instead of attempting an unverified conversion.
+ */
+export function pointNumberNormalization(rawType: string): PointNumberNormalization {
+  const type = rawType.trim().toLowerCase();
+  if (type === '') return 'missing';
+  if (type === POINT_NUMBER_TYPE) return 'already-int';
+  if (type.startsWith('varchar') || type === 'char' || type.startsWith('char(')) return 'normalizable';
+  return 'unsupported';
+}
+
+/** Returns the rejection reason for one legacy `pointNumber` value, or null when convertible. */
+export function pointNumberConversionError(value: unknown): string | null {
+  if (value === null || value === undefined) return 'NULL value';
+  if (typeof value !== 'string') return `non-string value of type ${typeof value}`;
+  if (!POINT_NUMBER_INTEGER_PATTERN.test(value)) {
+    return 'not a canonical integer (decimal, blank or malformed)';
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < SIGNED_INT_MIN || parsed > SIGNED_INT_MAX) {
+    return `outside signed INT range [${SIGNED_INT_MIN}, ${SIGNED_INT_MAX}]`;
+  }
+  return null;
+}
+
+export interface PointNumberRow {
+  id: unknown;
+  pointNumber: unknown;
+}
+
+export interface PointNumberRejection {
+  id: string;
+  value: string;
+  reason: string;
+}
+
+/**
+ * Validates every legacy `pointNumber` value before the VARCHAR -> INT
+ * conversion. Malformed values, decimals, NULLs and out-of-range numbers are
+ * reported with their point ids; nothing is silently coerced.
+ */
+export function validatePointNumberRows(rows: PointNumberRow[]): PointNumberRejection[] {
+  const rejections: PointNumberRejection[] = [];
+  for (const row of rows) {
+    const reason = pointNumberConversionError(row.pointNumber);
+    if (reason !== null) {
+      rejections.push({
+        id: row.id === null || row.id === undefined ? '<null>' : String(row.id),
+        value: row.pointNumber === null || row.pointNumber === undefined ? 'NULL' : String(row.pointNumber),
+        reason,
+      });
+    }
+  }
+  return rejections;
+}
+
 export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: boolean): Promise<DdlReport> {
   const report: DdlReport = { createdTables: [], addedColumns: [], alteredColumns: [], seededTargetTypes: [], skipped: [] };
   const co = await dbCollation(prisma, db);
@@ -139,6 +217,45 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
       );
     }
     report.alteredColumns.push('users.status');
+  }
+  // `points.pointNumber` is a legacy VARCHAR(45) whose values are numeric; the
+  // target schema is a signed INT NOT NULL (the reorder flow temporarily writes
+  // negative markers, so the column must stay signed). Every legacy value is
+  // validated BEFORE the ALTER: malformed values, decimals, NULLs and values
+  // outside the signed INT range abort the phase with the affected point ids
+  // reported — nothing is silently coerced. In a dry-run the normalization is
+  // only reported; the validation SELECT stays read-only and no ALTER runs.
+  const pnRawType = await columnType(prisma, db, 'points', 'pointNumber');
+  const pnKind = pointNumberNormalization(pnRawType);
+  if (pnKind === 'missing') {
+    report.skipped.push('column points.pointNumber does not exist');
+  } else if (pnKind === 'already-int') {
+    report.skipped.push('points.pointNumber is already signed INT NOT NULL (no-op)');
+  } else if (pnKind === 'unsupported') {
+    throw new Error(
+      `points.pointNumber has unexpected column type "${pnRawType}"; refusing an unverified conversion.`,
+    );
+  } else {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT ${qi('id')} AS id, ${qi('pointNumber')} AS pointNumber FROM ${qtable(db, 'points')}`,
+    )) as PointNumberRow[];
+    const rejections = validatePointNumberRows(rows);
+    if (rejections.length > 0) {
+      const shown = rejections
+        .slice(0, 10)
+        .map((r) => `point ${r.id} value ${JSON.stringify(r.value)} (${r.reason})`)
+        .join('; ');
+      throw new Error(
+        `points.pointNumber cannot be converted to INT: ${rejections.length} invalid value(s) [${shown}]` +
+          (rejections.length > 10 ? ' ...' : ''),
+      );
+    }
+    if (!dryRun) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, 'points')} MODIFY COLUMN ${qi('pointNumber')} ${POINT_NUMBER_DEFINITION}`,
+      );
+    }
+    report.alteredColumns.push('points.pointNumber');
   }
   if (!dryRun) await ensureControlTables(prisma, db);
   else report.skipped.push('control tables (dry-run: not created)');

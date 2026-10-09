@@ -10,9 +10,6 @@ export const BACKGROUND_IMAGES_BASE_URL_KEY = 'background_images_base_url';
 /** `GET /trips/top` returns at most this many trip groups, ranked by likes. */
 export const TOP_TRIPS_LIMIT = 5;
 
-/** The first day row of a new trip; it also carries the trip metadata. */
-export const FIRST_DAY_NUMBER = 1;
-
 /** `trips.countPeoples` is NOT NULL in the live schema while the API has no people count. */
 export const DEFAULT_COUNT_PEOPLES = 1;
 

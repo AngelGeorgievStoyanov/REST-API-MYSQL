@@ -48,7 +48,7 @@ export interface PointRecord {
     description: string | null;
     lat: number | null;
     lng: number | null;
-    pointNumber: string;
+    pointNumber: number;
     tripId: number | null;
     createdAt: Date | null;
     updatedAt: Date | null;
@@ -101,6 +101,8 @@ export interface PointWriteInput {
 
 export interface TripMetadataInput {
     ownerId: string;
+    /** User-selected ordinal of the initial day row; persisted as `trips.dayNumber`. */
+    dayNumber: number;
     title: string;
     description: string | null;
     group: string;
@@ -123,7 +125,7 @@ export interface TripPoint {
     description: string | null;
     lat: number | null;
     lng: number | null;
-    pointNumber: string;
+    pointNumber: number;
     tripId: number | null;
     createdAt: string | null;
     updatedAt: string | null;
@@ -184,6 +186,8 @@ export interface TripListQuery {
 }
 
 export interface TripWriteRequest {
+    /** Required user-selected ordinal of the initial day row (`trips.dayNumber`). */
+    dayNumber: number;
     title: string;
     description: string | null;
     group: string;
@@ -192,10 +196,11 @@ export interface TripWriteRequest {
 
 export interface PointCreateRequest {
     /**
-     * The API's name for the day the point is created in. Its value is the
-     * `Trip.id` of that day row — a day row has no separate identifier.
+     * The day the point is created in: the primary key `Trip.id` of that day
+     * row — a day row has no separate identifier. Never the trip-group id and
+     * never `trips.dayNumber`.
      */
-    dayId: number;
+    tripId: number;
     name: string;
     description: string | null;
     lat: number;
@@ -210,7 +215,8 @@ export interface PointUpdateRequest {
 }
 
 export interface DayCreateRequest {
-    dayNumber: number | null;
+    /** Required user-selected ordinal of the new day row; persisted unchanged. */
+    dayNumber: number;
     title: string | null;
     description: string | null;
 }

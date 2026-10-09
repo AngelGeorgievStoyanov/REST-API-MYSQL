@@ -76,6 +76,15 @@ export function optionalInt(bounds: NumberBounds): z.ZodType<number | undefined>
     );
 }
 
+/**
+ * Required integer input; a numeric string is accepted because JSON and query
+ * strings differ. A missing, null or empty value fails the bounds check, so it
+ * can never fall back to a default.
+ */
+export function requiredInt(bounds: NumberBounds): z.ZodType<number> {
+    return z.coerce.number().int().min(bounds.min).max(bounds.max);
+}
+
 /** Path segment of an `INT AUTO_INCREMENT` id; it stays a string for Express. */
 export const positiveIdParam = z.string()
     .regex(POSITIVE_INT_PATTERN, 'must be a positive integer.')
@@ -90,8 +99,7 @@ export const userIdParam = z.string().regex(UUID_PATTERN, 'must be a UUID.');
 /** Route parameters, one schema per path so every id is validated. */
 export const userIdParams = z.object({ userId: userIdParam }).strict();
 export const tripIdOnlyParams = z.object({ tripId: positiveIdParam }).strict();
-export const tripDayParams = z.object({ tripId: positiveIdParam, dayId: positiveIdParam }).strict();
-export const dayIdParams = z.object({ dayId: positiveIdParam }).strict();
+export const tripDayParams = z.object({ tripGroupId: positiveIdParam, tripId: positiveIdParam }).strict();
 export const pointIdParams = z.object({ pointId: positiveIdParam }).strict();
 export const pointImageParams = z.object({ pointId: positiveIdParam, imageId: positiveIdParam }).strict();
 export const imageIdParams = z.object({ imageId: positiveIdParam }).strict();

@@ -7,7 +7,7 @@ import { imageUpload, uploadedFileName } from '../storage/imageUpload';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
-import { tripIdOnlyParams, tripGroupIdParams, tripDayParams } from '../validation/schemas/common.schemas';
+import { tripGroupIdParams, tripDayParams } from '../validation/schemas/common.schemas';
 import { dayCreateSchema, dayReorderSchema, dayUpdateSchema, tripListQuerySchema, tripWriteSchema } from '../validation/schemas/trip.schemas';
 
 const tripController = express.Router();
@@ -46,34 +46,34 @@ tripController.delete('/:tripGroupId', validateRequest({ params: tripGroupIdPara
 }));
 
 tripController.post(
-    '/:tripId/days',
-    validateRequest({ params: tripIdOnlyParams, body: dayCreateSchema }),
+    '/:tripGroupId/days',
+    validateRequest({ params: tripGroupIdParams, body: dayCreateSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const day = await tripService.createDay(actorFrom(req), routeParam(req.params.tripId), req.body);
+        const day = await tripService.createDay(actorFrom(req), routeParam(req.params.tripGroupId), req.body);
         res.status(201).json(day);
     }),
 );
 
 tripController.put(
-    '/:tripId/days/reorder',
-    validateRequest({ params: tripIdOnlyParams, body: dayReorderSchema }),
+    '/:tripGroupId/days/reorder',
+    validateRequest({ params: tripGroupIdParams, body: dayReorderSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const days = await tripService.reorderDays(actorFrom(req), routeParam(req.params.tripId), req.body);
+        const days = await tripService.reorderDays(actorFrom(req), routeParam(req.params.tripGroupId), req.body);
         res.status(200).json(days);
     }),
 );
 
 tripController.put(
-    '/:tripId/days/:dayId',
+    '/:tripGroupId/days/:tripId',
     validateRequest({ params: tripDayParams, body: dayUpdateSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
         const day = await tripService.updateDay(
             actorFrom(req),
+            routeParam(req.params.tripGroupId),
             routeParam(req.params.tripId),
-            routeParam(req.params.dayId),
             req.body,
         );
         res.status(200).json(day);
@@ -81,25 +81,25 @@ tripController.put(
 );
 
 tripController.delete(
-    '/:tripId/days/:dayId',
+    '/:tripGroupId/days/:tripId',
     validateRequest({ params: tripDayParams }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        await tripService.deleteDay(actorFrom(req), routeParam(req.params.tripId), routeParam(req.params.dayId));
+        await tripService.deleteDay(actorFrom(req), routeParam(req.params.tripGroupId), routeParam(req.params.tripId));
         res.status(204).send();
     }),
 );
 
 /** Ownership is validated before multer stores the file. */
 tripController.post(
-    '/:tripId/days/:dayId/images',
+    '/:tripGroupId/days/:tripId/images',
     validateRequest({ params: tripDayParams }),
     requireAuthentication,
     asyncHandler(async (req, _res, next) => {
         await tripService.assertDayImageUpload(
             actorFrom(req),
+            routeParam(req.params.tripGroupId),
             routeParam(req.params.tripId),
-            routeParam(req.params.dayId),
         );
         next();
     }),
@@ -107,8 +107,8 @@ tripController.post(
     asyncHandler(async (req, res) => {
         const image = await tripService.addDayImage(
             actorFrom(req),
+            routeParam(req.params.tripGroupId),
             routeParam(req.params.tripId),
-            routeParam(req.params.dayId),
             uploadedFileName(req),
         );
         res.status(201).json(image);

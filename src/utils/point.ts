@@ -2,7 +2,6 @@ import { MAX_POINT_DESCRIPTION_LENGTH, MAX_POINT_NAME_LENGTH } from '../constant
 import { VALIDATION_LIMITS } from '../constants/validation/limits';
 import { PointCreateRequest, PointUpdateRequest } from '../model/trip';
 import { ApiError } from './apiError';
-import { toNumberOrNull } from './utils';
 import {
     CLIENT_OWNERSHIP_FIELDS,
     asRecord,
@@ -23,10 +22,12 @@ const LONGITUDE = VALIDATION_LIMITS.point.lng;
 
 export function parsePointCreateBody(body: unknown): PointCreateRequest {
     const record = asRecord(body, 'Request body');
-    rejectClientControlledFields(record, [...CLIENT_OWNERSHIP_FIELDS, 'tripId', ...POINT_SEQUENCE_FIELDS], 'Point');
+    rejectClientControlledFields(record, [...CLIENT_OWNERSHIP_FIELDS, 'dayId', ...POINT_SEQUENCE_FIELDS], 'Point');
 
     return {
-        dayId: parsePositiveId(record.dayId, 'dayId'),
+        // The request `tripId` is the primary key `trips.id` of the day row the
+        // point is created in; it is forwarded to the parent lookup unchanged.
+        tripId: parsePositiveId(record.tripId, 'tripId'),
         name: requireTrimmedString(record.name, 'name', MAX_POINT_NAME_LENGTH),
         description: optionalString(record.description, 'description', MAX_POINT_DESCRIPTION_LENGTH),
         lat: requireNumberInRange(record.lat, 'lat', LATITUDE.min, LATITUDE.max),
@@ -57,11 +58,7 @@ export function parsePointUpdateBody(body: unknown): PointUpdateRequest {
     return request;
 }
 
-/** `pointNumber` is a VARCHAR column, but its values are always numeric. */
-export function sortPointsByNumber<T extends { pointNumber: string }>(points: T[]): T[] {
-    return [...points].sort((left, right) => {
-        const leftNumber = toNumberOrNull(left.pointNumber) ?? Number.MAX_SAFE_INTEGER;
-        const rightNumber = toNumberOrNull(right.pointNumber) ?? Number.MAX_SAFE_INTEGER;
-        return leftNumber - rightNumber;
-    });
+/** `pointNumber` is a signed INT column; the comparison is plain numeric. */
+export function sortPointsByNumber<T extends { pointNumber: number }>(points: T[]): T[] {
+    return [...points].sort((left, right) => left.pointNumber - right.pointNumber);
 }

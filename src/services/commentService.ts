@@ -41,11 +41,11 @@ export class CommentService {
         return toCommentListResponse(rows, actor, page.page, page.limit, total, reportedCommentIds);
     }
 
-    /** The day must belong to the trip from the URL; the day resource is a `trips` row. */
-    async listForDay(rawTripId: string, rawDayId: string, query: unknown, actor: TripActor | null): Promise<CommentListResponse> {
-        const dayId = await this.resolveDay(rawTripId, rawDayId);
+    /** The day must belong to the trip group from the URL; the day resource is a `trips` row. */
+    async listForDay(rawTripGroupId: string, rawTripId: string, query: unknown, actor: TripActor | null): Promise<CommentListResponse> {
+        const tripId = await this.resolveDay(rawTripGroupId, rawTripId);
 
-        return this.listForTarget(SOCIAL_TARGET_TYPE.DAY, String(dayId), query, actor);
+        return this.listForTarget(SOCIAL_TARGET_TYPE.DAY, String(tripId), query, actor);
     }
 
     async create(
@@ -77,13 +77,13 @@ export class CommentService {
 
     async createForDay(
         actor: TripActor,
+        rawTripGroupId: string,
         rawTripId: string,
-        rawDayId: string,
         body: unknown,
     ): Promise<CommentDto> {
-        const dayId = await this.resolveDay(rawTripId, rawDayId);
+        const tripId = await this.resolveDay(rawTripGroupId, rawTripId);
 
-        return this.create(actor, SOCIAL_TARGET_TYPE.DAY, String(dayId), body);
+        return this.create(actor, SOCIAL_TARGET_TYPE.DAY, String(tripId), body);
     }
 
     /** Only the author or a moderator may edit a comment; deleting is a moderation action. */
@@ -125,13 +125,13 @@ export class CommentService {
         return target;
     }
 
-    private async resolveDay(rawTripId: string, rawDayId: string): Promise<number> {
-        const tripId = parsePositiveId(rawTripId, 'Trip id');
+    private async resolveDay(rawTripGroupId: string, rawTripId: string): Promise<number> {
+        const tripGroupId = parsePositiveId(rawTripGroupId, 'Trip group id');
         const context = await this.targets.findContext({
             targetType: SOCIAL_TARGET_TYPE.DAY,
-            targetId: parsePositiveId(rawDayId, 'Day id'),
+            targetId: parsePositiveId(rawTripId, 'Trip id'),
         });
-        if (!context || context.tripGroupId !== tripId) throw ApiError.notFound('Day not found.');
+        if (!context || context.tripGroupId !== tripGroupId) throw ApiError.notFound('Day not found.');
 
         return context.targetId;
     }

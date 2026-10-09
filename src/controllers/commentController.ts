@@ -48,13 +48,13 @@ commentController.post(
 );
 
 commentController.get(
-    '/trips/:tripId/days/:dayId/comments',
+    '/trips/:tripGroupId/days/:tripId/comments',
     validateRequest({ params: tripDayParams, query: commentPageQuerySchema }),
     optionalAuthentication,
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForDay(
+            routeParam(req.params.tripGroupId),
             routeParam(req.params.tripId),
-            routeParam(req.params.dayId),
             req.query,
             optionalActor(req),
         );
@@ -63,14 +63,14 @@ commentController.get(
 );
 
 commentController.post(
-    '/trips/:tripId/days/:dayId/comments',
+    '/trips/:tripGroupId/days/:tripId/comments',
     validateRequest({ params: tripDayParams, body: commentBodySchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
         const comment = await commentService.createForDay(
             actorFrom(req),
+            routeParam(req.params.tripGroupId),
             routeParam(req.params.tripId),
-            routeParam(req.params.dayId),
             req.body,
         );
         res.status(201).json(comment);

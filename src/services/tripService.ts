@@ -193,7 +193,8 @@ export class TripService {
         await this.assertCanModify(actor, tripGroupId);
 
         const request = parseDayCreateBody(body);
-        const dayNumber = request.dayNumber ?? (await this.repository.findMaxDayNumber(tripGroupId)) + 1;
+        // `dayNumber` is required and user-selected; there is no `max + 1` fallback.
+        const dayNumber = request.dayNumber;
 
         const canonicalDay = await this.repository.findCanonicalDay(tripGroupId);
         // A day IS a `trips` row, so the id it is created with is the `tripId`
@@ -214,9 +215,9 @@ export class TripService {
         return this.toDetails(row, actor);
     }
 
-    async updateDay(actor: TripActor, rawTripGroupId: string, rawDayId: string, body: unknown): Promise<TripGroupResponse> {
+    async updateDay(actor: TripActor, rawTripGroupId: string, rawTripId: string, body: unknown): Promise<TripGroupResponse> {
         const tripGroupId = parseTripGroupId(rawTripGroupId);
-        const tripId = parsePositiveId(rawDayId, 'Day id');
+        const tripId = parsePositiveId(rawTripId, 'Trip id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
 
         const request = parseDayUpdateBody(body);
@@ -232,11 +233,12 @@ export class TripService {
         const tripGroupId = parseTripGroupId(rawTripGroupId);
         const ownerId = await this.assertCanModify(actor, tripGroupId);
 
-        // The API calls the ordered ids `dayIds`; each entry is a `trips` row id.
-        const tripIds = parseIdList(body, 'dayIds', 1);
+        // Each ordered id is the primary key `trips.id` of one day row — never a
+        // `dayNumber` and never a `trip_groups.id`.
+        const tripIds = parseIdList(body, 'tripIds', 1);
         const existing = await this.repository.listDayIds(tripGroupId);
         if (existing.length !== tripIds.length || tripIds.some((tripId) => !existing.includes(tripId))) {
-            throw ApiError.validation('"dayIds" must contain exactly all days of this trip.');
+            throw ApiError.validation('"tripIds" must contain exactly all days of this trip.');
         }
 
         await this.repository.reorderDays(tripGroupId, tripIds);
@@ -246,9 +248,9 @@ export class TripService {
         return toTripDayDtoList(days, states, getImageBaseUrl(), toResourcePermissions(actor, ownerId));
     }
 
-    async deleteDay(actor: TripActor, rawTripGroupId: string, rawDayId: string): Promise<void> {
+    async deleteDay(actor: TripActor, rawTripGroupId: string, rawTripId: string): Promise<void> {
         const tripGroupId = parseTripGroupId(rawTripGroupId);
-        const tripId = parsePositiveId(rawDayId, 'Day id');
+        const tripId = parsePositiveId(rawTripId, 'Trip id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
 
         if (await this.repository.countDays(tripGroupId) <= 1) {
@@ -272,9 +274,9 @@ export class TripService {
      * the URL, the actor must be allowed to change that group, and the day must
      * still have a free image slot. A refusal therefore never touches storage.
      */
-    async assertDayImageUpload(actor: TripActor, rawTripGroupId: string, rawDayId: string): Promise<void> {
+    async assertDayImageUpload(actor: TripActor, rawTripGroupId: string, rawTripId: string): Promise<void> {
         const tripGroupId = parseTripGroupId(rawTripGroupId);
-        const tripId = parsePositiveId(rawDayId, 'Day id');
+        const tripId = parsePositiveId(rawTripId, 'Trip id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
         await this.assertImageSlot(tripId);
     }
@@ -287,9 +289,9 @@ export class TripService {
      * The object is already in the bucket when this runs, so a row that cannot be
      * written removes it again.
      */
-    async addDayImage(actor: TripActor, rawTripGroupId: string, rawDayId: string, filePath: string): Promise<ImageDto> {
+    async addDayImage(actor: TripActor, rawTripGroupId: string, rawTripId: string, filePath: string): Promise<ImageDto> {
         const tripGroupId = parseTripGroupId(rawTripGroupId);
-        const tripId = parsePositiveId(rawDayId, 'Day id');
+        const tripId = parsePositiveId(rawTripId, 'Trip id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
 
         const imageId = await attachUploadedImage(
@@ -321,9 +323,9 @@ export class TripService {
     }
 
     /**
-     * The URL's `:dayId` is a `trips` row id (`Image.tripId` for that day), and the
-     * URL's `:tripId` is its `trip_groups` row. The day must belong to the group of
-     * the URL, and ownership is checked on that group.
+     * The URL's `:tripId` is a `trips` row id (`Image.tripId` for that day), and the
+     * URL's `:tripGroupId` is its `trip_groups` row. The day must belong to the group
+     * of the URL, and ownership is checked on that group.
      */
     private async assertDayAccess(actor: TripActor, tripGroupId: number, tripId: number): Promise<DayContext> {
         const day = await this.repository.findDayContext(tripId);

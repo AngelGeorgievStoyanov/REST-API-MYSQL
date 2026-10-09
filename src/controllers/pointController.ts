@@ -7,7 +7,7 @@ import { imageUpload, uploadedFileName } from '../storage/imageUpload';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
-import { dayIdParams, pointIdParams, pointImageParams, tripIdOnlyParams } from '../validation/schemas/common.schemas';
+import { pointIdParams, pointImageParams, tripIdOnlyParams } from '../validation/schemas/common.schemas';
 import { pointCreateSchema, pointUpdateSchema } from '../validation/schemas/point.schemas';
 import { pointReorderSchema } from '../validation/schemas/trip.schemas';
 
@@ -75,15 +75,15 @@ pointController.post(
 pointController.use(apiErrorMiddleware);
 pointController.use(routeNotFoundLogsMiddleware);
 
-/** The reorder of a day's points is addressed through the day. */
+/** The reorder of a day's points is addressed through the day row (`trips.id`). */
 const dayPointController = express.Router();
 
 dayPointController.put(
-    '/:dayId/points/reorder',
-    validateRequest({ params: dayIdParams, body: pointReorderSchema }),
+    '/:tripId/points/reorder',
+    validateRequest({ params: tripIdOnlyParams, body: pointReorderSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const points = await pointService.reorderPoints(actorFrom(req), routeParam(req.params.dayId), req.body);
+        const points = await pointService.reorderPoints(actorFrom(req), routeParam(req.params.tripId), req.body);
         res.status(200).json(points);
     }),
 );

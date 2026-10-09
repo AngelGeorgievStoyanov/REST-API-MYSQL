@@ -44,6 +44,7 @@ function toCurrencyDto(currencyKey: string | null, currencyOptions: SelectDispla
 export function toTripMetadataInput(ownerId: string, request: TripWriteRequest): TripMetadataInput {
     return {
         ownerId,
+        dayNumber: request.dayNumber,
         title: request.title,
         description: request.description,
         group: request.group,

@@ -11,7 +11,6 @@ import { toImageDto } from '../mappers/imageMapper';
 import { toPointDtoList, toPointUpdateInput, toPointWriteInput } from '../mappers/pointMapper';
 import { parsePointCreateBody, parsePointUpdateBody } from '../utils/point';
 import { parseIdList, parsePositiveId } from '../utils/validation';
-import { toNumberOrNull } from '../utils/utils';
 import { attachUploadedImage } from './imageAttachment';
 import { PointContext, PointDayContext, PointRepository } from '../repositories/pointRepository';
 import { SocialStateService } from './socialStateService';
@@ -62,8 +61,9 @@ export class PointService {
 
     async createPoint(actor: TripActor, body: unknown): Promise<TripPoint[]> {
         const request = parsePointCreateBody(body);
-        // The request field is the API's `dayId`; its value is the day row's `Trip.id`.
-        const day = await this.assertDayAccess(actor, request.dayId);
+        // The request `tripId` is the primary key `trips.id` of the day row the
+        // point is created in — not the trip-group id and not the dayNumber.
+        const day = await this.assertDayAccess(actor, request.tripId);
 
         await this.repository.create(day.tripId, actor.id, toPointWriteInput(request));
 
@@ -89,12 +89,12 @@ export class PointService {
         // Storage is cleared before the row, so a storage failure leaves the
         // database untouched instead of pointing at missing files.
         await this.imageStorage.removeMany(await this.repository.listImagePaths(pointId));
-        await this.repository.deleteAndCompact(point.tripId, pointId, toNumberOrNull(point.pointNumber) ?? 0);
+        await this.repository.deleteAndCompact(point.tripId, pointId, point.pointNumber);
     }
 
     /** `pointIds` is the complete, ordered list of the points of one day. */
-    async reorderPoints(actor: TripActor, rawDayId: string, body: unknown): Promise<TripPoint[]> {
-        const tripId = parsePositiveId(rawDayId, 'Day id');
+    async reorderPoints(actor: TripActor, rawTripId: string, body: unknown): Promise<TripPoint[]> {
+        const tripId = parsePositiveId(rawTripId, 'Trip id');
         const day = await this.assertDayAccess(actor, tripId);
 
         const pointIds = parseIdList(body, 'pointIds', 0);

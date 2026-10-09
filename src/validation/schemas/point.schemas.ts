@@ -5,12 +5,13 @@ import { optionalText, patchNumber, patchText, positiveId, requiredNumber, trimm
 const LIMITS = VALIDATION_LIMITS;
 
 /**
- * `dayId` is the API's name for the day the point belongs to; its value is the
- * `Trip.id` of that day row. `pointNumber` is assigned by the server from the
- * current children of that day and is never accepted here.
+ * `tripId` is the day the point belongs to: its value is the primary key
+ * `trips.id` of that day row — never the trip-group id and never
+ * `trips.dayNumber`. `pointNumber` is assigned by the server from the current
+ * children of that day and is never accepted here.
  */
 export const pointCreateSchema = z.object({
-    dayId: positiveId,
+    tripId: positiveId,
     name: trimmedString(LIMITS.point.name),
     description: optionalText(LIMITS.point.description),
     lat: requiredNumber(LIMITS.point.lat),

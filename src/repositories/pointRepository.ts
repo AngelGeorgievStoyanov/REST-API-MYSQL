@@ -3,7 +3,6 @@ import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { PointRecord, PointWriteInput } from '../model/trip';
 import { toPointRecord } from '../mappers/pointPersistenceMapper';
 import { sortPointsByNumber } from '../utils/point';
-import { toNumberOrNull } from '../utils/utils';
 import { deleteSocialRecordsForTargets, socialCleanupTargets } from './polymorphicTargets';
 import { attachImageWithinLimit } from './imageAttachment';
 import { runSerializableWithRetry } from './serializableTransaction';
@@ -13,7 +12,7 @@ export interface PointContext {
     id: number;
     /** The day row this point belongs to: `Point.tripId`, i.e. a `Trip.id`. */
     tripId: number;
-    pointNumber: string;
+    pointNumber: number;
     tripGroupId: number | null;
     groupOwnerId: string | null;
 }
@@ -108,7 +107,7 @@ export class PointRepository {
                     description: fields.description,
                     lat: fields.lat === null ? null : String(fields.lat),
                     lng: fields.lng === null ? null : String(fields.lng),
-                    pointNumber: String(pointNumber),
+                    pointNumber,
                     ownerId,
                     tripId,
                     createdAt: new Date(),
@@ -155,9 +154,8 @@ export class PointRepository {
                 select: { id: true, pointNumber: true },
             });
             for (const row of remaining) {
-                const value = toNumberOrNull(row.pointNumber);
-                if (value === null || value <= deletedNumber) continue;
-                await tx.point.update({ where: { id: row.id }, data: { pointNumber: String(value - 1) } });
+                if (row.pointNumber <= deletedNumber) continue;
+                await tx.point.update({ where: { id: row.id }, data: { pointNumber: row.pointNumber - 1 } });
             }
         });
     }
@@ -165,16 +163,19 @@ export class PointRepository {
     /** Renumbers every point of the day to its position in `pointIds`, in one transaction. */
     async reorder(tripId: number, pointIds: number[]): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
+            // Negative markers first: a point pushed to a later position must not
+            // collide with a not-yet-moved point that still holds that number.
+            // The column is a signed INT, so the markers are ordinary values.
             for (const [index, pointId] of pointIds.entries()) {
                 await tx.point.updateMany({
                     where: { id: pointId, tripId },
-                    data: { pointNumber: String(-(index + 1)) },
+                    data: { pointNumber: -(index + 1) },
                 });
             }
             for (const [index, pointId] of pointIds.entries()) {
                 await tx.point.updateMany({
                     where: { id: pointId, tripId },
-                    data: { pointNumber: String(index + 1) },
+                    data: { pointNumber: index + 1 },
                 });
             }
         });
@@ -234,11 +235,8 @@ export class PointRepository {
  * the insert can share the same SERIALIZABLE transaction without duplicating
  * the reduction.
  */
-async function maxPointNumber(client: Prisma.TransactionClient, tripId: number): Promise<number> {
+export async function maxPointNumber(client: Prisma.TransactionClient, tripId: number): Promise<number> {
     const points = await client.point.findMany({ where: { tripId }, select: { pointNumber: true } });
-    return points.reduce((max, point) => {
-        const value = toNumberOrNull(point.pointNumber);
-        return value !== null && value > max ? value : max;
-    }, 0);
+    return points.reduce((max, point) => (point.pointNumber > max ? point.pointNumber : max), 0);
 }
 

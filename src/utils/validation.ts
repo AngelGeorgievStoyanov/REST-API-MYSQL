@@ -34,6 +34,18 @@ export function optionalPositiveInt(value: unknown, field: string): number | nul
     return parsed;
 }
 
+/** Required positive integer with an optional policy cap; missing/null is a 400. */
+export function requirePositiveInt(value: unknown, field: string, max?: number): number {
+    const parsed = optionalPositiveInt(value, field);
+    if (parsed === null) {
+        throw ApiError.validation(`"${field}" is required.`);
+    }
+    if (max !== undefined && parsed > max) {
+        throw ApiError.validation(`"${field}" must be at most ${max}.`);
+    }
+    return parsed;
+}
+
 export function optionalNumberInRange(value: unknown, field: string, min: number, max: number): number | null {
     if (value === undefined || value === null || value === '') return null;
 

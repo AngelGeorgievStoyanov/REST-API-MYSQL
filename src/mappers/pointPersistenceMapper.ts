@@ -7,7 +7,7 @@ interface PointPersistenceInput {
     description: string | null;
     lat: string | null;
     lng: string | null;
-    pointNumber: string;
+    pointNumber: number;
     tripId: number | null;
     createdAt: Date | null;
     updatedAt: Date | null;

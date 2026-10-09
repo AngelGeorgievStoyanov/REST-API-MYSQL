@@ -191,7 +191,10 @@ model Point {
   // Live lat/lng are VARCHAR(45), not numeric.
   lat         String? @db.VarChar(45)
   lng         String? @db.VarChar(45)
-  pointNumber String  @db.VarChar(45)
+  // Signed INT NOT NULL: the values are always numeric and the reorder flow
+  // temporarily writes negative markers. The migration DDL normalizes the
+  // legacy VARCHAR(45) column (src/migration/ddl.ts).
+  pointNumber Int
   ownerId     String  @db.VarChar(36)
   owner       User    @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_points_owner")
   countEdited Int?    @default(0)

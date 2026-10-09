@@ -1,4 +1,5 @@
 import { dynamicConfig } from '../services/dynamicConfig';
+import { VALIDATION_LIMITS } from '../constants/validation/limits';
 import {
     DEFAULT_LIMIT,
     DEFAULT_PAGE,
@@ -22,10 +23,10 @@ import { ApiError } from './apiError';
 import { firstValue } from './utils';
 import {
     asRecord,
-    optionalPositiveInt,
     optionalString,
     rejectClientControlledFields,
     rejectOwnershipAndParentFields,
+    requirePositiveInt,
     requireTrimmedString,
 } from './validation';
 
@@ -123,6 +124,9 @@ export function parseTripBody(body: unknown): TripWriteRequest {
     rejectClientControlledFields(record, ['days', 'points'], 'Trip');
 
     return {
+        // The initial day's ordinal is user-selected and required; the server
+        // never substitutes a default day number.
+        dayNumber: requirePositiveInt(record.dayNumber, 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
         title: requireTrimmedString(record.title, 'title', MAX_TITLE_LENGTH),
         description: optionalString(record.description, 'description', MAX_DESCRIPTION_LENGTH),
         group: resolveSelectKey(GROUP_SELECT_TYPE, record.group, 'group'),
@@ -135,7 +139,8 @@ export function parseDayCreateBody(body: unknown): DayCreateRequest {
     rejectOwnershipAndParentFields(record, 'Day');
 
     return {
-        dayNumber: optionalPositiveInt(record.dayNumber, 'dayNumber'),
+        // Required, user-selected ordinal — no automatic `max + 1` fallback.
+        dayNumber: requirePositiveInt(record.dayNumber, 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
         title: optionalString(record.title, 'title', MAX_TITLE_LENGTH),
         description: optionalString(record.description, 'description', MAX_DESCRIPTION_LENGTH),
     };
