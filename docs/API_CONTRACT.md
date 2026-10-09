@@ -672,7 +672,7 @@ For `GET /trips` and `GET /trips/top`:
 ]
 ```
 
-For `GET /trips/:tripGroupId`, the same `TripGroupResponse` object shape is returned instead of an array. Its `days` property contains the same `TripGroupDay` objects shown above; the literal string placeholder is not a response value.`
+For `GET /trips/:tripGroupId`, the same `TripGroupResponse` object shape is returned instead of an array. Its `days` property contains the same `TripGroupDay` objects shown above; the literal string placeholder is not a response value.
 
 ### TripGroupDay
 
