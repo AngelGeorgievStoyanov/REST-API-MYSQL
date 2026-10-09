@@ -236,8 +236,16 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
       `points.pointNumber has unexpected column type "${pnRawType}"; refusing an unverified conversion.`,
     );
   } else {
+    // The validation SELECT must work on both shapes of the `points` table: the
+    // cloned legacy table keeps `_id`, while the new `id` column is only added
+    // by this DDL phase — which a dry-run does not execute. The identifier
+    // column is resolved from information_schema: the legacy `_id` wins when it
+    // exists, `id` is used only when `_id` is absent. The SELECT alias stays
+    // `id`, so the validation and the reported point identifiers are
+    // independent of the physical column name.
+    const idColumn = (await columnExists(prisma, db, 'points', '_id')) ? '_id' : 'id';
     const rows = (await prisma.$queryRawUnsafe(
-      `SELECT ${qi('id')} AS id, ${qi('pointNumber')} AS pointNumber FROM ${qtable(db, 'points')}`,
+      `SELECT ${qi(idColumn)} AS id, ${qi('pointNumber')} AS pointNumber FROM ${qtable(db, 'points')}`,
     )) as PointNumberRow[];
     const rejections = validatePointNumberRows(rows);
     if (rejections.length > 0) {
