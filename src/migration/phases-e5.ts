@@ -209,6 +209,31 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     }
   }
 
+  // 4b. Required V6 invariants narrowed to NOT NULL once the readiness report
+  //     above confirms no NULL rows remain: trips.dayNumber (the user-selected
+  //     ordinal of a day), trips.tripGroupId (the group every day belongs to)
+  //     and points.tripId (the day every point belongs to). These columns are
+  //     created NULL-able by the ddl/groupfinalize phases so the backfill can
+  //     park unresolved rows; activation is the single place they become NOT
+  //     NULL, matching prisma/schema.prisma. Idempotent: an already NOT NULL
+  //     column is skipped and a missing column stays pending (the readiness
+  //     report surfaces it), so the FK/index activation below runs on the final
+  //     shape.
+  for (const [table, column] of [
+    ['trips', 'dayNumber'],
+    ['trips', 'tripGroupId'],
+    ['points', 'tripId'],
+  ] as Array<[string, string]>) {
+    if ((await columnNullable(prisma, db, table, column)) === true) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, table)} MODIFY ${qi(column)} INT NOT NULL`,
+      );
+      c.migrated++;
+    } else {
+      c.skipped++;
+    }
+  }
+
   // 5a. Final indexes FIRST: MySQL reuses a suitable index for a FK, so no
   //     auto-created `fk_*` indexes appear (index set matches the live target).
   for (const [name, table, columns, unique] of INDEXES) {

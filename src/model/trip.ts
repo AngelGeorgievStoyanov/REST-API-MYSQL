@@ -49,7 +49,8 @@ export interface PointRecord {
     lat: number | null;
     lng: number | null;
     pointNumber: number;
-    tripId: number | null;
+    /** Required: the day row (`trips.id`) this point belongs to. */
+    tripId: number;
     createdAt: Date | null;
     updatedAt: Date | null;
     images: ImageRecord[];
@@ -61,7 +62,8 @@ export interface TripListDayRecord {
     description: string | null;
     transport: string | null;
     typeOfPeople: string | null;
-    dayNumber: number | null;
+    /** Required: the user-selected ordinal stored on the day row. */
+    dayNumber: number;
     createdAt: Date | null;
 }
 
@@ -126,7 +128,8 @@ export interface TripPoint {
     lat: number | null;
     lng: number | null;
     pointNumber: number;
-    tripId: number | null;
+    /** Required: the parent day row (`points.tripId` = `trips.id`). */
+    tripId: number;
     createdAt: string | null;
     updatedAt: string | null;
     images: SocialImageDto[];

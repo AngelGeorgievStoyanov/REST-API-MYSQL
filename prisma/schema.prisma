@@ -167,9 +167,12 @@ model Trip {
   lng          Float?
   countEdited  Int?       @default(0)
   currency     String?    @default("EUR") @db.VarChar(3)
-  dayNumber    Int?
-  tripGroupId  Int?
-  tripGroup    TripGroup? @relation(fields: [tripGroupId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_trips_group")
+  // Required invariants (V6 data model): every day row belongs to exactly one
+  // trip group and carries a user-selected ordinal. The migration pipeline
+  // (src/migration) backfills these before activation and refuses NULLs.
+  dayNumber    Int
+  tripGroupId  Int
+  tripGroup    TripGroup @relation(fields: [tripGroupId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_trips_group")
 
   createdAt DateTime?
   updatedAt DateTime? @updatedAt
@@ -198,8 +201,11 @@ model Point {
   ownerId     String  @db.VarChar(36)
   owner       User    @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_points_owner")
   countEdited Int?    @default(0)
-  tripId      Int?
-  trip        Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_points_trip")
+  // Required: every point belongs to exactly one day row (`trips.id`).
+  // Enforced by fk_points_trip after the migration's backfill + NOT NULL
+  // activation (src/migration); unattached legacy points are repaired first.
+  tripId      Int
+  trip        Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_points_trip")
 
   createdAt DateTime?
   updatedAt DateTime? @updatedAt

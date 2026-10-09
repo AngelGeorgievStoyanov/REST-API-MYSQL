@@ -394,7 +394,7 @@ export class TripRepository {
     ): Promise<number | null> {
         try {
             const day = await this.prisma.trip.create({
-                data: this.dayCreateData(ownerId, dayNumber, fields.title, fields.description, group, transport, groupId),
+                data: { ...this.dayCreateData(ownerId, dayNumber, fields.title, fields.description, group, transport), tripGroupId: groupId },
                 select: { id: true },
             });
             return day.id;
@@ -538,8 +538,11 @@ export class TripRepository {
         description: string | null,
         group: string | null,
         transport: string | null,
-        tripGroupId?: number,
-    ): Prisma.TripUncheckedCreateInput {
+    ): Prisma.TripUncheckedCreateWithoutTripGroupInput {
+        // `tripGroupId` is intentionally omitted: `createTrip` writes this row as
+        // a nested child of the group (the relation supplies the FK), while
+        // `createDay` adds the required `tripGroupId` explicitly on a standalone
+        // `trip.create`. The column is NOT NULL in the target schema.
         return {
             title: title ?? '',
             description,
@@ -548,7 +551,6 @@ export class TripRepository {
             dayNumber,
             countPeoples: DEFAULT_COUNT_PEOPLES,
             ownerId,
-            tripGroupId,
             createdAt: new Date(),
         };
     }

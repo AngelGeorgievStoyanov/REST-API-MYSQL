@@ -939,7 +939,7 @@ The controller must not contain GCS access logic, random-selection logic, file-l
 ### 8.14 GET `/trips/:tripId/points`
 
 * Auth: `optionalAuthentication` (public read; an anonymous request uses the public Frontend token).
-* Path params (strict): `{ tripId }`; `tripId` is the day row's `Trip.id`. Every point returned by this collection is attached to that day and has this value in its non-null `TripPoint.tripId` field. `TripPoint.tripId` remains nullable in the general point DTO because the data model permits unattached points.
+* Path params (strict): `{ tripId }`; `tripId` is the day row's `Trip.id`. Every point belongs to exactly one day row and carries that day's `Trip.id` in its `TripPoint.tripId` field (`points.tripId` is required and is never null).
 * Response `200`: raw `TripPoint[]` — the complete point collection of that day, in `pointNumber` order.
 * Every element is the full `TripPoint` response DTO (§10.7): `images` with image social state, point `social` state and server-computed `permissions` included.
 * A missing day -> `404 NOT_FOUND`; an existing day without points -> `200` with an empty array.
@@ -1008,7 +1008,7 @@ Mounted at `/api/v1/points`.
 
 ### 10.7 `TripPoint` (point response DTO)
 
-The point response keeps the public database-aligned field names and types for the point data. `tripId` is nullable in the data model; when non-null, it identifies the parent day row (`points.tripId` = `trips.id`). Internal fields `ownerId` and `countEdited` are never exposed. `createdAt`/`updatedAt` are returned as ISO strings. Social and image data are API-level additions.
+The point response keeps the public database-aligned field names and types for the point data. `tripId` is required (non-null) and identifies the parent day row (`points.tripId` = `trips.id`); every point is attached to exactly one day. Internal fields `ownerId` and `countEdited` are never exposed. `createdAt`/`updatedAt` are returned as ISO strings. Social and image data are API-level additions.
 
  ```text
 {
@@ -1035,7 +1035,7 @@ Non-negotiable point field rules:
 * `name` is the database `Point.name` field; do not rename it to `title`.
 * `lat` and `lng` are the database coordinate fields; do not rename them to `latitude` / `longitude`.
 * `pointNumber` is returned as a JSON **number**: the column is a signed INT managed entirely by the backend (`max + 1` on create, renumbering on reorder/delete).
-* `tripId` is nullable in `TripPoint`; when non-null, it is the parent day-row reference (`trips.id`). It is required from the client in `POST /points` (as the day the point belongs to) and is never accepted in point update requests.
+* `tripId` is required (non-null) in `TripPoint`; it is always the parent day-row reference (`trips.id`). It is required from the client in `POST /points` (as the day the point belongs to) and is never accepted in point update requests.
 * `ownerId` is never returned to the Frontend. Ownership is resolved server-side.
 * `permissions` is the server-computed edit/delete right of the requesting actor; anonymous callers receive `canEdit: false` and `canDelete: false`.
 * `images` and `social` remain API-level nested fields.

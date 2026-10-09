@@ -64,7 +64,7 @@ export function toTripDayDto(
 ): TripDay {
     return {
         id: row.id,
-        dayNumber: row.dayNumber ?? 0,
+        dayNumber: row.dayNumber,
         title: row.title,
         images: row.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
         points: row.points.map((point) => toPointDto(point, states, imageBaseUrl, permissions)),
@@ -93,7 +93,7 @@ export function toTripGroupDay(
 ): TripGroupDay {
     return {
         id: row.id,
-        dayNumber: row.dayNumber ?? 0,
+        dayNumber: row.dayNumber,
         title: row.title,
         description: row.description,
         price: row.price ?? null,

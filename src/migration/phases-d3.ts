@@ -100,6 +100,12 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     );
     if (dupGroupDay !== null) inputs.push({ stmt: 'UNIQUE trips(tripGroupId, dayNumber)', n: dupGroupDay });
   }
+  // trips.dayNumber is NOT NULL in the target schema (V6): a NULL ordinal blocks
+  // the NOT NULL activation, exactly like trips.tripGroupId / points.tripId above.
+  const dayNumberNull = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} WHERE ${qi('dayNumber')} IS NULL`);
+  inputs.push(dayNumberNull === null
+    ? { stmt: 'trips.dayNumber NOT NULL ready', pending: 'trips.dayNumber column missing (ddl phase not applied yet)' }
+    : { stmt: 'trips.dayNumber NOT NULL ready', n: dayNumberNull });
   const pointsNull = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'points')} WHERE ${qi('tripId')} IS NULL`);
   inputs.push(pointsNull === null
     ? { stmt: 'FK points.tripId -> trips.id', pending: 'points.tripId column missing (ddl phase not applied yet)' }

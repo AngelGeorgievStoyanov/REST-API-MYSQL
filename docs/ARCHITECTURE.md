@@ -499,7 +499,7 @@ Day images keep the existing `SocialImageDto` structure:
 }
 ```
 
-Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; coordinates use `lat`/`lng`, not `latitude`/`longitude`. `tripId` is nullable in the data model; when non-null, it identifies the parent day row (`points.tripId` = `trips.id`). Internal fields `countEdited` and `ownerId` are excluded; `createdAt`/`updatedAt` are returned as ISO strings.
+Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; coordinates use `lat`/`lng`, not `latitude`/`longitude`. `tripId` is required (non-null) and identifies the parent day row (`points.tripId` = `trips.id`); every point is attached to exactly one day. Internal fields `countEdited` and `ownerId` are excluded; `createdAt`/`updatedAt` are returned as ISO strings.
 
 ```text
 {

@@ -8,7 +8,7 @@ interface PointPersistenceInput {
     lat: string | null;
     lng: string | null;
     pointNumber: number;
-    tripId: number | null;
+    tripId: number;
     createdAt: Date | null;
     updatedAt: Date | null;
     images: { id: number; filePath: string }[];
