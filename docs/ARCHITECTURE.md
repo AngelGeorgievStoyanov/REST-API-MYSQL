@@ -127,7 +127,6 @@ Persistence mappers are separate from API mappers and convert persistence repres
 * `src/migration/`: guarded database migration tooling.
 * `src/utils/`: shared helpers.
 * `prisma/`: Prisma schema, seed data, and migrations.
-* `scripts/`: repository maintenance scripts.
 * `build/`: generated TypeScript output and is not source of truth.
 
 ## Public API contract (V6)
@@ -358,11 +357,11 @@ The `/api/v1` endpoint inventory below is derived from the mounted routers and c
 | Auth           | `POST /auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/confirm-password`, `/auth/forgot-password`, `/auth/reset-password`; `GET /auth/me`, `/auth/me/image`; `PUT /auth/me`, `/auth/me/password`; `POST /auth/me/image`; `DELETE /auth/me/image` |
 | Admin          | `GET /admin/users`; `PUT` and `DELETE /admin/users/:userId`; `GET /admin/failed-login-logs`; `DELETE /admin/failed-login-logs`; `GET /admin/route-not-found-logs`; `GET /admin/images/cloud`, `/admin/images/database`, `/admin/images/orphans`                                                                            |
 | Config         | `GET /config/selects`, `/config/services`                                                                                                                                                                                                                                                                                  |
-| Comments       | `GET` and `POST /trip-groups/:tripGroupId/comments`; `/trips/:tripId/days/:dayId/comments`; `/points/:pointId/comments`; `/images/:imageId/comments`; `PUT` and `DELETE /comments/:commentId`                                                                                                                              |
-| Trips and days | `GET /trips`, `/trips/:id`; `POST /trips`, `/trips/:tripId/days`, `/trips/:tripId/days/:dayId/images`; `PUT /trips/:tripId/days/reorder`, `/trips/:tripId/days/:dayId`; `DELETE /trips/:id`, `/trips/:tripId/days/:dayId` |
+| Comments       | `GET` and `POST /trip-groups/:tripGroupId/comments`; `/trips/:tripGroupId/days/:tripId/comments`; `/points/:pointId/comments`; `/images/:imageId/comments`; `PUT` and `DELETE /comments/:commentId`                                                                                                                              |
+| Trips and days | `GET /trips`, `/trips/:tripGroupId`; `POST /trips`, `/trips/:tripGroupId/days`, `/trips/:tripGroupId/days/:tripId/images`; `PUT /trips/:tripGroupId/days/reorder`, `/trips/:tripGroupId/days/:tripId`; `DELETE /trips/:tripGroupId`, `/trips/:tripGroupId/days/:tripId` |
 | Trip discovery/social | `GET /trips/top`, `GET /trips/background`; public discovery endpoints use the public Frontend token |
 | Current-user trips/favorites | `GET /me/trips`, `GET /me/favorites`; authenticated user-specific endpoints resolve the user from authentication and do not accept a `userId` route parameter |
-| Points         | `POST /points`; `GET /trips/:tripId/points`, `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:dayId/points/reorder`                                                                                                                                  |
+| Points         | `POST /points`; `GET /trips/:tripId/points`, `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:tripId/points/reorder`                                                                                                                                  |
 | Images         | `DELETE /images/:imageId`                                                                                                                                                                                                                                                                                                  |
 | Likes          | `POST` and `DELETE /likes`                                                                                                                                                                                                                                                                                                 |
 | Favorites      | `POST` and `DELETE /favorites`                                                                                                                                                                                                                                                                                             |
@@ -381,11 +380,11 @@ Request bodies, queries, and route parameters are validated by Zod schemas under
 
 Important DTO families include:
 
-* `AuthSessionDto` contains a bearer access token and public `AuthUserDto`; refresh tokens are delivered only through an HttpOnly cookie.
-* The three trip GET endpoints (`GET /trips`, `GET /trips/top`, `GET /trips/:id`) use the shared Trip Group response structure defined in the Trip GET response contract below.
+* `AuthSessionDto` contains a bearer access token and the public `ProfileDto` (email, names, optional `permissions`); refresh tokens are delivered only through an HttpOnly cookie.
+* The three trip GET endpoints (`GET /trips`, `GET /trips/top`, `GET /trips/:tripGroupId`) use the shared Trip Group response structure defined in the Trip GET response contract below.
 * Trip GET and trip write responses use the Trip Group response model described in the trip response sections. Trip Group contains only `tripGroupId`, global `social`, and `days[]`; day-specific metadata belongs inside each Day.
 * `CommentListResponse` is paginated.
-* Comment writes use `{ text }`; authorship comes from the authenticated actor.
+* Comment writes use `{ comment }`; authorship comes from the authenticated actor.
 * `ImageDto` contains `id`, `url`, and `thumbnailUrl`; storage object paths are not exposed as the API image contract.
 * Social mutations identify a target using target type and ID; the acting user comes from authentication.
 * Admin lists return bounded items with pagination metadata.
@@ -400,7 +399,7 @@ The following three GET endpoints use the same Trip Group response structure:
 ```text
 GET /api/v1/trips
 GET /api/v1/trips/top
-GET /api/v1/trips/:id
+GET /api/v1/trips/:tripGroupId
 ```
 
 A **Trip Group** is only the grouping container. It does not have its own title, description, group, transport, author, cover image, or other day metadata.
@@ -423,7 +422,7 @@ For `GET /trips` and `GET /trips/top`:
 ]
 ```
 
-For `GET /trips/:id`:
+For `GET /trips/:tripGroupId`:
 
 ```json
 {
@@ -494,7 +493,7 @@ Day images keep the existing `SocialImageDto` structure:
 }
 ```
 
-Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; coordinates use `lat`/`lng`, not `latitude`/`longitude`. `tripId` is included as the public parent-trip reference. Internal fields `countEdited`, `ownerId`, `createdAt`, and `updatedAt` are excluded.
+Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; coordinates use `lat`/`lng`, not `latitude`/`longitude`. `tripId` is the day row the point belongs to (`points.tripId` = `trips.id`). Internal fields `countEdited` and `ownerId` are excluded; `createdAt`/`updatedAt` are returned as ISO strings.
 
 ```json
 {
@@ -503,7 +502,7 @@ Points use the following public `TripPoint` structure. Field names follow the da
   "description": "Point description",
   "lat": 42.6975,
   "lng": 23.3241,
-  "pointNumber": "1",
+  "pointNumber": 1,
   "tripId": 1001,
   "images": [ SocialImageDto ],
   "permissions": {
@@ -513,6 +512,8 @@ Points use the following public `TripPoint` structure. Field names follow the da
   "social": SocialState
 }
 ```
+
+`pointNumber` is a JSON number: the column is a signed INT managed entirely by the backend.
 
 `permissions` is server-computed per request from the resource owner and the authenticated actor; anonymous callers receive `canEdit: false` and `canDelete: false`.
 
@@ -546,10 +547,10 @@ Days are ordered by `dayNumber` ascending, with `id` ascending as the tie-break.
 * A trip group is returned only once regardless of how many day rows it contains.
 * The response structure is exactly the same as `GET /trips`.
 
-### GET /trips/:id
+### GET /trips/:tripGroupId
 
 * Auth: `optionalAuthentication`.
-* Path parameter `id` is the `tripGroupId` (INT, autoincrement), not a day row id.
+* Path parameter `tripGroupId` is the `trip_groups.id` (INT, autoincrement), not a day row id.
 * Response `200`: one `TripGroupResponse).
 * The response always contains the complete trip group: `tripGroupId`, trip-group `social), and all of its `days[]`.
 * If the Frontend opens a specific day, it may select that day from the returned `days[]), but the backend still returns the complete trip group.
@@ -558,7 +559,7 @@ Days are ordered by `dayNumber` ascending, with `id` ascending as the tie-break.
 All three endpoints therefore share the same nested data model; only the cardinality differs:
 * `/trips` -> array of trip groups;
 * `/trips/top` -> array of up to 5 trip groups;
-* `/trips/:id` -> one trip group.
+* `/trips/:tripGroupId` -> one trip group.
 
 
 ## Trip write endpoints and response structure
@@ -569,19 +570,21 @@ The write endpoints use the following rules:
 
 ### POST /api/v1/trips
 
-Creates a new Trip Group together with its first Day.
+Creates a new Trip Group together with its initial Day.
 
-The request contains the data required to create the day. The backend creates the `tripGroupId` and the first `trips` row in the same operation.
+The request contains `dayNumber` — the user-selected ordinal of the initial day (required positive integer, 1..500; missing/invalid values are rejected with `400 VALIDATION_ERROR`, the server never defaults it) — plus the data required to create the day. The backend creates the `tripGroupId` and the first `trips` row with exactly the submitted `dayNumber` in the same operation; if the day row cannot be written, the trip group is not created either.
 
 Response `201`: **one `TripGroupResponse`**.
 
 The response is the source of truth for the newly created `tripGroupId` and Day `id`. The Frontend can therefore continue directly to Trip Details or Add Points without another GET request.
 
-### POST /api/v1/trips/:tripId/days
+### POST /api/v1/trips/:tripGroupId/days
 
 Adds another Day to an existing Trip Group.
 
-`:tripId` is the **tripGroupId**, not a day id.
+`:tripGroupId` is the **tripGroupId**, not a day id.
+
+The request body contains a **required `dayNumber`** — the user-selected ordinal of the new day row (positive integer, 1..500). It is persisted exactly as submitted; the server never assigns `max(dayNumber) + 1` or any other default. A missing or invalid value is rejected with `400 VALIDATION_ERROR`. A duplicate `dayNumber` within the same trip group is rejected with `409 CONFLICT` ("Day N already exists in this trip."); the same number in a different trip group is allowed.
 
 Response `201`: **one `TripGroupResponse`** containing the complete trip group after the new day has been created.
 
@@ -589,57 +592,57 @@ The response includes all existing days, including the newly created day. The Fr
 
 This endpoint is also used by the "Add Next Day Trip" flow. The Frontend remains on the day creation form after the request and uses the returned Trip Group response to persist the current trip-group/day state and prepare the next day.
 
-### PUT /api/v1/trips/:tripId/days/reorder
+### PUT /api/v1/trips/:tripGroupId/days/reorder
 
 Reorders existing days inside a Trip Group.
 
-`:tripId` is the tripGroupId and the request contains the existing day IDs in the desired order.
+`:tripGroupId` is the tripGroupId and the request body (`{ tripIds: number[] }`) contains the existing day-row ids (`trips.id`) in the desired order; each day is renumbered to its position in the submitted order.
 
 Response `200`: the existing `TripDay[]` reorder response remains unchanged unless separately revised.
 
-### PUT /api/v1/trips/:tripId/days/:dayId
+### PUT /api/v1/trips/:tripGroupId/days/:tripId
 
 Updates one existing Day.
 
-`:tripId` is the **tripGroupId** and `:dayId` is the **trips.id** of the specific Day.
+`:tripGroupId` is the **tripGroupId** and `:tripId` is the **trips.id** of the specific Day.
 
 Response `200`: **one `TripGroupResponse`** containing the complete trip group after the update.
 
 The response is directly usable by the Frontend Trip Details page. When the user edited a specific Day, the Frontend can select that Day from the returned `days[]` using its `id`/ `dayNumber` and display the updated persisted data immediately without a second GET request.
 
-`PUT /api/v1/trips/:id` is not part of the current trip architecture. Trip Group has no editable metadata endpoint because title, description, price, currency, transport, and group belong to Days rather than the Trip Group.
+`PUT /api/v1/trips/:tripGroupId` is not part of the current trip architecture. Trip Group has no editable metadata endpoint because title, description, price, currency, transport, and group belong to Days rather than the Trip Group.
 
-### DELETE /api/v1/trips/:id
+### DELETE /api/v1/trips/:tripGroupId
 
 Deletes the complete Trip Group and all of its Days.
 
-`:id` is the **tripGroupId**.
+`:tripGroupId` is the **tripGroupId**.
 
 Response remains `204 No Content`.
 
 The delete removes the social records of the trip group, its days, points and images in the same transaction (see "Social cleanup on resource deletion"); this includes the favorites whose FK would otherwise block the group delete.
 
-### DELETE /api/v1/trips/:tripId/days/:dayId
+### DELETE /api/v1/trips/:tripGroupId/days/:tripId
 
 Deletes one Day from a Trip Group.
 
-`:tripId` is the tripGroupId and `:dayId` is the Day row id.
+`:tripGroupId` is the tripGroupId and `:tripId` is the Day row id (`trips.id`).
 
 Response remains `204 No Content`.
 
 The delete removes the social records of the day, its points and all of their images in the same transaction (see "Social cleanup on resource deletion").
 
-### POST /api/v1/trips/:tripId/days/:dayId/images
+### POST /api/v1/trips/:tripGroupId/days/:tripId/images
 
 Adds an image to a specific Day.
 
-`:tripId` is the tripGroupId and `:dayId` is the Day row id.
+`:tripGroupId` is the tripGroupId and `:tripId` is the Day row id (`trips.id`).
 
 Response remains the existing `ImageDto` contract.
 
 ### Points collection and create/update responses
 
-The point collection of one day row is a public read. `:tripId` addresses the day row (`Point.tripId`), the same value `POST /api/v1/points` accepts as `dayId`.
+The point collection of one day row is a public read. `:tripId` addresses the day row (`Point.tripId`), the same value `POST /api/v1/points` accepts as `tripId`.
 
 * `GET /api/v1/trips/:tripId/points` -> `200` with the complete `TripPoint[]` collection of that day in `pointNumber` order, with the full point response (images with image social state, point social state and server-computed `permissions`).
 
@@ -671,8 +674,8 @@ Deleting a resource removes the social records of every level that is being remo
 | ------ | ---------------------- |
 | `DELETE /api/v1/images/:imageId`, `DELETE /api/v1/points/:pointId/images/:imageId` | the image's (likes/comments/reports and any future relationship) |
 | `DELETE /api/v1/points/:pointId` | the point's and every image's of that point |
-| `DELETE /api/v1/trips/:tripId/days/:dayId` | the day's, its points' and all of their images' |
-| `DELETE /api/v1/trips/:id` | the trip group's, its days', points' and images' |
+| `DELETE /api/v1/trips/:tripGroupId/days/:tripId` | the day's, its points' and all of their images' |
+| `DELETE /api/v1/trips/:tripGroupId` | the trip group's, its days', points' and images' |
 | `DELETE /api/v1/comments/:commentId` | the reports targeting the comment |
 
 Favorites are trip-group scoped (`favorites.tripGroupId`, FK NO ACTION). They are removed by the same cleanup before the trip group row is deleted, so a favorite can never survive as an orphan and can never block a group delete. Profile image removal and profile image replacement delete the replaced image's social records the same way.
@@ -1129,7 +1132,7 @@ Development mail transport may write generated messages to the operating-system 
 * returns only trip groups owned by that authenticated user;
 * uses the authenticated user's UUID only server-side for ownership filtering;
 * returns raw `TripGroupResponse[]`;
-* uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:id`;
+* uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:tripGroupId`;
 * serializes only `tripGroupId`, trip-group `social`, and the existing `days[]` structure;
 * never serializes `userId`, `ownerId`, or an author/owner object;
 * never uses a client-supplied user id to establish ownership;
@@ -1144,7 +1147,7 @@ Development mail transport may write generated messages to the operating-system 
 * favorites are associated with `tripGroupId`;
 * resolves the corresponding trip groups/trips from those persisted favorite relationships;
 * returns raw `TripGroupResponse[]`;
-* uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:id`;
+* uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:tripGroupId`;
 * serializes only `tripGroupId`, trip-group `social`, and the existing `days[]` structure;
 * never serializes `userId`, `ownerId`, or an author/owner object, including the owner id of a favorited trip created by another user;
 * never serializes the authenticated user's UUID or favorite-record ownership fields;
