@@ -1214,7 +1214,7 @@ The following are part of the current production architecture:
 * the public bearer token does not authenticate a user;
 * the public bearer token does not establish ownership;
 * invalid user JWTs never fall back to anonymous authentication;
-* invalid user JWTs use the `401 UNAUTHORIZED` for an invalid/expired user JWT; `404 NOT_FOUND` for a missing or malformed bearer;
+* invalid or expired user JWTs return `401 UNAUTHORIZED`; a missing or malformed bearer returns `404 NOT_FOUND`; invalid tokens never fall back to anonymous authentication;
 * valid JWTs are evaluated against current database account status;
 * suspended/deactivated users follow the existing account-status authentication behavior;
 * anonymous/public permissions are read-only;
