@@ -566,7 +566,7 @@ A **Trip Group** is only the grouping container. It has no title, description, t
 
 The **`tripGroupId`** identifies the grouping record. It is an integer database id. Every day in `days[]` belongs to that trip group through this id. In the response JSON the trip group is serialized as the `id` field of the `TripGroupResponse` root (next to `permissions` and `social`); there is no `tripGroupId` field in the response body.
 
-A trip group does not generate missing day numbers. For example, a trip group may contain exactly Day 1, Day 3, and Day 5.
+Every day row must have a non-null `dayNumber`. Day numbers are explicitly selected and may contain gaps; the server does not generate or fill them automatically. For example, a trip group may contain Day 1, Day 3, and Day 5.
 
 ### Shared response shape
 
@@ -754,7 +754,7 @@ The trip-group social state is the global social state for the whole trip. In pa
 
 Day comments remain day-scoped. There is no separate day-independent comment count used for the trip-group like/favorite behavior.
 
-Days are ordered by `dayNumber ASC`, with `id ASC` as the tie-breaker. Missing day numbers are preserved; they are never generated.
+Days are ordered by `dayNumber ASC`, with `id ASC` as the tie-breaker. Gaps in the `dayNumber` sequence are preserved; day numbers are never generated or defaulted by the server.
 
 Points are ordered by `pointNumber ASC`, with `id ASC` as the tie-breaker.
 
