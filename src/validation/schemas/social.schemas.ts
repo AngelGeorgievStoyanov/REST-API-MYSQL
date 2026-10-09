@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { VALIDATION_LIMITS } from '../../constants/validation/limits';
-import { optionalInt, optionalText, positiveId, reportTargetTypeInput, targetTypeInput, trimmedString } from './common.schemas';
+import { optionalInt, optionalText, positiveId, positiveIdQuery, reportTargetTypeInput, targetTypeInput, trimmedString } from './common.schemas';
 
 const LIMITS = VALIDATION_LIMITS;
 
@@ -10,14 +10,14 @@ export const socialTargetBodySchema = z.object({
     targetId: positiveId,
 }).strict();
 
-/** The same target, sent in the query string of the DELETE operations. */
+/** The same target, sent in the query string of the DELETE operations (query values arrive as strings). */
 export const socialTargetQuerySchema = z.object({
     targetType: targetTypeInput,
-    targetId: positiveId,
+    targetId: positiveIdQuery,
 }).strict();
 
 export const favoriteBodySchema = z.object({ tripGroupId: positiveId }).strict();
-export const favoriteQuerySchema = z.object({ tripGroupId: positiveId }).strict();
+export const favoriteQuerySchema = z.object({ tripGroupId: positiveIdQuery }).strict();
 
 export const commentBodySchema = z.object({
     comment: trimmedString(LIMITS.comment.comment),

@@ -53,17 +53,15 @@ export function patchText(bounds: StringBounds): z.ZodType<string | null | undef
         .transform((value) => (value === undefined ? undefined : value === null || value === '' ? null : value));
 }
 
-/** Required number; a numeric string is accepted because JSON and query strings differ. */
+/** Required number of a JSON body: a true JSON number within the bounds. */
 export function requiredNumber(bounds: NumberBounds): z.ZodType<number> {
-    return z.union([z.number(), z.string().min(VALIDATION_LIMITS.input.minTextLength).transform(Number)])
-        .pipe(z.number().min(bounds.min).max(bounds.max));
+    return z.number().min(bounds.min).max(bounds.max);
 }
 
-/** Number of a partial update; `null` explicitly clears the column. */
+/** Number of a partial JSON-body update; `null` explicitly clears the column. */
 export function patchNumber(bounds: NumberBounds): z.ZodType<number | null | undefined> {
     return z.union([
         z.number().min(bounds.min).max(bounds.max),
-        z.string().min(VALIDATION_LIMITS.input.minTextLength).transform(Number).pipe(z.number().min(bounds.min).max(bounds.max)),
         z.null(),
     ]).optional();
 }
@@ -77,12 +75,12 @@ export function optionalInt(bounds: NumberBounds): z.ZodType<number | undefined>
 }
 
 /**
- * Required integer input; a numeric string is accepted because JSON and query
- * strings differ. A missing, null or empty value fails the bounds check, so it
- * can never fall back to a default.
+ * Required integer of a JSON body: a true JSON number that is also an integer
+ * within the bounds. A missing, null, boolean, string or fractional value fails
+ * the check, so it can never fall back to a default.
  */
 export function requiredInt(bounds: NumberBounds): z.ZodType<number> {
-    return z.coerce.number().int().min(bounds.min).max(bounds.max);
+    return z.number().int().min(bounds.min).max(bounds.max);
 }
 
 /** Path segment of an `INT AUTO_INCREMENT` id; it stays a string for Express. */
@@ -110,8 +108,21 @@ export const adminReportIdParams = z.object({ reportId: positiveIdParam }).stric
 /** `:reportId` of the author-facing report removal route. */
 export const reportIdParams = z.object({ reportId: positiveIdParam }).strict();
 
-/** Numeric resource id inside a JSON body or a query string. */
-export const positiveId = z.coerce.number()
+/**
+ * Numeric resource id inside a JSON body: a true JSON number (an integer within
+ * the id bounds). Strings, booleans, `null` and fractional values are rejected.
+ */
+export const positiveId = z.number()
+    .int()
+    .min(VALIDATION_LIMITS.id.min)
+    .max(VALIDATION_LIMITS.id.max);
+
+/**
+ * Numeric resource id inside a query string. Query parameters always arrive as
+ * strings, so a numeric string is coerced to a number before the same bounds
+ * apply. Used only for query schemas, never for JSON bodies.
+ */
+export const positiveIdQuery = z.coerce.number()
     .int()
     .min(VALIDATION_LIMITS.id.min)
     .max(VALIDATION_LIMITS.id.max);
