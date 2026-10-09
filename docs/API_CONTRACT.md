@@ -94,7 +94,7 @@ Administrative rate limit (applied to every admin endpoint):
 * Request validation uses Zod with `.strict()` on every body/params/query schema: undeclared body fields, query parameters, and route parameters are rejected with `400 VALIDATION_ERROR`.
 * Endpoints that declare no body/query/params must receive an empty corresponding part; a non-empty undeclared part is rejected with `400 VALIDATION_ERROR`.
 * A rejected request is `400` with code `VALIDATION_ERROR` and a message naming the offending field. At most 3 issues are reported per validation failure.
-* Numeric fields of a JSON body must be true JSON numbers: a string, boolean, `null`, or fractional value where an integer is required is rejected with `400 VALIDATION_ERROR`.
+* Numeric fields in a JSON body must use actual JSON numbers; numeric strings and booleans are rejected. Integer fields reject fractional values. `null` is rejected unless that specific schema explicitly allows it (for example, `lat` and `lng` in `PUT /points/:pointId`, where `null` clears the coordinate).
 * Numeric query parameters arrive as strings and are parsed to numbers by their query schemas; route parameters are validated as digit strings (positive integer ids) or UUID strings (`userId`).
 * Validated request parts are handed to the service layer, which re-reads them through its own domain parsers (dynamic-config select resolution, rejection of client-controlled ownership/parent/sequence fields) before persistence.
 
@@ -189,10 +189,10 @@ The endpoint:
 
 * is read-only and must not rotate, revoke, create, or modify a refresh token;
 * must not return an access token, refresh token, user id, email, role, account status, or other user/account data;
-* must not establish an authenticated access-token context;
+* does not use access-token identity to determine the result or return user/account information. The route uses `optionalAuthentication`: the public frontend token is sufficient for an anonymous probe; if a user access JWT is supplied instead, the shared authentication boundary validates it and attaches the user actor to the request, but the response remains based only on the refresh cookie;
 * returns only whether the current browser request has a valid refresh session;
 * returns the same response shape whether the session is absent or invalid, without exposing why it is unavailable;
-* must be safe for a completely anonymous browser request and must not require a user access JWT.
+* does not require a user access JWT, but the required `Authorization` header cannot be omitted because the shared boundary rejects a missing bearer.
 
 Response:
 
@@ -292,7 +292,7 @@ Authorization model:
 | Endpoint                                  | Anonymous          | Authenticated                        | Owner | Manager | Admin |
 | ----------------------------------------- | ------------------ | ------------------------------------ | ----- | ------- | ----- |
 | GET `/auth/me`                            | NO (404/401)       | YES                                  | —     | —       | —     |
-| GET `/auth/session`                       | YES (public token) | YES (session cookie)                 | —     | —       | —     |
+| GET `/auth/session`                       | YES (public token + cookie probe) | YES (valid JWT accepted; result remains cookie-based) | — | — | — |
 | PUT `/auth/me`                            | NO                 | YES (self only)                      | —     | —       | —     |
 | GET/POST/DELETE `/auth/me/image`          | NO                 | YES (self only)                      | —     | —       | —     |
 | GET `/config/selects`                     | YES (public token) | YES                                  | —     | —       | —     |
@@ -326,6 +326,7 @@ Authorization model:
 | POST/DELETE `/likes/`                     | NO                 | YES                                  | —     | —       | —     |
 | POST/DELETE `/favorites/`                 | NO                 | YES                                  | —     | —       | —     |
 | POST `/reports/`                          | NO                 | YES                                  | —     | —       | —     |
+| DELETE `/reports/:reportId`                | NO                 | CONDITIONAL (own report only)        | —     | CONDITIONAL (own report only) | CONDITIONAL (own report only) |
 | GET `/admin/users`                        | NO                 | NO                                   | NO    | YES     | YES   |
 | PUT `/admin/users/:userId`                | NO                 | NO                                   | NO    | PARTIAL (no role/password) | YES |
 | DELETE `/admin/users/:userId`             | NO                 | NO                                   | NO    | YES     | YES   |
@@ -569,13 +570,15 @@ A trip group does not generate missing day numbers. For example, a trip group ma
 
 ### Shared response shape
 
+The following example uses an actor who can edit and delete the trip group. The backend computes `permissions` for the requesting actor; this value is passed consistently to the trip-group root, its days, and the nested points.
+
 For `GET /trips` and `GET /trips/top`:
 
 ```json
 [
   {
     "id": 123,
-    "permissions": { "canEdit": true, "canDelete": false },
+    "permissions": { "canEdit": true, "canDelete": true },
     "social": {
       "likes": 25,
       "likedByMe": true,
@@ -591,10 +594,10 @@ For `GET /trips` and `GET /trips/top`:
         "permissions": { "canEdit": true, "canDelete": true },
         "title": "Day 1 title",
         "description": "Day description",
-      "countPeoples": 2,
-      "destination": "Sofia, Bulgaria",
-      "lat": 42.6975,
-      "lng": 23.3241,
+        "countPeoples": 2,
+        "destination": "Sofia, Bulgaria",
+        "lat": 42.6975,
+        "lng": 23.3241,
         "price": 250,
         "currency": {
           "id": 22,
@@ -617,14 +620,16 @@ For `GET /trips` and `GET /trips/top`:
             "social": {
               "likes": 5,
               "likedByMe": false,
-              "comments": { "count": 2 }
+              "comments": { "count": 2 },
+              "reportedByMe": false
             }
           }
         ],
         "social": {
           "likes": 10,
           "likedByMe": false,
-          "comments": { "count": 3 }
+          "comments": { "count": 3 },
+          "reportedByMe": false
         },
         "points": [
           {
@@ -635,6 +640,8 @@ For `GET /trips` and `GET /trips/top`:
             "lng": 23.3241,
             "pointNumber": 1,
             "tripId": 1001,
+            "createdAt": "2026-01-15T10:30:00.000Z",
+            "updatedAt": "2026-01-20T14:45:00.000Z",
             "images": [
               {
                 "id": 5002,
@@ -643,14 +650,17 @@ For `GET /trips` and `GET /trips/top`:
                 "social": {
                   "likes": 2,
                   "likedByMe": false,
-                  "comments": { "count": 1 }
+                  "comments": { "count": 1 },
+                  "reportedByMe": false
                 }
               }
             ],
+            "permissions": { "canEdit": true, "canDelete": true },
             "social": {
               "likes": 4,
               "likedByMe": false,
-              "comments": { "count": 2 }
+              "comments": { "count": 2 },
+              "reportedByMe": false
             }
           }
         ],
@@ -667,8 +677,15 @@ For `GET /trips/:tripGroupId`, the same object is returned instead of an array:
 ```json
 {
   "id": 123,
-  "permissions": { "canEdit": true, "canDelete": false },
-  "social": { "...": "same Trip Group social structure" },
+  "permissions": { "canEdit": true, "canDelete": true },
+  "social": {
+    "likes": 25,
+    "likedByMe": true,
+    "comments": { "count": 8 },
+    "reportedByMe": false,
+    "favorites": 3,
+    "favoritedByMe": false
+  },
   "days": [ "same TripGroupDay structure as above" ]
 }
 ```
@@ -1695,6 +1712,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | POST   | `/auth/login`                         | None             | `{ email, password }`                                                   | 200 `AuthSessionDto` + cookie        | 401, 403, 400           |
 | POST   | `/auth/refresh`                       | Cookie           | none                                                                    | 200 `AuthSessionDto` + cookie        | 401, 403                |
 | POST   | `/auth/logout`                        | Cookie           | none                                                                    | 200 `{ message }`                    | 500                     |
+| GET    | `/auth/session`                       | Public/OptionalAuth | public token or valid user JWT; credentials enabled for refresh cookie | 200 `{ hasSession }`                 | 400, 401, 403, 404      |
 | GET    | `/auth/me`                            | Auth             | none                                                                    | 200 `{ user }`                       | 401, 403                |
 | PUT    | `/auth/me`                            | Auth             | `{ firstName, lastName }`                                               | 200 `{ user }`                       | 400, 401, 403           |
 | POST   | `/auth/confirm-password`              | Auth             | `{ password }`                                                          | 200 `{ valid }`                      | 400, 401, 403           |
@@ -1720,6 +1738,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | DELETE | `/trips/:tripGroupId/days/:tripId`    | Owner/Mod        | params `tripGroupId,tripId`                                             | 204                                  | 400, 401, 403, 404, 409 |
 | POST   | `/trips/:tripGroupId/days/:tripId/images` | Owner/Mod    | params `tripGroupId,tripId`; multipart `file`                           | 201 `ImageDto`                       | 400, 401, 403, 404, 409 |
 | POST   | `/points`                             | Owner/Mod        | `{ tripId, name, description?, lat, lng }`                              | 201 `TripPoint[]`                    | 400, 401, 403, 404      |
+| GET    | `/trips/:tripId/points`               | Public           | param `tripId` (day row id)                                             | 200 `TripPoint[]`                    | 400, 401, 404           |
 | GET    | `/points/:pointId`                    | Public           | param `pointId`                                                         | 200 `TripPoint`                      | 400, 401, 404           |
 | PUT    | `/points/:pointId`                    | Owner/Mod        | param `pointId`; body `{ name?, description?, lat?, lng? }`             | 200 `TripPoint[]`                    | 400, 401, 403, 404      |
 | DELETE | `/points/:pointId`                    | Owner/Mod        | param `pointId`                                                         | 204                                  | 400, 401, 403, 404      |
