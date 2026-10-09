@@ -407,7 +407,7 @@ A **Trip Group** is only the grouping container. It does not have its own title,
 
 The `tripGroupId` identifies the trip group. All `trips` rows belonging to that `tripGroupId` are returned as `days[]`.
 
-A missing day number is not generated. For example, a trip group may contain exactly Day 1, Day 3, and Day 5.
+Every day row must have a non-null `dayNumber`, but the sequence may contain gaps. The server does not generate or fill in missing sequence values; a group may contain Day 1, Day 3, and Day 5.
 
 ### Shared response shape
 
