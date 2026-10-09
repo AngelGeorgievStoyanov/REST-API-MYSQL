@@ -197,11 +197,12 @@ For requests reaching an authentication boundary, bearer authentication has the 
 
 | Request authentication state                          | Result                                              |
 | ----------------------------------------------------- | --------------------------------------------------- |
-| No `Authorization` header                             | `404`                                               |
+| No `Authorization` header                             | `404 NOT_FOUND`                                     |
+| Missing/malformed bearer scheme or empty bearer value | `404 NOT_FOUND`                                     |
 | `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`       | Anonymous context                                   |
 | Valid `Authorization: Bearer <USER_ACCESS_TOKEN>`     | Authenticated user context                          |
-| Invalid/expired user access JWT                      | `401 UNAUTHORIZED`; never anonymous (missing/malformed bearer -> `404`) |
-| Valid user access JWT with suspended/deactivated user | Existing account-status authentication behavior     |
+| Invalid/expired user access JWT                      | `401 UNAUTHORIZED`; never anonymous                  |
+| Valid user access JWT with suspended/deactivated/unverified account | `403` with the relevant account-status error          |
 
 A request without `Authorization` is not treated as successful anonymous authentication.
 
@@ -237,7 +238,7 @@ Authorization: Bearer <token>
                             |   authenticated user context
                             |
                             +-- invalid
-                            |   `401 UNAUTHORIZED` for an invalid/expired user JWT; `404 NOT_FOUND` for a missing or malformed bearer
+                            |   `401 UNAUTHORIZED`
                             |   never anonymous
                             |
                             +-- valid JWT + suspended/deactivated user
@@ -1213,8 +1214,7 @@ The following are part of the current production architecture:
 * the public bearer token is never treated as a JWT;
 * the public bearer token does not authenticate a user;
 * the public bearer token does not establish ownership;
-* invalid user JWTs never fall back to anonymous authentication;
-* invalid or expired user JWTs return `401 UNAUTHORIZED`; a missing or malformed bearer returns `404 NOT_FOUND`; invalid tokens never fall back to anonymous authentication;
+* invalid or expired user JWTs return `401 UNAUTHORIZED`; missing or malformed bearer values return `404 NOT_FOUND`; neither condition falls back to anonymous;
 * valid JWTs are evaluated against current database account status;
 * suspended/deactivated users follow the existing account-status authentication behavior;
 * anonymous/public permissions are read-only;
