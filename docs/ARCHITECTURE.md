@@ -200,7 +200,7 @@ For requests reaching an authentication boundary, bearer authentication has the 
 | No `Authorization` header                             | `404`                                               |
 | `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`       | Anonymous context                                   |
 | Valid `Authorization: Bearer <USER_ACCESS_TOKEN>`     | Authenticated user context                          |
-| Invalid user access JWT                               | Existing unauthorized/404 behavior; never anonymous |
+| Invalid/expired user access JWT                      | `401 UNAUTHORIZED`; never anonymous (missing/malformed bearer -> `404`) |
 | Valid user access JWT with suspended/deactivated user | Existing account-status authentication behavior     |
 
 A request without `Authorization` is not treated as successful anonymous authentication.
@@ -237,7 +237,7 @@ Authorization: Bearer <token>
                             |   authenticated user context
                             |
                             +-- invalid
-                            |   existing unauthorized/404 behavior
+                            |   `401 UNAUTHORIZED` for an invalid/expired user JWT; `404 NOT_FOUND` for a missing or malformed bearer
                             |   never anonymous
                             |
                             +-- valid JWT + suspended/deactivated user
@@ -381,7 +381,7 @@ Request bodies, queries, and route parameters are validated by Zod schemas under
 Important DTO families include:
 
 * `AuthSessionDto` contains a bearer access token and the public `ProfileDto` (email, names, optional `permissions`); refresh tokens are delivered only through an HttpOnly cookie.
-* The three trip GET endpoints (`GET /trips`, `GET /trips/top`, `GET /trips/:tripGroupId`) use the shared Trip Group response structure defined in the Trip GET response contract below.
+* The three public trip GET endpoints (`GET /trips`, `GET /trips/top`, `GET /trips/:tripGroupId`) use the canonical `TripGroupResponse` structure defined below. `GET /me/trips`, `GET /me/favorites`, and the trip/day write endpoints also reuse this response model where documented; access rules and selection/cardinality differ by endpoint.
 * Trip GET and trip write responses use the Trip Group response model described in the trip response sections. The response root contains only `id` (the trip-group id), server-computed `permissions`, global `social`, and `days[]`; day-specific metadata belongs inside each Day.
 * `CommentListResponse` is paginated.
 * Comment writes use `{ comment }`; authorship comes from the authenticated actor.
@@ -392,7 +392,7 @@ Important DTO families include:
 
 API-facing services return prepared response contracts through API mappers. Controllers do not reconstruct DTOs.
 
-## Trip GET response structure (three endpoints)
+## Canonical TripGroupResponse structure
 
 The following three GET endpoints use the same Trip Group response structure:
 
@@ -412,7 +412,7 @@ A missing day number is not generated. For example, a trip group may contain exa
 
 For `GET /trips` and `GET /trips/top`:
 
-```json
+```text
 [
   {
     "id": 123,
@@ -425,7 +425,7 @@ For `GET /trips` and `GET /trips/top`:
 
 For `GET /trips/:tripGroupId`:
 
-```json
+```text
 {
   "id": 123,
   "permissions": { "canEdit": false, "canDelete": false },
@@ -438,7 +438,7 @@ The trip-group identifier is serialized as the `id` field of the response root; 
 
 ### TripGroupDay
 
-```json
+```text
 {
   "id": 0,
   "dayNumber": 1,
@@ -489,7 +489,7 @@ The Frontend displays `code` (for example `BGN`) and may use `name` as the hover
 
 Day images keep the existing `SocialImageDto` structure:
 
-```json
+```text
 {
   "id": 0,
   "url": "<url>",
@@ -498,9 +498,9 @@ Day images keep the existing `SocialImageDto` structure:
 }
 ```
 
-Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; coordinates use `lat`/`lng`, not `latitude`/`longitude`. `tripId` is the day row the point belongs to (`points.tripId` = `trips.id`). Internal fields `countEdited` and `ownerId` are excluded; `createdAt`/`updatedAt` are returned as ISO strings.
+Points use the following public `TripPoint` structure. Field names follow the database/API contract naming; coordinates use `lat`/`lng`, not `latitude`/`longitude`. `tripId` is nullable in the data model; when non-null, it identifies the parent day row (`points.tripId` = `trips.id`). Internal fields `countEdited` and `ownerId` are excluded; `createdAt`/`updatedAt` are returned as ISO strings.
 
-```json
+```text
 {
   "id": 2001,
   "name": "Point title",
@@ -622,7 +622,7 @@ Architecture and security requirements:
 * the endpoint is read-only;
 * it must not rotate, revoke, create, or modify refresh tokens;
 * it must not return an access token, refresh token, user id, email, role, account status, or other user/account data;
-* the response does not use access-token identity to determine session presence and does not return user/account data. The route uses `optionalAuthentication`: the public frontend token is sufficient; when a user access JWT is supplied, the shared boundary validates it and attaches the actor to the request, but the probe result still depends only on the refresh cookie;
+* the `hasSession` value is determined from the refresh cookie and its stored refresh-token/user state, not access-token identity; `optionalAuthentication` still processes any supplied bearer before the handler, so an invalid/expired user JWT or unusable account can return `401`/`403` before the cookie probe runs;
 * it returns only whether the current browser request has a valid refresh session;
 * absent and invalid sessions use the same response shape and do not reveal why the session is unavailable;
 * it does not require a user access JWT, but the shared boundary rejects a missing `Authorization` bearer;
@@ -678,7 +678,7 @@ The authentication boundary:
 2. handles an absent bearer according to the production 404 behavior;
 3. resolves `PUBLIC_FRONTEND_TOKEN` as anonymous;
 4. otherwise verifies the value as a user access JWT;
-5. rejects invalid JWTs using the existing unauthorized/404 behavior;
+5. rejects invalid JWTs using the `401 UNAUTHORIZED` for an invalid/expired user JWT; `404 NOT_FOUND` for a missing or malformed bearer;
 6. resolves the current user from the database;
 7. applies the existing account-status authentication behavior;
 8. uses the database row as the authority for current account status and role.
@@ -1066,13 +1066,12 @@ Both endpoints return `TripGroupResponse[]` and share the normal trip response p
 
 `GET /api/v1/trips/top` is public and may be requested anonymously with the public Frontend bearer token.
 
-Initial ranking rules:
+Current ranking rules:
 
-* count likes for each `TripGroup`;
-* select at most 5 trip groups;
-* order by descending like count;
-* return fewer than 5 when fewer than 5 trip groups exist;
-* equal like counts have equal ranking semantics and are not a business-level distinction;
+* select at most 5 trip groups that have at least one persisted like on the trip-group target; groups with zero trip-group likes are omitted by the query;
+* order the returned groups by descending trip-group like count;
+* the endpoint may return fewer than 5 even when more than 5 groups exist, if fewer than 5 have at least one group-level like;
+* tie ordering is not guaranteed because the query has no secondary sort;
 * return the normal trip response structure rather than the legacy `/top/:id` representation.
 
 The ranking is based on persisted social data and is independent of the requesting user.
@@ -1215,7 +1214,7 @@ The following are part of the current production architecture:
 * the public bearer token does not authenticate a user;
 * the public bearer token does not establish ownership;
 * invalid user JWTs never fall back to anonymous authentication;
-* invalid user JWTs use the existing unauthorized/404 behavior;
+* invalid user JWTs use the `401 UNAUTHORIZED` for an invalid/expired user JWT; `404 NOT_FOUND` for a missing or malformed bearer;
 * valid JWTs are evaluated against current database account status;
 * suspended/deactivated users follow the existing account-status authentication behavior;
 * anonymous/public permissions are read-only;
@@ -1236,4 +1235,4 @@ The following are part of the current production architecture:
 * API errors do not expose internal implementation details;
 * generated `build/` output is not source code.
 
-This document describes the current production architecture and contract. It does not describe migration plans, temporary implementation states, obsolete API mechanisms, or planned frontend changes.
+This document describes the current production architecture and contract. It distinguishes implemented backend behavior from frontend integration guidance and does not claim to verify deployment state outside the repository.
