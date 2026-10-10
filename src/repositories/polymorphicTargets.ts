@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { type Prisma } from '@prisma/client';
 import { COMMENT_TARGET_TYPE, SOCIAL_TARGET_TYPE } from '../constants/social';
 
 /**

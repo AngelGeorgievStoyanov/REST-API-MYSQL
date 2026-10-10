@@ -1,14 +1,14 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { DEFAULT_COUNT_PEOPLES } from '../constants/trip';
 import {
-    DayUpdateInput,
-    DayWriteInput,
-    TripDayRecord,
-    TripGroupDetailsRecord,
-    TripGroupListRecord,
-    TripListDayRecord,
-    TripMetadataInput,
+    type DayUpdateInput,
+    type DayWriteInput,
+    type TripDayRecord,
+    type TripGroupDetailsRecord,
+    type TripGroupListRecord,
+    type TripListDayRecord,
+    type TripMetadataInput,
 } from '../model/trip';
 import { sortPointsByNumber } from '../utils/point';
 import { toPointRecord } from '../mappers/pointPersistenceMapper';
@@ -194,7 +194,7 @@ export class TripRepository {
         }
 
         const where: Prisma.TripGroupWhereInput = dayFilters.length > 0
-            ? { trips: { some: dayFilters.length === 1 ? dayFilters[0] : { AND: dayFilters } } }
+            ? { trips: { some: dayFilters.length === 1 ? dayFilters[0] ?? {} : { AND: dayFilters } } }
             : {};
 
         const orderBy: Prisma.TripGroupOrderByWithRelationInput[] = criteria.sort === 'oldest'
@@ -422,10 +422,16 @@ export class TripRepository {
     async reorderDays(groupId: number, tripIds: number[]): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
             for (const [index, tripId] of tripIds.entries()) {
-                await tx.trip.update({ where: { id: tripId }, data: { dayNumber: -(index + 1) } });
+                await tx.trip.update({
+                    where: { id: tripId, tripGroupId: groupId },
+                    data: { dayNumber: -(index + 1) },
+                });
             }
             for (const [index, tripId] of tripIds.entries()) {
-                await tx.trip.update({ where: { id: tripId }, data: { dayNumber: index + 1 } });
+                await tx.trip.update({
+                    where: { id: tripId, tripGroupId: groupId },
+                    data: { dayNumber: index + 1 },
+                });
             }
         });
     }

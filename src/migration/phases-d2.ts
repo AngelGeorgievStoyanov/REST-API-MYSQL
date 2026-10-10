@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
-import { DbExecutor, createdNow, esc, inTx, isUuid, keepOrFill, legacyKeyColumn, qi, qtable } from './db';
+import { type PrismaClient } from '@prisma/client';
+import { type DbExecutor, createdNow, esc, inTx, isUuid, keepOrFill, legacyKeyColumn, qi, qtable } from './db';
 import { lookupStateOrPending, quarantineDryAware, recordState } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 export async function phaseLogs(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const run = async (exec: DbExecutor): Promise<Counters> => {

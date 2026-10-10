@@ -4,10 +4,10 @@
  * first). Refuses while any trip lacks a mapping; resumable via the
  * TripGroup:finalized state marker.
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { esc, qi, qtable, toCount } from './db';
 import { isStateUnavailable, lookupState, recordState } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
@@ -28,7 +28,7 @@ export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId
     const rows = (await prisma.$queryRawUnsafe(
       `SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = 'trips' AND COLUMN_NAME = '${esc(col)}'`,
     )) as Array<{ t: string }>;
-    return rows.length > 0 ? String(rows[0].t) : '';
+    return rows.length > 0 ? String(rows[0]?.t) : '';
   };
   const varcharType = await colType('tripGroupId');
   const hasLegacyVarchar = varcharType !== '' && !varcharType.toLowerCase().includes('int');

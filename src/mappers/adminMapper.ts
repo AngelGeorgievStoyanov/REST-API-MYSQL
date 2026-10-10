@@ -1,4 +1,4 @@
-import { AdminPage, DeleteCountResponse } from '../model/admin';
+import { type AdminPage, type DeleteCountResponse } from '../model/admin';
 
 export function toAdminPageDto<T>(items: T[], total: number, page: number, pageSize: number): AdminPage<T> {
     return {

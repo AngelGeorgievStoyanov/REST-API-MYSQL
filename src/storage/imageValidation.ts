@@ -60,7 +60,7 @@ export async function assertAcceptedImage(
         throw new UnsupportedImageError(`Unsupported file extension "${extension || file.originalname}".`);
     }
 
-    const declaredType = file.mimetype.split(';')[0].trim().toLowerCase();
+    const declaredType = (file.mimetype.split(';')[0] ?? '').trim().toLowerCase();
     if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(declaredType)) {
         throw new UnsupportedImageError(`Unsupported content type "${file.mimetype}".`);
     }

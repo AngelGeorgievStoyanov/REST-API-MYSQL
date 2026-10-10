@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import { FailedLogEntry } from '../model/admin';
+import { type PrismaClient } from '@prisma/client';
+import { type FailedLogEntry } from '../model/admin';
 import {
     MAX_FAILED_LOG_DATE_LENGTH,
     MAX_FAILED_LOG_EMAIL_LENGTH,

@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { toSelectConfigList, toServiceConfigList } from '../mappers/configMapper';
-import { SelectConfig, ServiceConfig } from '../model/config';
+import { type SelectConfig, type ServiceConfig } from '../model/config';
 
 
 /**

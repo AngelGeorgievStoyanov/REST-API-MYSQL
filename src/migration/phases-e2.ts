@@ -3,10 +3,10 @@
  * comments.targetId from the real Trip INT ids. Unresolvable parents
  * quarantine; only NULL-pointer rows are touched, so reruns converge.
  */
-import { PrismaClient } from '@prisma/client';
-import { DbExecutor, TARGET_TYPE, esc, inTx, legacyGroupColumn, legacyKeyColumn, parentPointerColumn, qi, qtable } from './db';
+import { type PrismaClient } from '@prisma/client';
+import { type DbExecutor, TARGET_TYPE, esc, inTx, legacyGroupColumn, legacyKeyColumn, parentPointerColumn, qi, qtable } from './db';
 import { isStateUnavailable, lookupState, quarantineDryAware } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 async function backfillChild(
   exec: DbExecutor, db: string, runId: number, dryRun: boolean,

@@ -1,5 +1,5 @@
 import { prisma } from '../clients/prisma';
-import { EnvironmentConfig } from '../config/environment';
+import { type EnvironmentConfig } from '../config/environment';
 import { ConfigRepository } from '../repositories/configRepository';
 import { dynamicConfig } from '../services/dynamicConfig';
 

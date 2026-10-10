@@ -98,17 +98,17 @@ export function helpText(): string {
 }
 
 export function getEnv(): MigrationEnv {
-  const databaseUrl = (process.env.DATABASE_URL || '').trim();
+  const databaseUrl = (process.env['DATABASE_URL'] || '').trim();
   return {
     databaseUrl,
     allowProduction:
-      (process.env.MIGRATION_ALLOW_PRODUCTION || '').toLowerCase() === 'true',
-    backupRef: (process.env.MIGRATION_BACKUP_REF || '').trim(),
+      (process.env['MIGRATION_ALLOW_PRODUCTION'] || '').toLowerCase() === 'true',
+    backupRef: (process.env['MIGRATION_BACKUP_REF'] || '').trim(),
   };
 }
 
 export function databaseNameFromUrl(url: string): string {
-  const withoutQuery = url.split('?')[0];
+  const withoutQuery = url.split('?')[0] ?? '';
   const parts = withoutQuery.split('/');
   const name = (parts[parts.length - 1] || '').trim();
   if (!name) throw new Error('DATABASE_URL has no database name.');
@@ -117,6 +117,6 @@ export function databaseNameFromUrl(url: string): string {
 
 export function isLocalhostTarget(url: string): boolean {
   const m = url.match(/^mysql:\/\/[^@]+@([^/:]+)/i);
-  const host = (m ? m[1] : '').toLowerCase();
+  const host = (m?.[1] ?? '').toLowerCase();
   return host === 'localhost' || host === '127.0.0.1' || host === '::1';
 }

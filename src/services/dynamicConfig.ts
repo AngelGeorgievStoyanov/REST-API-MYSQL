@@ -1,7 +1,7 @@
-import { PublicServiceConfig, SelectConfig, ServiceConfig } from '../model/config';
-import { ConfigRepository } from '../repositories/configRepository';
+import { type PublicServiceConfig, type SelectConfig, type ServiceConfig } from '../model/config';
+import { type ConfigRepository } from '../repositories/configRepository';
 import { getErrorMessage } from '../utils/error';
-import { EnvironmentConfig } from '../config/environment';
+import { type EnvironmentConfig } from '../config/environment';
 import { toPublicServiceConfigList } from '../mappers/publicConfigMapper';
 import { listBackgroundImageNames } from '../storage/backgroundImageStorage';
 

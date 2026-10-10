@@ -1,6 +1,6 @@
-﻿import { PrismaClient } from '@prisma/client';
+﻿import { type PrismaClient } from '@prisma/client';
 import {
-  DbExecutor,
+  type DbExecutor,
   backfillTimestamps,
   columnExists,
   esc,
@@ -16,7 +16,7 @@ import {
   timestampFallback,
 } from './db';
 import { isStateUnavailable, lookupState, lookupStateOrPending, quarantineDryAware, recordState } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 import { TARGET_TYPE, userExistsById } from './db';
 
 async function userExists(exec: DbExecutor, db: string, id: string): Promise<boolean> {
@@ -25,7 +25,7 @@ async function userExists(exec: DbExecutor, db: string, id: string): Promise<boo
 
 async function runBody(
   prisma: PrismaClient,
-  db: string,
+  _db: string,
   dryRun: boolean,
   apply: (exec: DbExecutor) => Promise<Counters>,
 ): Promise<Counters> {
@@ -258,7 +258,7 @@ async function phaseChild(
       const where = swapped ? `${qi('legacyId')} = '${esc(legacy)}'` : `${qi('_id')} = '${esc(legacy)}'`;
       await exec.$executeRawUnsafe(
         `UPDATE ${qtable(db, table)} SET ${qi('legacyId')} = '${esc(legacy)}', ` +
-        `${parentAssign}` +
+        parentAssign +
         `${keepOrFill('createdAt', createdAt)}, ${keepOrFill('updatedAt', updatedAt)} ` +
         `WHERE ${where}`,
       );

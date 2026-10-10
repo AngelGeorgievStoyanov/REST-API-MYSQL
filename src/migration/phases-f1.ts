@@ -12,9 +12,9 @@
  * rerun after the legacy flag disappears is a no-op. Nothing is dropped: the
  * legacy `verify` table stays until the verified cleanup step after cutover.
  */
-import { PrismaClient } from '@prisma/client';
-import { DbExecutor, columnExists, inTx, qi, qtable, tableExists, toCount } from './db';
-import { Counters } from './types';
+import { type PrismaClient } from '@prisma/client';
+import { type DbExecutor, columnExists, inTx, qi, qtable, tableExists, toCount } from './db';
+import { type Counters } from './types';
 
 async function countUsers(exec: DbExecutor, db: string): Promise<number> {
   if (!(await tableExists(exec, db, 'users'))) return 0;
@@ -29,7 +29,7 @@ async function countWith(exec: DbExecutor, db: string, where: string): Promise<n
   )) as Array<Record<string, unknown>>);
 }
 
-export async function phaseSecurity(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
+export async function phaseSecurity(prisma: PrismaClient, db: string, _runId: number, dryRun: boolean): Promise<Counters> {
   const hasFlag = await columnExists(prisma, db, 'users', 'verifyEmail');
   const hasTarget = await columnExists(prisma, db, 'users', 'emailVerifiedAt');
   // No legacy flag or no target column (ddl not applied / already cleaned):

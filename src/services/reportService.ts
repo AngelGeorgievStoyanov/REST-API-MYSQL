@@ -1,12 +1,12 @@
-import { TripActor } from '../model/trip';
+import { type TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
-import { AdminReportDto, ReportDto } from '../model/report';
+import { type AdminReportDto, type ReportDto } from '../model/report';
 import { toAdminReportDto, toReportDto } from '../mappers/reportMapper';
 import { parseReportBody, parseReportTargetBody, isReportTargetType } from '../utils/social';
-import { ReportRepository } from '../repositories/reportRepository';
-import { SocialTargetRepository } from '../repositories/socialTargetRepository';
-import { TargetTypeRepository } from '../repositories/targetTypeRepository';
-import { AdminPage } from '../model/admin';
+import { type ReportRepository } from '../repositories/reportRepository';
+import { type SocialTargetRepository } from '../repositories/socialTargetRepository';
+import { type TargetTypeRepository } from '../repositories/targetTypeRepository';
+import { type AdminPage } from '../model/admin';
 import { toAdminPageDto } from '../mappers/adminMapper';
 import { parseAdminPagination } from '../utils/adminPagination';
 import { parsePositiveId } from '../utils/validation';

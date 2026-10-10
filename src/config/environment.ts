@@ -1,4 +1,4 @@
-import { DEFAULT_PUBLIC_FRONTEND_TOKEN, DEFAULT_SLOW_REFRESH_SECONDS } from '../constants/environment';
+﻿import { DEFAULT_PUBLIC_FRONTEND_TOKEN, DEFAULT_SLOW_REFRESH_SECONDS } from '../constants/environment';
 import { DEVELOPMENT_CORS_ORIGINS, PRODUCTION_CORS_ORIGINS } from '../constants/http';
 
 export interface EnvironmentConfig {
@@ -23,11 +23,11 @@ export type EnvironmentSource = Record<string, string | undefined>;
 export function loadEnvironmentConfig(
     env: EnvironmentSource = process.env,
 ): EnvironmentConfig {
-    const production = env.NODE_ENV === 'production';
+    const production = env['NODE_ENV'] === 'production';
 
     return {
-        slowRefreshSeconds: Number(env.CONFIG_SLOW_REFRESH_SECONDS || DEFAULT_SLOW_REFRESH_SECONDS),
-        publicFrontendToken: env.PUBLIC_FRONTEND_TOKEN?.trim() || DEFAULT_PUBLIC_FRONTEND_TOKEN,
+        slowRefreshSeconds: Number(env['CONFIG_SLOW_REFRESH_SECONDS'] || DEFAULT_SLOW_REFRESH_SECONDS),
+        publicFrontendToken: env['PUBLIC_FRONTEND_TOKEN']?.trim() || DEFAULT_PUBLIC_FRONTEND_TOKEN,
         corsOrigins: [...(production ? PRODUCTION_CORS_ORIGINS : DEVELOPMENT_CORS_ORIGINS)],
     };
 }

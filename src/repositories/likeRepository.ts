@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { socialTargetKey } from '../utils/social';
 
 export class LikeRepository {

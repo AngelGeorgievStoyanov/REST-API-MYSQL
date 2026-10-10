@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { tripService } from '../container';
 import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
@@ -15,7 +15,7 @@ imagesController.delete(
     validateRequest({ params: imageIdParams }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        await tripService.deleteImage(actorFrom(req), routeParam(req.params.imageId));
+        await tripService.deleteImage(actorFrom(req), routeParam(req.params['imageId']));
         res.status(204).send();
     }),
 );

@@ -1,4 +1,4 @@
-import { NextFunction, Request, RequestHandler, Response } from 'express';
+import { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import {
     CLIENT_HEADER_REJECTION_STATUS,
     CORS_PREFLIGHT_METHOD,

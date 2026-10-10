@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { pointService } from '../container';
 import { actorFrom, optionalActor, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
@@ -19,7 +19,7 @@ pointController.post('/', validateRequest({ body: pointCreateSchema }), requireA
 }));
 
 pointController.get('/:pointId', validateRequest({ params: pointIdParams }), optionalAuthentication, asyncHandler(async (req, res) => {
-    const point = await pointService.getPoint(routeParam(req.params.pointId), optionalActor(req));
+    const point = await pointService.getPoint(routeParam(req.params['pointId']), optionalActor(req));
     res.status(200).json(point);
 }));
 
@@ -28,13 +28,13 @@ pointController.put(
     validateRequest({ params: pointIdParams, body: pointUpdateSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const points = await pointService.updatePoint(actorFrom(req), routeParam(req.params.pointId), req.body);
+        const points = await pointService.updatePoint(actorFrom(req), routeParam(req.params['pointId']), req.body);
         res.status(200).json(points);
     }),
 );
 
 pointController.delete('/:pointId', validateRequest({ params: pointIdParams }), requireAuthentication, asyncHandler(async (req, res) => {
-    await pointService.deletePoint(actorFrom(req), routeParam(req.params.pointId));
+    await pointService.deletePoint(actorFrom(req), routeParam(req.params['pointId']));
     res.status(204).send();
 }));
 
@@ -45,8 +45,8 @@ pointController.delete(
     asyncHandler(async (req, res) => {
         await pointService.deletePointImage(
             actorFrom(req),
-            routeParam(req.params.pointId),
-            routeParam(req.params.imageId),
+            routeParam(req.params['pointId']),
+            routeParam(req.params['imageId']),
         );
         res.status(204).send();
     }),
@@ -58,14 +58,14 @@ pointController.post(
     validateRequest({ params: pointIdParams }),
     requireAuthentication,
     asyncHandler(async (req, _res, next) => {
-        await pointService.assertPointImageUpload(actorFrom(req), routeParam(req.params.pointId));
+        await pointService.assertPointImageUpload(actorFrom(req), routeParam(req.params['pointId']));
         next();
     }),
     imageUpload,
     asyncHandler(async (req, res) => {
         const image = await pointService.addPointImage(
             actorFrom(req),
-            routeParam(req.params.pointId),
+            routeParam(req.params['pointId']),
             uploadedFileName(req),
         );
         res.status(201).json(image);
@@ -83,7 +83,7 @@ dayPointController.put(
     validateRequest({ params: tripIdOnlyParams, body: pointReorderSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const points = await pointService.reorderPoints(actorFrom(req), routeParam(req.params.tripId), req.body);
+        const points = await pointService.reorderPoints(actorFrom(req), routeParam(req.params['tripId']), req.body);
         res.status(200).json(points);
     }),
 );
@@ -104,7 +104,7 @@ tripPointController.get(
     validateRequest({ params: tripIdOnlyParams }),
     optionalAuthentication,
     asyncHandler(async (req, res) => {
-        const points = await pointService.getTripPoints(routeParam(req.params.tripId), optionalActor(req));
+        const points = await pointService.getTripPoints(routeParam(req.params['tripId']), optionalActor(req));
         res.status(200).json(points);
     }),
 );

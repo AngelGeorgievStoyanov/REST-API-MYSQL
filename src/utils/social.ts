@@ -9,9 +9,9 @@ import {
     SOCIAL_TARGET_TYPE_INPUT,
     SOCIAL_TARGET_TYPE_INPUT_VALUES,
 } from '../constants/social';
-import { CommentCreateRequest, CommentUpdateRequest } from '../model/comment';
-import { ReportTargetRef, ReportTargetType } from '../model/report';
-import { SocialTargetRef, SocialTargetType } from '../model/social';
+import { type CommentCreateRequest, type CommentUpdateRequest } from '../model/comment';
+import { type ReportTargetRef, type ReportTargetType } from '../model/report';
+import { type SocialTargetRef, type SocialTargetType } from '../model/social';
 import { ApiError } from './apiError';
 import { firstValue } from './utils';
 import { asRecord, optionalPositiveInt, optionalString, parsePositiveId, requireTrimmedString } from './validation';
@@ -55,8 +55,8 @@ export function parseSocialTargetBody(body: unknown): SocialTargetRef {
     const record = recordOf(body, 'Request body');
 
     return {
-        targetType: parseTargetType(record.targetType, 'targetType'),
-        targetId: parsePositiveId(record.targetId, 'targetId'),
+        targetType: parseTargetType(record['targetType'], 'targetType'),
+        targetId: parsePositiveId(record['targetId'], 'targetId'),
     };
 }
 
@@ -65,8 +65,8 @@ export function parseReportTargetBody(body: unknown): ReportTargetRef {
     const record = recordOf(body, 'Request body');
 
     return {
-        targetType: parseReportTargetType(record.targetType, 'targetType'),
-        targetId: parsePositiveId(record.targetId, 'targetId'),
+        targetType: parseReportTargetType(record['targetType'], 'targetType'),
+        targetId: parsePositiveId(record['targetId'], 'targetId'),
     };
 }
 
@@ -75,8 +75,8 @@ export function parseSocialTargetQuery(query: unknown): SocialTargetRef {
     const record = recordOf(query, 'Query');
 
     return {
-        targetType: parseTargetType(record.targetType, 'targetType'),
-        targetId: parsePositiveId(record.targetId, 'targetId'),
+        targetType: parseTargetType(record['targetType'], 'targetType'),
+        targetId: parsePositiveId(record['targetId'], 'targetId'),
     };
 }
 
@@ -84,25 +84,25 @@ export function parseSocialTargetQuery(query: unknown): SocialTargetRef {
 export function parseTripGroupId(value: unknown): number {
     const record = recordOf(value, 'Request body');
 
-    return parsePositiveId(record.tripGroupId, 'tripGroupId');
+    return parsePositiveId(record['tripGroupId'], 'tripGroupId');
 }
 
 export function parseCommentCreateBody(body: unknown): CommentCreateRequest {
     const record = asRecord(body, 'Request body');
 
-    return { comment: requireTrimmedString(record.comment, 'comment', MAX_COMMENT_LENGTH) };
+    return { comment: requireTrimmedString(record['comment'], 'comment', MAX_COMMENT_LENGTH) };
 }
 
 export function parseCommentUpdateBody(body: unknown): CommentUpdateRequest {
     const record = asRecord(body, 'Request body');
 
-    return { comment: requireTrimmedString(record.comment, 'comment', MAX_COMMENT_LENGTH) };
+    return { comment: requireTrimmedString(record['comment'], 'comment', MAX_COMMENT_LENGTH) };
 }
 
 export function parseReportBody(body: unknown): { reason: string | null } {
     const record = asRecord(body, 'Request body');
 
-    return { reason: optionalString(record.reason, 'reason', MAX_REPORT_REASON_LENGTH) };
+    return { reason: optionalString(record['reason'], 'reason', MAX_REPORT_REASON_LENGTH) };
 }
 
 function pageValue(value: unknown, field: string, fallback: number, max?: number): number {
@@ -118,8 +118,8 @@ export function parseCommentPageQuery(rawQuery: unknown): { page: number; limit:
     const query = typeof rawQuery === 'object' && rawQuery !== null ? rawQuery as Record<string, unknown> : {};
 
     return {
-        page: pageValue(query.page, 'page', 1),
-        limit: pageValue(query.limit, 'limit', DEFAULT_COMMENT_PAGE_SIZE, MAX_COMMENT_PAGE_SIZE),
+        page: pageValue(query['page'], 'page', 1),
+        limit: pageValue(query['limit'], 'limit', DEFAULT_COMMENT_PAGE_SIZE, MAX_COMMENT_PAGE_SIZE),
     };
 }
 

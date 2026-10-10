@@ -1,6 +1,6 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { ImageDto, ImageRecord, SocialImageDto } from '../model/image';
-import { SocialStates } from '../model/social';
+import { type ImageDto, type ImageRecord, type SocialImageDto } from '../model/image';
+import { type SocialStates } from '../model/social';
 import { thumbnailFileName } from '../storage/imageFileStorage';
 
 

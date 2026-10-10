@@ -41,7 +41,7 @@ apiRouterV1.use('/trips', tripController);
 apiRouterV1.use('/points', pointController);
 apiRouterV1.use('/days', dayPointController);
 apiRouterV1.use('/images', imagesController);
-apiRouterV1.use((_req, _res, next) => next(ApiError.notFound()));
+apiRouterV1.use((_req, _res, next) => { next(ApiError.notFound()); });
 apiRouterV1.use(apiErrorMiddleware);
 
 export default apiRouterV1;

@@ -1,11 +1,11 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { SocialState } from '../model/social';
-import { TripActor, TripGroupResponse } from '../model/trip';
+import { type SocialState } from '../model/social';
+import { type TripActor, type TripGroupResponse } from '../model/trip';
 import { parseTripGroupId } from '../utils/social';
-import { FavoriteRepository } from '../repositories/favoriteRepository';
-import { TripRepository } from '../repositories/tripRepository';
-import { SocialStateService } from './socialStateService';
-import { SocialTargetRepository } from '../repositories/socialTargetRepository';
+import { type FavoriteRepository } from '../repositories/favoriteRepository';
+import { type TripRepository } from '../repositories/tripRepository';
+import { type SocialStateService } from './socialStateService';
+import { type SocialTargetRepository } from '../repositories/socialTargetRepository';
 import { toGroupResponses } from './tripService';
 
 export class FavoriteService {

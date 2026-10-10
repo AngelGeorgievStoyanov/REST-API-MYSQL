@@ -5,10 +5,10 @@
  * legacyId NULL, so they never enter the INT keyspace; backfill covers only
  * the logs tables and resume gaps.
  */
-import { PrismaClient } from '@prisma/client';
-import { DbExecutor, esc, inTx, isUuid, qi, qtable, toCount } from './db';
+import { type PrismaClient } from '@prisma/client';
+import { type DbExecutor, esc, inTx, isUuid, qi, qtable, toCount } from './db';
 import { lookupState, lookupStateOrPending, quarantineDryAware, recordState, resolvePlaceholder } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 // Target shape for every table listed: INT AUTO_INCREMENT `id` PK (first
 // column), UUID preserved in `legacyId`, `_id` dropped (prisma/schema.prisma).
@@ -102,7 +102,7 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
           continue;
         }
         // Fall through to step 2 via keys (legacyOrder picks it up); nothing to write here.
-        void k;
+        k;
       }
     }
     // Logs map legacyId without validation, so fill it here (idempotent) —

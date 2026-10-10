@@ -2,10 +2,10 @@
  * verify: keeps its INT key; validates user linkage. The PK column is
  * `_id` before the finalization rename and `id` after — resolved at runtime.
  */
-import { PrismaClient } from '@prisma/client';
-import { DbExecutor, columnExists, inTx, isUuid, keepOrFill, qi, qtable, timestampFallback, userExistsById } from './db';
+import { type PrismaClient } from '@prisma/client';
+import { type DbExecutor, columnExists, inTx, isUuid, keepOrFill, qi, qtable, timestampFallback, userExistsById } from './db';
 import { quarantineDryAware } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 export async function phaseVerify(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const keyCol = (await columnExists(prisma, db, 'verify', '_id')) ? '_id' : 'id';

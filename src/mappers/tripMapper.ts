@@ -1,18 +1,18 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { SocialStates } from '../model/social';
+import { type SocialStates } from '../model/social';
 import {
-    CurrencyDto,
-    DayCreateRequest,
-    DayWriteInput,
-    ResourcePermissions,
-    TripDay,
-    TripGroupDay,
-    TripGroupResponse,
-    TripSelectValue,
-    TripDayRecord,
-    TripGroupDetailsRecord,
-    TripMetadataInput,
-    TripWriteRequest,
+    type CurrencyDto,
+    type DayCreateRequest,
+    type DayWriteInput,
+    type ResourcePermissions,
+    type TripDay,
+    type TripGroupDay,
+    type TripGroupResponse,
+    type TripSelectValue,
+    type TripDayRecord,
+    type TripGroupDetailsRecord,
+    type TripMetadataInput,
+    type TripWriteRequest,
 } from '../model/trip';
 import { toIsoString } from '../utils/utils';
 import { toSocialImageDto } from './imageMapper';

@@ -4,7 +4,7 @@
  * satisfy them. Checks cover the FINAL structure only (no verify.userId FK —
  * the final database has none; polymorphic target columns carry no FK).
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { columnExists, columnType, qi, qtable, toCount, userKeyColumn } from './db';
 
 export interface ConstraintCheck { statement: string; ok: boolean; detail: string; }

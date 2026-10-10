@@ -49,7 +49,7 @@ async function listPageFromGcs(page: number, pageSize: number): Promise<{ items:
             files = [];
             break;
         }
-        query = { ...nextQuery, autoPaginate: false, maxResults: pageSize } as GetFilesOptions;
+        query = { ...nextQuery, autoPaginate: false, maxResults: pageSize };
     }
 
     return {

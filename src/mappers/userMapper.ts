@@ -1,4 +1,4 @@
-import { AuthActor, AuthSessionDto, AuthUserDto, AuthUserRecord, AuthUserResponse, MessageResponse, Permissions, ProfileDto, SessionPresenceResponse } from '../model/auth';
+import { type AuthActor, type AuthSessionDto, type AuthUserDto, type AuthUserRecord, type AuthUserResponse, type MessageResponse, type Permissions, type ProfileDto, type SessionPresenceResponse } from '../model/auth';
 
 export function toSessionPresenceResponse(hasSession: boolean): SessionPresenceResponse {
     return { hasSession };

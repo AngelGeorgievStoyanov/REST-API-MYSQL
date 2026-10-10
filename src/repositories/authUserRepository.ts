@@ -1,5 +1,5 @@
-import { Prisma, PrismaClient, UserRole, UserStatus } from '@prisma/client';
-import { AuthUserRecord } from '../model/auth';
+import { type Prisma, type PrismaClient, type UserRole, UserStatus } from '@prisma/client';
+import { type AuthUserRecord } from '../model/auth';
 
 
 /** Fields an administrator may change on another account. */

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { RequestHandler } from 'express';
+import { type RequestHandler } from 'express';
 import { REQUEST_ID_HEADER } from '../constants/http';
 
 export interface RequestWithId {

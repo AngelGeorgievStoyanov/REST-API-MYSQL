@@ -1,4 +1,4 @@
-import { SocialState } from './social';
+import { type SocialState } from './social';
 
 /**
  * API representation of one `images` row. The live table stores the original

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { deleteSocialRecordsForTargets, socialCleanupTargets } from './polymorphicTargets';
 

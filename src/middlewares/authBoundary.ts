@@ -1,9 +1,9 @@
-import { NextFunction, Request, RequestHandler, Response } from 'express';
+import { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { authConfig } from '../config/auth';
 import { loadEnvironmentConfig } from '../config/environment';
 import { authService } from '../container';
 import type { AuthActor } from '../model/auth';
-import { TripActor } from '../model/trip';
+import { type TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
 import { verifyAccessToken } from '../utils/auth';
 
@@ -32,12 +32,12 @@ export function optionalActor(req: Request): TripActor | null {
 }
 
 /** Protected v1 operation: identity, account state and verification are enforced. */
-export function requireAuthentication(req: Request, res: Response, next: NextFunction): void {
+export function requireAuthentication(req: Request, _res: Response, next: NextFunction): void {
     void authenticate(req, next, true);
 }
 
 /** Public v1 read with optional viewer state: the bearer value is classified into an anonymous viewer or a user actor. */
-export function optionalAuthentication(req: Request, res: Response, next: NextFunction): void {
+export function optionalAuthentication(req: Request, _res: Response, next: NextFunction): void {
     void authenticate(req, next, false);
 }
 
@@ -100,7 +100,7 @@ async function authenticate(req: Request, next: NextFunction, required: boolean,
 
 /** Raw bearer value of the header, or `null` when the request carries no bearer token. */
 function bearerValue(header: string | undefined): string | null {
-    if (!header || !header.startsWith('Bearer ')) return null;
+    if (!header?.startsWith('Bearer ')) return null;
 
     return header.slice('Bearer '.length).trim();
 }

@@ -1,4 +1,4 @@
-import { ImageInventoryComparison } from '../model/image';
+import { type ImageInventoryComparison } from '../model/image';
 
 export function toImageInventoryComparison(input: {
     cloudOnly: string[];

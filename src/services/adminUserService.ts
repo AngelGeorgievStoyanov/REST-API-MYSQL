@@ -1,16 +1,16 @@
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { CLIENT_CONTROLLED_USER_FIELDS } from '../constants/admin';
 import { MAX_USER_ID_LENGTH } from '../constants/auth';
-import { AuthUserDto, AuthUserRecord } from '../model/auth';
-import { AdminPage } from '../model/admin';
-import { TripActor } from '../model/trip';
+import { type AuthUserDto, type AuthUserRecord } from '../model/auth';
+import { type AdminPage } from '../model/admin';
+import { type TripActor } from '../model/trip';
 import { normalizeEmail, normalizeName, hashPassword } from '../utils/auth';
 import { ApiError } from '../utils/apiError';
 import { asRecord, rejectClientControlledFields, requireEnumValue, requireTrimmedString } from '../utils/validation';
 import { toAuthUserDto, toAuthUserDtoList } from '../mappers/userMapper';
 import { toAdminPageDto } from '../mappers/adminMapper';
 import { parseAdminPagination } from '../utils/adminPagination';
-import { AdminUserUpdate, AuthUserRepository } from '../repositories/authUserRepository';
+import { type AdminUserUpdate, type AuthUserRepository } from '../repositories/authUserRepository';
 
 export class AdminUserService {
     constructor(private readonly users: AuthUserRepository) { }

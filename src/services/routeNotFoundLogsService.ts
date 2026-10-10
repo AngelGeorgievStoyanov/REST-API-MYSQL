@@ -1,5 +1,5 @@
-import { AdminPage, RouteNotFoundLogDto } from '../model/admin';
-import { RouteNotFoundLogRecord, RouteNotFoundLogsRepository } from '../repositories/routeNotFoundLogsRepository';
+import { type AdminPage, type RouteNotFoundLogDto } from '../model/admin';
+import { type RouteNotFoundLogRecord, type RouteNotFoundLogsRepository } from '../repositories/routeNotFoundLogsRepository';
 import { toAdminPageDto } from '../mappers/adminMapper';
 import { parseAdminPagination } from '../utils/adminPagination';
 import { toRouteNotFoundLogDtoList } from '../mappers/routeNotFoundLogMapper';
@@ -13,7 +13,7 @@ export interface RouteNotFoundLogEvent {
     body: unknown;
     params: unknown;
     clientIp: string;
-    actorId?: string;
+    actorId?: string | undefined;
 }
 
 export class RouteNotFoundLogsService {

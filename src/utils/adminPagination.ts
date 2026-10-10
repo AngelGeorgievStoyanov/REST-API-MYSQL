@@ -11,8 +11,11 @@ export function parseAdminPagination(query: unknown): AdminPagination {
     const result = adminPaginationQuerySchema.safeParse(query);
     if (!result.success) {
         const issue = result.error.issues[0];
-        const field = issue?.path.map(String).join('.') ?? '';
-        throw ApiError.validation(field ? `"${field}": ${issue.message}` : issue?.message ?? 'Invalid pagination.');
+        if (issue === undefined) throw ApiError.validation('Invalid pagination.');
+
+        const field = issue.path.map(String).join('.');
+        const detail = issue.message;
+        throw ApiError.validation(field ? `"${field}": ${detail}` : detail);
     }
 
     const { page, pageSize } = result.data;

@@ -7,7 +7,7 @@ import {
 } from '../constants/auth';
 import { VALIDATION_LIMITS } from '../constants/validation/limits';
 import type { AuthActor, AuthSessionDto, AuthUserResponse, MessageResponse, SessionPresenceResponse } from '../model/auth';
-import { ImageDto } from '../model/image';
+import { type ImageDto } from '../model/image';
 import { ApiError } from '../utils/apiError';
 import {
     generateOpaqueToken,
@@ -34,14 +34,14 @@ import {
 } from '../mappers/userMapper';
 import { asRecord, requireTrimmedString } from '../utils/validation';
 import type { AuthUserRecord } from '../model/auth';
-import { AuthUserRepository } from '../repositories/authUserRepository';
-import { EmailVerificationTokenRepository } from '../repositories/emailVerificationTokenRepository';
-import { FailedLogRepository } from '../repositories/failedLogRepository';
-import { ImageRepository, ImageRow } from '../repositories/imageRepository';
-import { AuthMailer } from './authMailer';
-import { PasswordResetTokenRepository } from '../repositories/passwordResetTokenRepository';
-import { RefreshTokenRepository } from '../repositories/refreshTokenRepository';
-import { ImageFileStorage } from '../storage/imageFileStorage';
+import { type AuthUserRepository } from '../repositories/authUserRepository';
+import { type EmailVerificationTokenRepository } from '../repositories/emailVerificationTokenRepository';
+import { type FailedLogRepository } from '../repositories/failedLogRepository';
+import { type ImageRepository, type ImageRow } from '../repositories/imageRepository';
+import { type AuthMailer } from './authMailer';
+import { type PasswordResetTokenRepository } from '../repositories/passwordResetTokenRepository';
+import { type RefreshTokenRepository } from '../repositories/refreshTokenRepository';
+import { type ImageFileStorage } from '../storage/imageFileStorage';
 
 /** Session plus the raw refresh token the HTTP layer turns into a cookie. */
 export interface AuthSessionResult {

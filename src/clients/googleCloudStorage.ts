@@ -1,5 +1,5 @@
 import { Storage } from '@google-cloud/storage';
-import { StorageEngine } from 'multer';
+import { type StorageEngine } from 'multer';
 import { randomUUID } from 'crypto';
 import sharp from 'sharp';
 
@@ -55,7 +55,7 @@ export class GoogleCloudStorage implements StorageEngine {
             info?: Partial<UploadedFile>
         ) => void
     ): void {
-        void this.storeFile(file, callback).catch((error: unknown) => callback(toError(error)));
+        void this.storeFile(file, callback).catch((error: unknown) => { callback(toError(error)); });
     }
 
     private async storeFile(
@@ -133,8 +133,8 @@ export class GoogleCloudStorage implements StorageEngine {
             : [destination];
 
         Promise.all(objectNames.map((objectName) => this.removeObject(objectName)))
-            .then(() => callback(null))
-            .catch((error: Error) => callback(error));
+            .then(() => { callback(null); })
+            .catch((error: Error) => { callback(error); });
     }
 
     private async removeObject(objectName: string): Promise<void> {

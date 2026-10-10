@@ -1,5 +1,5 @@
 import { MODERATOR_ROLES } from '../constants/trip';
-import { ResourcePermissions, TripActor } from '../model/trip';
+import { type ResourcePermissions, type TripActor } from '../model/trip';
 
 /** Trips, their days and their points may only be changed by the owner or a moderator. */
 export function canModifyTrip(actor: TripActor, ownerId: string | null): boolean {

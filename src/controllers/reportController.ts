@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { reportService } from '../container';
 import { actorFrom, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
@@ -27,7 +27,7 @@ reportController.delete(
     validateRequest({ params: reportIdParams }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        await reportService.removeOwned(actorFrom(req), routeParam(req.params.reportId));
+        await reportService.removeOwned(actorFrom(req), routeParam(req.params['reportId']));
         res.status(204).send();
     }),
 );

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { TARGET_TYPES, columnDefault, columnExists, columnType, dbCollation, esc, qi, qtable, tableExists } from './db';
 import { ensureControlTables } from './state';
 

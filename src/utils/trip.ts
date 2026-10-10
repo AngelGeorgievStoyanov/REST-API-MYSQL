@@ -13,11 +13,11 @@ import {
     TRIP_SORTS,
 } from '../constants/trip';
 import {
-    DayCreateRequest,
-    DayUpdateRequest,
-    TripListQuery,
-    TripSort,
-    TripWriteRequest,
+    type DayCreateRequest,
+    type DayUpdateRequest,
+    type TripListQuery,
+    type TripSort,
+    type TripWriteRequest,
 } from '../model/trip';
 import { ApiError } from './apiError';
 import { firstValue } from './utils';
@@ -75,12 +75,12 @@ export function parseListQuery(rawQuery: unknown): TripListQuery {
         : {};
 
     return {
-        page: parsePositiveIntQuery(query.page, 'page', DEFAULT_PAGE),
-        limit: parsePositiveIntQuery(query.limit, 'limit', DEFAULT_LIMIT, MAX_LIMIT),
-        search: optionalString(firstValue(query.search), 'search', MAX_SEARCH_LENGTH),
-        group: optionalString(firstValue(query.group), 'group', MAX_SELECT_VALUE_LENGTH),
-        transport: optionalString(firstValue(query.transport), 'transport', MAX_SELECT_VALUE_LENGTH),
-        sort: parseSort(query.sort),
+        page: parsePositiveIntQuery(query['page'], 'page', DEFAULT_PAGE),
+        limit: parsePositiveIntQuery(query['limit'], 'limit', DEFAULT_LIMIT, MAX_LIMIT),
+        search: optionalString(firstValue(query['search']), 'search', MAX_SEARCH_LENGTH),
+        group: optionalString(firstValue(query['group']), 'group', MAX_SELECT_VALUE_LENGTH),
+        transport: optionalString(firstValue(query['transport']), 'transport', MAX_SELECT_VALUE_LENGTH),
+        sort: parseSort(query['sort']),
     };
 }
 
@@ -126,11 +126,11 @@ export function parseTripBody(body: unknown): TripWriteRequest {
     return {
         // The initial day's ordinal is user-selected and required; the server
         // never substitutes a default day number.
-        dayNumber: requirePositiveInt(record.dayNumber, 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
-        title: requireTrimmedString(record.title, 'title', MAX_TITLE_LENGTH),
-        description: optionalString(record.description, 'description', MAX_DESCRIPTION_LENGTH),
-        group: resolveSelectKey(GROUP_SELECT_TYPE, record.group, 'group'),
-        transport: resolveSelectKey(TRANSPORT_SELECT_TYPE, record.transport, 'transport'),
+        dayNumber: requirePositiveInt(record['dayNumber'], 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
+        title: requireTrimmedString(record['title'], 'title', MAX_TITLE_LENGTH),
+        description: optionalString(record['description'], 'description', MAX_DESCRIPTION_LENGTH),
+        group: resolveSelectKey(GROUP_SELECT_TYPE, record['group'], 'group'),
+        transport: resolveSelectKey(TRANSPORT_SELECT_TYPE, record['transport'], 'transport'),
     };
 }
 
@@ -140,9 +140,9 @@ export function parseDayCreateBody(body: unknown): DayCreateRequest {
 
     return {
         // Required, user-selected ordinal — no automatic `max + 1` fallback.
-        dayNumber: requirePositiveInt(record.dayNumber, 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
-        title: optionalString(record.title, 'title', MAX_TITLE_LENGTH),
-        description: optionalString(record.description, 'description', MAX_DESCRIPTION_LENGTH),
+        dayNumber: requirePositiveInt(record['dayNumber'], 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
+        title: optionalString(record['title'], 'title', MAX_TITLE_LENGTH),
+        description: optionalString(record['description'], 'description', MAX_DESCRIPTION_LENGTH),
     };
 }
 
@@ -150,17 +150,17 @@ export function parseDayUpdateBody(body: unknown): DayUpdateRequest {
     const record = asRecord(body, 'Request body');
     rejectOwnershipAndParentFields(record, 'Day');
 
-    if (record.dayNumber !== undefined) {
+    if (record['dayNumber'] !== undefined) {
         throw ApiError.validation('"dayNumber" cannot be changed here; use the day reorder endpoint.');
     }
 
     const request: DayUpdateRequest = {};
-    if (record.title !== undefined) request.title = requireTrimmedString(record.title, 'title', MAX_TITLE_LENGTH);
-    if (record.description !== undefined) {
-        request.description = optionalString(record.description, 'description', MAX_DESCRIPTION_LENGTH);
+    if (record['title'] !== undefined) request.title = requireTrimmedString(record['title'], 'title', MAX_TITLE_LENGTH);
+    if (record['description'] !== undefined) {
+        request.description = optionalString(record['description'], 'description', MAX_DESCRIPTION_LENGTH);
     }
 
-    if (record.title === undefined && record.description === undefined) {
+    if (record['title'] === undefined && record['description'] === undefined) {
         throw ApiError.validation('Provide at least one of: title, description.');
     }
     return request;

@@ -1,4 +1,4 @@
-import { CreatedReportRecord, AdminReportRecord, AdminReportDto, ReportDto, ReportTargetType } from '../model/report';
+import { type CreatedReportRecord, type AdminReportRecord, type AdminReportDto, type ReportDto, type ReportTargetType } from '../model/report';
 import { toIsoString } from '../utils/utils';
 
 export function toReportDto(

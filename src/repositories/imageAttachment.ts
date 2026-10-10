@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import { MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 
 /**

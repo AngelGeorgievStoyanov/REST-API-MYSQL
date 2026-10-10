@@ -1,4 +1,4 @@
-import { PointRecord } from '../model/trip';
+import { type PointRecord } from '../model/trip';
 import { toNumberOrNull } from '../utils/utils';
 
 interface PointPersistenceInput {

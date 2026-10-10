@@ -13,7 +13,7 @@ import {
     URLENCODED_BODY_LIMIT,
     URLENCODED_PARAMETER_LIMIT,
 } from './constants/http';
-import { EnvironmentConfig, loadEnvironmentConfig } from './config/environment';
+import { type EnvironmentConfig, loadEnvironmentConfig } from './config/environment';
 import { clientHeaderMiddleware } from './middlewares/clientHeaderMiddleware';
 import { publicApiRateLimit } from './middlewares/publicApiRateLimit';
 import { apiErrorMiddleware } from './middlewares/apiErrorMiddleware';
@@ -53,7 +53,7 @@ function configureApplication(application: express.Express, config: EnvironmentC
         customSuccessMessage: (req, res) => {
             return `${req.method} ${res.statusCode} - ${req.url}`;
         },
-        customErrorMessage: (req, res, err) => {
+        customErrorMessage: (_req, _res, err) => {
             return `Request failed: ${err.message}`;
         },
         autoLogging: {

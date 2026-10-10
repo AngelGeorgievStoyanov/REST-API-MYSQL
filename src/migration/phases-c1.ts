@@ -3,10 +3,10 @@
  * targetId=trips.id). Favorites attach to the trip GROUP, so the trip UUID is
  * resolved to its group and the final trip_groups.id (never trips.id).
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { TARGET_TYPE } from './db';
 import { migrateUserTokenList, tripGroupParentResolver, tripParentResolver } from './targets';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 export const phaseLikes = (prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> =>
   migrateUserTokenList(prisma, db, runId, dryRun, {

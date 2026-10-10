@@ -3,7 +3,7 @@
  * Read-only; probes degrade instead of throwing (objects may be missing
  * before ddl and after activate). Preflight gates runnability.
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import {
   TARGET_TYPE,
   columnDefault,
@@ -30,7 +30,7 @@ async function columnType(exec: { $queryRawUnsafe: PrismaClient['$queryRawUnsafe
     const rows = (await exec.$queryRawUnsafe(
       `SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}'`,
     )) as Array<{ t: string }>;
-    return rows.length > 0 ? String(rows[0].t) : '';
+    return rows.length > 0 ? String(rows[0]?.t) : '';
   } catch {
     return '';
   }
@@ -41,7 +41,7 @@ async function columnKey(exec: { $queryRawUnsafe: PrismaClient['$queryRawUnsafe'
     const rows = (await exec.$queryRawUnsafe(
       `SELECT COLUMN_KEY AS k FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}'`,
     )) as Array<{ k: string }>;
-    return rows.length > 0 ? String(rows[0].k) : '';
+    return rows.length > 0 ? String(rows[0]?.k) : '';
   } catch {
     return '';
   }
@@ -80,8 +80,8 @@ export async function verifyMigration(
   runId: number,
   opts?: { dryRun?: boolean; verifyOnly?: boolean },
 ): Promise<{ lines: VerifyLine[]; finalization: FinalCheck[] }> {
-  void runId;
-  void opts;
+  runId;
+  opts;
   // Missing objects are normal at both ends of the lifecycle (pre-ddl,
   // post-activate); only that case degrades, other errors still fail the report.
   const safeRows = async <T>(sql: string): Promise<T[] | null> => {
@@ -102,13 +102,13 @@ export async function verifyMigration(
   const hasState = await tableExists(prisma, db, STATE_TABLE);
   const hasQuarantine = await tableExists(prisma, db, QUARANTINE_TABLE);
   const mappedOf = async (entity: string): Promise<number> =>
-    hasState ? await countOf(`SELECT COUNT(*) AS c FROM ${qtable(db, STATE_TABLE)} WHERE ${qi('entity')} = '${esc(entity)}'`) : 0;
+    hasState ? countOf(`SELECT COUNT(*) AS c FROM ${qtable(db, STATE_TABLE)} WHERE ${qi('entity')} = '${esc(entity)}'`) : 0;
   const quarantinedOf = async (entity: string): Promise<number> =>
-    hasQuarantine ? await countOf(`SELECT COUNT(*) AS c FROM ${qtable(db, QUARANTINE_TABLE)} WHERE ${qi('entity')} = '${esc(entity)}'`) : 0;
+    hasQuarantine ? countOf(`SELECT COUNT(*) AS c FROM ${qtable(db, QUARANTINE_TABLE)} WHERE ${qi('entity')} = '${esc(entity)}'`) : 0;
 
   /** Rows of a live table; null when the table itself does not exist. */
   const rowCount = async (table: string): Promise<number | null> =>
-    (await tableExists(prisma, db, table)) ? await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, table)}`) : null;
+    (await tableExists(prisma, db, table)) ? safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, table)}`) : null;
 
   /** Split legacy blob-of-tokens columns with the phases' splitter; null when
    *  none of the columns exists (pre-ddl or retired by activate). */
@@ -474,8 +474,9 @@ export async function verifyMigration(
     { table: 'service_configs', cols: ['createdAt', 'updatedAt'] },
   ];
   for (const t of stampTables) {
-    if (!(await tableExists(prisma, db, t.table)) || (await columnType(prisma, db, t.table, t.cols[0])) === '') {
-      push(`${t.table} timestamps populated`, false, `pending — ${t.table}.${t.cols[0]} not created yet (ddl phase not applied)`);
+    const firstCol = t.cols[0] ?? '';
+    if (!(await tableExists(prisma, db, t.table)) || (await columnType(prisma, db, t.table, firstCol)) === '') {
+      push(`${t.table} timestamps populated`, false, `pending — ${t.table}.${firstCol} not created yet (ddl phase not applied)`);
       continue;
     }
     const nullStamps = await safeCount(

@@ -1,4 +1,4 @@
-import { PublicServiceConfig, ServiceConfig } from '../model/config';
+import { type PublicServiceConfig, type ServiceConfig } from '../model/config';
 
 const PUBLIC_CONFIG_KEYS = {
     google_maps: ['map_width', 'map_height', 'zoom_control', 'gesture_handling', 'point_map_height', 'point_map_type_control'],

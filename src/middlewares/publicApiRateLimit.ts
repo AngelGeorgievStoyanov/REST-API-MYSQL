@@ -1,4 +1,4 @@
-import { NextFunction, Request, RequestHandler, Response } from 'express';
+import { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { ApiError } from '../utils/apiError';
 
 const WINDOW_MS = 60_000;

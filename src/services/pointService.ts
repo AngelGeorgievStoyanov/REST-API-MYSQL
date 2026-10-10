@@ -1,9 +1,9 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
-import { ImageDto } from '../model/image';
-import { SocialTargetRef } from '../model/social';
-import { PointRecord, TripActor, TripPoint } from '../model/trip';
-import { ImageFileStorage } from '../storage/imageFileStorage';
+import { type ImageDto } from '../model/image';
+import { type SocialTargetRef } from '../model/social';
+import { type PointRecord, type TripActor, type TripPoint } from '../model/trip';
+import { type ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip, toResourcePermissions } from '../utils/authorization';
 import { getImageBaseUrl } from '../utils/image';
@@ -12,8 +12,8 @@ import { toPointDtoList, toPointUpdateInput, toPointWriteInput } from '../mapper
 import { parsePointCreateBody, parsePointUpdateBody } from '../utils/point';
 import { parseIdList, parsePositiveId } from '../utils/validation';
 import { attachUploadedImage } from './imageAttachment';
-import { PointContext, PointDayContext, PointRepository } from '../repositories/pointRepository';
-import { SocialStateService } from './socialStateService';
+import { type PointContext, type PointDayContext, type PointRepository } from '../repositories/pointRepository';
+import { type SocialStateService } from './socialStateService';
 
 /** Targets of a batch of point rows: the points themselves and their images. */
 function toPointTargets(rows: PointRecord[]): SocialTargetRef[] {
@@ -42,7 +42,9 @@ export class PointService {
 
         // The day context carries the group owner the response permissions are computed from.
         const context = await this.repository.findContext(pointId);
-        return (await this.mapRows([row], actor, context?.groupOwnerId ?? null))[0];
+        const [point] = await this.mapRows([row], actor, context?.groupOwnerId ?? null);
+        if (point === undefined) throw ApiError.notFound('Point not found.');
+        return point;
     }
 
     /**

@@ -1,5 +1,5 @@
 import { MIGRATION_NAME, MIGRATION_VERSION } from './config';
-import { DbExecutor, esc, legacyGroupColumn, legacyKeyColumn, qi, qtable } from './db';
+import { type DbExecutor, esc, lastInsertId, legacyGroupColumn, legacyKeyColumn, qi, qtable } from './db';
 
 export const RUN_TABLE = 'migration_runs';
 export const STATE_TABLE = 'migration_state';
@@ -61,8 +61,7 @@ export async function startRun(
   const rows = (await exec.$queryRawUnsafe(
     `SELECT LAST_INSERT_ID() AS id`,
   )) as Array<{ id: number | bigint }>;
-  const v = rows[0].id;
-  return typeof v === 'bigint' ? Number(v) : Number(v);
+  return lastInsertId(rows);
 }
 
 export async function finishRun(
@@ -132,7 +131,9 @@ export async function lookupState(
       `SELECT ${qi('new_id')} AS n FROM ${qtable(db, STATE_TABLE)} WHERE ${qi('entity')} = '${entity}' AND ${qi('legacy_key')} = '${safe}' LIMIT 1`,
     )) as Array<{ n: number | bigint }>;
     if (rows.length === 0) return null;
-    const v = rows[0].n;
+    const first = rows[0];
+    if (first === undefined) return null;
+    const v = first.n;
     return typeof v === 'bigint' ? Number(v) : Number(v);
   } catch (e) {
     // Dry-run before ddl: control tables absent — NOT the same as "row missing" (a real null).
@@ -157,11 +158,13 @@ export async function recordState(
     `INSERT INTO ${qtable(db, STATE_TABLE)} (${qi('entity')}, ${qi('legacy_key')}, ${qi('new_id')}, ${qi('run_id')}) VALUES ('${entity}', '${safe}', ${newId}, ${runId}) ` +
       `ON DUPLICATE KEY UPDATE ${qi('new_id')} = LAST_INSERT_ID(${qi('new_id')}), ${qi('run_id')} = ${runId}`,
   )) as unknown;
-  void rows;
+  rows;
   const idRows = (await exec.$queryRawUnsafe(
     `SELECT ${qi('new_id')} AS n FROM ${qtable(db, STATE_TABLE)} WHERE ${qi('entity')} = '${entity}' AND ${qi('legacy_key')} = '${safe}' LIMIT 1`,
   )) as Array<{ n: number | bigint }>;
-  const v = idRows[0].n;
+  const first = idRows[0];
+  if (first === undefined) throw new Error(`migration_state row missing for ${entity}:${legacyKey}`);
+  const v = first.n;
   return typeof v === 'bigint' ? Number(v) : Number(v);
 }
 
@@ -189,7 +192,11 @@ export async function resolvePlaceholder(
   if (idRows.length === 0) {
     return recordState(exec, db, entity, legacyKey, newId, runId);
   }
-  const v = idRows[0].n;
+  const first = idRows[0];
+  if (first === undefined) {
+    return recordState(exec, db, entity, legacyKey, newId, runId);
+  }
+  const v = first.n;
   return typeof v === 'bigint' ? Number(v) : Number(v);
 }
 
@@ -226,7 +233,7 @@ export async function resolveTripGroupIntForTrip(
       `SELECT ${groupExpr} AS g FROM ${qtable(db, 'trips')} WHERE ${qi(keyCol)} = '${esc(legacyTrip)}' LIMIT 1`,
     )) as Array<{ g: unknown }>;
     if (rows.length === 0) return { kind: 'unmapped' };
-    raw = rows[0].g;
+    raw = rows[0]?.g;
   } catch (e) {
     // Dry-run before ddl: transitional columns/tables do not exist yet —
     // "not assigned yet", never a data defect.
@@ -262,7 +269,7 @@ export async function quarantineDryAware(
 ): Promise<boolean> {
   // Dry-run counts quarantines without touching the table (it may not exist
   // before ddl). Live mode persists and reports newly inserted (false = already present).
-  void db;
+  db;
   if (dryRun) return true;
   return quarantine(exec, db, runId, entity, legacyId, reasonCode, reason, payload);
 }

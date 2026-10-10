@@ -112,14 +112,14 @@ export function assertSafeTarget(sourceDb: string, targetDb: string): void {
 }
 
 export function getConfig(env: EnvSource = process.env): CloneConfig {
-  const host = (env.MYSQL_HOST || 'localhost').trim();
+  const host = (env['MYSQL_HOST'] || 'localhost').trim();
   // MYSQOL_PORT is the historical .env spelling.
-  const rawPort = (env.MYSQL_PORT || env.MYSQOL_PORT || '').trim();
+  const rawPort = (env['MYSQL_PORT'] || env['MYSQOL_PORT'] || '').trim();
   const port = rawPort === '' ? DEFAULT_MYSQL_PORT : Number(rawPort);
   if (!Number.isInteger(port) || port < MIN_TCP_PORT || port > MAX_TCP_PORT) {
     throw new CloneGuardError(`Invalid MySQL port "${rawPort}".`);
   }
-  const user = (env.MYSQL_USER || '').trim();
+  const user = (env['MYSQL_USER'] || '').trim();
   if (!user) {
     throw new CloneGuardError('MYSQL_USER is not set.');
   }
@@ -130,7 +130,7 @@ export function getConfig(env: EnvSource = process.env): CloneConfig {
     host,
     port,
     user,
-    password: env.MYSQL_PASSWORD || '',
+    password: env['MYSQL_PASSWORD'] || '',
     sourceDb,
     targetDb,
     allowNonLocal: (env[ALLOW_NON_LOCAL_ENV] || '').toLowerCase() === 'true',
@@ -176,12 +176,12 @@ function num(value: unknown): number {
 
 export function connect(conn: mysql.Connection): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    conn.connect((err) => (err ? reject(err) : resolve()));
+    conn.connect((err) => { err ? reject(err) : resolve(); });
   });
 }
 
 export function close(conn: mysql.Connection): Promise<void> {
-  return new Promise<void>((resolve) => conn.end(() => resolve()));
+  return new Promise<void>((resolve) => { conn.end(() => { resolve(); }); });
 }
 
 export function q<T>(conn: mysql.Connection, sql: string, params: unknown[] = []): Promise<T> {
@@ -206,8 +206,8 @@ export async function schemaInfo(conn: mysql.Connection, db: string): Promise<Sc
     [db],
   );
   if (rows.length === 0) return null;
-  const charset = str(rows[0].cs);
-  const collation = str(rows[0].co);
+  const charset = str(rows[0]?.['cs']);
+  const collation = str(rows[0]?.['co']);
   if (!/^[A-Za-z0-9_]+$/.test(charset) || !/^[A-Za-z0-9_]+$/.test(collation)) {
     throw new Error(`Unsafe charset/collation for \`${db}\`: ${charset}/${collation}`);
   }
@@ -227,7 +227,7 @@ export async function similarSchemas(conn: mysql.Connection, db: string): Promis
   const needle = normalizeDbName(db);
   const prefix = needle.slice(0, 8);
   return rows
-    .map((r) => str(r.n))
+    .map((r) => str(r['n']))
     .filter((n) => normalizeDbName(n).startsWith(prefix))
     .slice(0, 10);
 }
@@ -239,7 +239,7 @@ export async function listBaseTables(conn: mysql.Connection, db: string): Promis
       "WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME",
     [db],
   );
-  return rows.map((r) => str(r.n));
+  return rows.map((r) => str(r['n']));
 }
 
 export async function listViews(conn: mysql.Connection, db: string): Promise<string[]> {
@@ -249,7 +249,7 @@ export async function listViews(conn: mysql.Connection, db: string): Promise<str
       "WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'VIEW' ORDER BY TABLE_NAME",
     [db],
   );
-  return rows.map((r) => str(r.n));
+  return rows.map((r) => str(r['n']));
 }
 
 export async function listTriggers(conn: mysql.Connection, db: string): Promise<string[]> {
@@ -259,7 +259,7 @@ export async function listTriggers(conn: mysql.Connection, db: string): Promise<
       'WHERE TRIGGER_SCHEMA = ? ORDER BY TRIGGER_NAME',
     [db],
   );
-  return rows.map((r) => str(r.n));
+  return rows.map((r) => str(r['n']));
 }
 
 /** Copyable columns: generated columns cannot be written to explicitly. */
@@ -275,8 +275,8 @@ export async function insertableColumns(
     [db, table],
   );
   return rows
-    .filter((r) => !str(r.e).toUpperCase().includes('GENERATED'))
-    .map((r) => str(r.c));
+    .filter((r) => !str(r['e']).toUpperCase().includes('GENERATED'))
+    .map((r) => str(r['c']));
 }
 
 /** SHOW CREATE TABLE quoted for the source database (SHOW does not quote it). */
@@ -289,19 +289,19 @@ export async function showCreate(
   const rows = await q<Row[]>(conn, `SHOW CREATE ${kind} ${qtable(db, object)}`);
   if (rows.length === 0) throw new Error(`SHOW CREATE ${kind} returned no row for \`${db}\`.\`${object}\`.`);
   // DDL column names: 'Create Table' | 'Create View' | 'SQL Original Statement'.
-  const keys = Object.keys(rows[0]);
+  const keys = Object.keys(rows[0] ?? {});
   const bodyKey =
     keys.find((k) => /^Create\s/i.test(k) || /^SQL\s+Original\s+Statement$/i.test(k)) ??
     keys[keys.length - 1] ??
     '';
-  const ddl = str(rows[0][bodyKey]);
+  const ddl = str(rows[0]?.[bodyKey]);
   if (ddl === '') throw new Error(`SHOW CREATE ${kind} returned no SQL for \`${db}\`.\`${object}\`.`);
   return ddl;
 }
 
 export async function rowCount(conn: mysql.Connection, db: string, table: string): Promise<number> {
   const rows = await q<Row[]>(conn, `SELECT COUNT(*) AS c FROM ${qtable(db, table)}`);
-  return num(rows[0]?.c);
+  return num(rows[0]?.['c']);
 }
 
 export interface StructureStats {
@@ -324,7 +324,7 @@ export async function structureStats(
 ): Promise<StructureStats> {
   const scalar = async (sql: string): Promise<number> => {
     const rows = await q<Row[]>(conn, sql, [db]);
-    return num(rows[0]?.c);
+    return num(rows[0]?.['c']);
   };
   return {
     tables: await scalar(
@@ -368,8 +368,8 @@ export async function foreignKeyDeps(
   );
   const deps = new Map<string, string[]>();
   for (const row of rows) {
-    const table = str(row.t);
-    const referenced = str(row.r);
+    const table = str(row['t']);
+    const referenced = str(row['r']);
     if (table === '' || referenced === '') continue;
     const list = deps.get(table) ?? [];
     if (!list.includes(referenced)) list.push(referenced);
@@ -470,7 +470,7 @@ export function insertSelectStatement(
 
 export async function sessionSqlMode(conn: mysql.Connection): Promise<string> {
   const rows = await q<Row[]>(conn, 'SELECT @@SESSION.sql_mode AS m');
-  return str(rows[0]?.m);
+  return str(rows[0]?.['m']);
 }
 
 /** Adds NO_AUTO_VALUE_ON_ZERO (as mysqldump does) so a stored AUTO_INCREMENT

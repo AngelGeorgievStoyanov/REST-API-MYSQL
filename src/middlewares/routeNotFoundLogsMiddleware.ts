@@ -1,4 +1,4 @@
-import { NextFunction, Request, RequestHandler, Response } from 'express';
+import { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import os from 'os';
 import { routeNotFoundLogsService } from '../container';
 import { optionalActor } from './authBoundary';
@@ -80,9 +80,12 @@ function rawHeaderValues(rawHeaders: string[], headerName: string): string[] {
     const values: string[] = [];
 
     for (let index = 0; index + 1 < rawHeaders.length; index += 2) {
-        if (rawHeaders[index].toLowerCase() !== headerName) continue;
+        const name = rawHeaders[index];
+        const rawValue = rawHeaders[index + 1];
+        if (name === undefined || rawValue === undefined) continue;
+        if (name.toLowerCase() !== headerName) continue;
 
-        const value = normalizeHeaderValue(rawHeaders[index + 1]);
+        const value = normalizeHeaderValue(rawValue);
         if (value !== '') values.push(value);
     }
 

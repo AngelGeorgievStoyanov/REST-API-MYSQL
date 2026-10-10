@@ -1,6 +1,6 @@
 import { MAX_FAILED_LOG_DELETE_IDS } from '../constants/failedLogs';
-import { AdminPage, FailedLogDto } from '../model/admin';
-import { FailedLogRecord, FailedLogRepository } from '../repositories/failedLogRepository';
+import { type AdminPage, type FailedLogDto } from '../model/admin';
+import { type FailedLogRecord, type FailedLogRepository } from '../repositories/failedLogRepository';
 import { toAdminPageDto, toDeleteCountResponse } from '../mappers/adminMapper';
 import { parseAdminPagination } from '../utils/adminPagination';
 import { parseIdList } from '../utils/validation';

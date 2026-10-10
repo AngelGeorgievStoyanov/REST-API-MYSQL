@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 
 /** Attempts of one serializable unit of work before the conflict is reported. */
 const DEFAULT_MAX_ATTEMPTS = 3;

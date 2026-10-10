@@ -1,6 +1,6 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { SocialStates } from '../model/social';
-import { PointCreateRequest, PointRecord, PointUpdateRequest, PointWriteInput, ResourcePermissions, TripPoint } from '../model/trip';
+import { type SocialStates } from '../model/social';
+import { type PointCreateRequest, type PointRecord, type PointUpdateRequest, type PointWriteInput, type ResourcePermissions, type TripPoint } from '../model/trip';
 import { toSocialImageDto } from './imageMapper';
 import { toIsoString } from '../utils/utils';
 

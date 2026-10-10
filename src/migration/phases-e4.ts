@@ -3,11 +3,11 @@
  * were missing, now that pkswap assigned them. Idempotent via the canonical
  * phase handlers (existing rows are skipped).
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { phaseFavorites, phaseLikes } from './phases-c1';
 import { phaseReports } from './phases-c2';
 import { phaseImages } from './phases-c3';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 export async function phaseReplay(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };

@@ -1,4 +1,4 @@
-import { RouteNotFoundLogDto, RouteNotFoundLogSummary } from '../model/admin';
+import { type RouteNotFoundLogDto, type RouteNotFoundLogSummary } from '../model/admin';
 
 export function toRouteNotFoundLogDto(row: RouteNotFoundLogSummary): RouteNotFoundLogDto {
     return {

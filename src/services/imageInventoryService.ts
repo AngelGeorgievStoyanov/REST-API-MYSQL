@@ -1,7 +1,7 @@
-import { AdminPage } from '../model/admin';
-import { ImageInventoryComparison } from '../model/image';
-import { ImageRepository } from '../repositories/imageRepository';
-import { ImageInventoryStorage, thumbnailFileName } from '../storage/imageFileStorage';
+import { type AdminPage } from '../model/admin';
+import { type ImageInventoryComparison } from '../model/image';
+import { type ImageRepository } from '../repositories/imageRepository';
+import { type ImageInventoryStorage, thumbnailFileName } from '../storage/imageFileStorage';
 import { toAdminCursorPageDto, toAdminPageDto } from '../mappers/adminMapper';
 import { toImageInventoryComparison } from '../mappers/imageInventoryMapper';
 import { parseAdminPagination } from '../utils/adminPagination';

@@ -3,12 +3,26 @@
     "target": "ES2022",
     "module": "commonjs",
     "moduleResolution": "bundler",
+    "lib": ["ES2022"],
     "esModuleInterop": true,
     "rootDir": "src",
     "outDir": "./build",
     "sourceMap": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmitOnError": true
-  }
+    "noEmitOnError": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedSideEffectImports": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "build"]
 }

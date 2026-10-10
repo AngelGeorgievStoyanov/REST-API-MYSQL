@@ -1,14 +1,14 @@
-import { NextFunction, Request, Response } from 'express';
+import { type NextFunction, type Request, type Response } from 'express';
 import { ApiError, toApiErrorBody } from '../utils/apiError';
 import { getErrorMessage } from '../utils/error';
 import { logger } from '../utils/logger';
-import { RequestWithId } from './requestIdMiddleware';
+import { type RequestWithId } from './requestIdMiddleware';
 
 export function apiErrorMiddleware(
     err: unknown,
     req: Request,
     res: Response,
-    next: NextFunction,
+    _next: NextFunction,
 ): void {
     const requestId = (req as unknown as RequestWithId).id;
     const method = req.method;

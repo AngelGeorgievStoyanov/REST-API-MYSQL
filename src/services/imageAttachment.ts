@@ -1,5 +1,5 @@
 import { IMAGE_LIMIT_MESSAGE } from '../constants/imageStorage';
-import { ImageFileStorage } from '../storage/imageFileStorage';
+import { type ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { getErrorMessage } from '../utils/error';
 

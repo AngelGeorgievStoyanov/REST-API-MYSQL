@@ -11,9 +11,9 @@
  * an existing valid value is never overwritten and a rerun is a no-op. Nothing
  * else changes — no column is added, dropped or retyped.
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { backfillTimestamps, inTx, qi, qtable, tableExists, toCount } from './db';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 /** The paired lookup tables, in the order reported by the doctor/docs. */
 export const LOOKUP_TABLES = ['select_types', 'select_options', 'service_types', 'service_configs'] as const;
@@ -32,7 +32,7 @@ async function totalCount(prisma: PrismaClient, db: string, table: string): Prom
 }
 
 export async function phaseLookups(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
-  void runId;
+  runId;
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
   const present: string[] = [];
   for (const table of LOOKUP_TABLES) {

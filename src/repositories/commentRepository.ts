@@ -1,6 +1,6 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { type Prisma, type PrismaClient } from '@prisma/client';
 import { COMMENT_TARGET_TYPE, MAX_COMMENT_AUTHOR_LENGTH } from '../constants/social';
-import { CommentRecord } from '../model/comment';
+import { type CommentRecord } from '../model/comment';
 import { ApiError } from '../utils/apiError';
 import { socialTargetKey } from '../utils/social';
 import { deleteSocialRecordsForTargets, socialCleanupTargets } from './polymorphicTargets';

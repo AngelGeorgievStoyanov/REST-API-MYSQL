@@ -1,16 +1,16 @@
 import { COMMENT_TARGET_TYPE, SOCIAL_TARGET_TYPE } from '../constants/social';
 import { MODERATOR_ROLES } from '../constants/trip';
-import { CommentDto, CommentListResponse, CommentRecord } from '../model/comment';
-import { SocialTargetRef, SocialTargetType } from '../model/social';
-import { TripActor } from '../model/trip';
+import { type CommentDto, type CommentListResponse, type CommentRecord } from '../model/comment';
+import { type SocialTargetRef, type SocialTargetType } from '../model/social';
+import { type TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
 import { parseCommentCreateBody, parseCommentPageQuery, parseCommentUpdateBody } from '../utils/social';
 import { parsePositiveId } from '../utils/validation';
-import { CommentRepository } from '../repositories/commentRepository';
+import { type CommentRepository } from '../repositories/commentRepository';
 import { toCommentDto, toCommentListResponse } from '../mappers/commentMapper';
-import { SocialTargetRepository } from '../repositories/socialTargetRepository';
-import { TargetTypeRepository } from '../repositories/targetTypeRepository';
-import { SocialStateService } from './socialStateService';
+import { type SocialTargetRepository } from '../repositories/socialTargetRepository';
+import { type TargetTypeRepository } from '../repositories/targetTypeRepository';
+import { type SocialStateService } from './socialStateService';
 
 
 export class CommentService {

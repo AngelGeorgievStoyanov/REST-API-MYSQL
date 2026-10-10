@@ -10,14 +10,16 @@
     "server": "node --inspect=5858 -r ts-node/register/transpile-only ./src/index.ts",
     "start": "npx tsc && pm2 start ./build/index.js",
     "build": "tsc",
-    "bild": "tsc",
+    "typecheck": "tsc --noEmit",
     "dev": "nodemon",
     "migration:phase4": "ts-node src/migration/run-main.ts",
     "migration:phase4:dry-run": "ts-node src/migration/run-main.ts --dry-run",
     "migration:phase4:verify": "ts-node src/migration/run-main.ts --verify",
     "db:clone-test": "ts-node src/db/cloneTestDatabase.ts",
     "db:clone-test:dry-run": "ts-node src/db/cloneTestDatabase.ts --dry-run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "npm run typecheck && npm run lint"
   },
   "author": "Angel Stoyanov",
   "license": "ISC",
@@ -32,11 +34,14 @@
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.70.0",
     "eslint": "^10.10.0",
+    "eslint-plugin-promise": "^7.3.0",
+    "eslint-plugin-security": "^4.2.0",
     "globals": "^16.5.0",
     "nodemon": "^3.1.14",
     "pino-pretty": "^13.2.0",
     "ts-node": "10.9.2",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.71.1"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.2.0",

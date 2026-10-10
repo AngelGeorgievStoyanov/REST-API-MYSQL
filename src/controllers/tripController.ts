@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { backgroundImageService, tripService } from '../container';
 import { actorFrom, optionalActor, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
@@ -31,7 +31,7 @@ tripController.get('/background', validateRequest({}), optionalAuthentication, a
 }));
 
 tripController.get('/:tripGroupId', validateRequest({ params: tripGroupIdParams }), optionalAuthentication, asyncHandler(async (req, res) => {
-    const trip = await tripService.getTrip(routeParam(req.params.tripGroupId), optionalActor(req));
+    const trip = await tripService.getTrip(routeParam(req.params['tripGroupId']), optionalActor(req));
     res.status(200).json(trip);
 }));
 
@@ -41,7 +41,7 @@ tripController.post('/', validateRequest({ body: tripWriteSchema }), requireAuth
 }));
 
 tripController.delete('/:tripGroupId', validateRequest({ params: tripGroupIdParams }), requireAuthentication, asyncHandler(async (req, res) => {
-    await tripService.deleteTrip(actorFrom(req), routeParam(req.params.tripGroupId));
+    await tripService.deleteTrip(actorFrom(req), routeParam(req.params['tripGroupId']));
     res.status(204).send();
 }));
 
@@ -50,7 +50,7 @@ tripController.post(
     validateRequest({ params: tripGroupIdParams, body: dayCreateSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const day = await tripService.createDay(actorFrom(req), routeParam(req.params.tripGroupId), req.body);
+        const day = await tripService.createDay(actorFrom(req), routeParam(req.params['tripGroupId']), req.body);
         res.status(201).json(day);
     }),
 );
@@ -60,7 +60,7 @@ tripController.put(
     validateRequest({ params: tripGroupIdParams, body: dayReorderSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const days = await tripService.reorderDays(actorFrom(req), routeParam(req.params.tripGroupId), req.body);
+        const days = await tripService.reorderDays(actorFrom(req), routeParam(req.params['tripGroupId']), req.body);
         res.status(200).json(days);
     }),
 );
@@ -72,8 +72,8 @@ tripController.put(
     asyncHandler(async (req, res) => {
         const day = await tripService.updateDay(
             actorFrom(req),
-            routeParam(req.params.tripGroupId),
-            routeParam(req.params.tripId),
+            routeParam(req.params['tripGroupId']),
+            routeParam(req.params['tripId']),
             req.body,
         );
         res.status(200).json(day);
@@ -85,7 +85,7 @@ tripController.delete(
     validateRequest({ params: tripDayParams }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        await tripService.deleteDay(actorFrom(req), routeParam(req.params.tripGroupId), routeParam(req.params.tripId));
+        await tripService.deleteDay(actorFrom(req), routeParam(req.params['tripGroupId']), routeParam(req.params['tripId']));
         res.status(204).send();
     }),
 );
@@ -98,8 +98,8 @@ tripController.post(
     asyncHandler(async (req, _res, next) => {
         await tripService.assertDayImageUpload(
             actorFrom(req),
-            routeParam(req.params.tripGroupId),
-            routeParam(req.params.tripId),
+            routeParam(req.params['tripGroupId']),
+            routeParam(req.params['tripId']),
         );
         next();
     }),
@@ -107,8 +107,8 @@ tripController.post(
     asyncHandler(async (req, res) => {
         const image = await tripService.addDayImage(
             actorFrom(req),
-            routeParam(req.params.tripGroupId),
-            routeParam(req.params.tripId),
+            routeParam(req.params['tripGroupId']),
+            routeParam(req.params['tripId']),
             uploadedFileName(req),
         );
         res.status(201).json(image);

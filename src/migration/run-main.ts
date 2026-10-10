@@ -1,6 +1,6 @@
-import dotenv = require('dotenv');
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
-import { CliOptions, PhaseName, PHASES, getEnv, helpText, parseArgs } from './config';
+import { type CliOptions, type PhaseName, PHASES, getEnv, helpText, parseArgs } from './config';
 import { dbName } from './db';
 import { preflight, productionGateError } from './preflight';
 import { ensureControlTables, finishRun, startRun } from './state';
@@ -21,13 +21,11 @@ import { phaseGroupfinalize } from './phases-e3';
 import { phaseReplay } from './phases-e4';
 import { phaseActivate } from './phases-e5';
 import { verifyMigration } from './verify';
-import { Counters } from './types';
-
-dotenv.config();
+import { type Counters } from './types';
 
 async function runPhase(
   prisma: PrismaClient, db: string, runId: number, dryRun: boolean, phase: PhaseName,
-  report: Record<string, Counters | unknown>,
+  report: Record<string, unknown>,
 ): Promise<void> {
   switch (phase) {
     case 'ddl': {
@@ -57,8 +55,8 @@ async function runPhase(
     case 'constraints': report['constraints'] = await phaseConstraints(prisma, db); break;
   }
   const r = report[phase] as Counters | undefined;
-  if (r && typeof (r as Counters).migrated === 'number') {
-    const cc = r as Counters;
+  if (r && typeof (r).migrated === 'number') {
+    const cc = r;
     console.log(`[${phase}] migrated=${cc.migrated} skipped=${cc.skipped} quarantined=${cc.quarantined}${dryRun ? ' (dry-run: no writes)' : ''}`);
   }
 }
@@ -85,6 +83,7 @@ async function main(): Promise<void> {
     if (!pf.ok) {
       console.error('PREFLIGHT_FAIL');
       for (const f of pf.fatal) console.error('  - ' + f);
+      // eslint-disable-next-line require-atomic-updates
       process.exitCode = 2;
       return;
     }
@@ -100,11 +99,13 @@ async function main(): Promise<void> {
     if (pf.isProduction && !(env.allowProduction && opts.confirmProduction)) {
       console.error('PRODUCTION_GATE_REFUSE');
       for (const f of productionGateError()) console.error('  - ' + f);
+      // eslint-disable-next-line require-atomic-updates
       process.exitCode = 2;
       return;
     }
     if (pf.isProduction && !env.backupRef) {
       console.error('PREFLIGHT_FAIL production target requires MIGRATION_BACKUP_REF.');
+      // eslint-disable-next-line require-atomic-updates
       process.exitCode = 2;
       return;
     }
@@ -115,10 +116,11 @@ async function main(): Promise<void> {
     const runId = opts.dryRun ? 0 : await startRun(prisma, db, false);
     if (opts.dryRun) console.log('DRY-RUN active: validation + mapping report only, no writes.');
     else console.log(`RUN started id=${runId}`);
-    const report: Record<string, Counters | unknown> = {};
+    const report: Record<string, unknown> = {};
     const phases = opts.phase ? PHASES.filter((p) => p === opts.phase) : [...PHASES];
     console.log('PHASES: ' + phases.join(','));
     for (const phase of phases) {
+      // eslint-disable-next-line no-await-in-loop
       await runPhase(prisma, db, runId, opts.dryRun, phase, report);
     }
     const v = await verifyMigration(prisma, db, runId, { dryRun: opts.dryRun });
@@ -127,7 +129,7 @@ async function main(): Promise<void> {
     console.log('FINALIZATION-CHECKS:');
     for (const f of v.finalization) console.log(`  [${f.ok ? 'OK' : 'PENDING'}] ${f.check} — ${f.detail}`);
     const cc = report['constraints'] as { checks?: Array<{ statement: string; ok: boolean; detail: string }> } | undefined;
-    if (cc && cc.checks) {
+    if (cc?.checks) {
       console.log('CONSTRAINT-READINESS (activation is a later step):');
       for (const chk of cc.checks) console.log(`  [${chk.ok ? 'OK' : 'BLOCKED'}] ${chk.statement} — ${chk.detail}`);
     }
@@ -135,10 +137,17 @@ async function main(): Promise<void> {
     console.log(opts.dryRun ? 'DRY-RUN complete.' : `RUN ${runId} completed.`);
   } catch (e) {
     console.error('MIGRATION_FAILED ' + (e as Error).message);
+    // eslint-disable-next-line require-atomic-updates
     process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(
+    'MIGRATION_FAILED',
+    error instanceof Error ? error.message : error,
+  );
+  process.exitCode = 1;
+});

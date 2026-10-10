@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { databaseNameFromUrl } from './config';
 
 /** Surface shared by PrismaClient and its interactive-transaction client. */
@@ -11,7 +11,7 @@ export type DbExecutor = {
 export async function inTx(prisma: PrismaClient, fn: (tx: DbExecutor) => Promise<void>): Promise<void> {
   await prisma.$transaction(
     async (t) => {
-      await fn(t as unknown as DbExecutor);
+      await fn(t);
     },
     { timeout: 120000 },
   );
@@ -59,9 +59,9 @@ export async function columnExists(
   table: string,
   column: string,
 ): Promise<boolean> {
-  const rows = (await prisma.$queryRawUnsafe(
+  const rows = await prisma.$queryRawUnsafe<Array<{ ok: number }>>(
     `SELECT 1 AS ok FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}' LIMIT 1`,
-  )) as Array<{ ok: number }>;
+  );
   return rows.length > 0;
 }
 
@@ -70,9 +70,9 @@ export async function tableExists(
   db: string,
   table: string,
 ): Promise<boolean> {
-  const rows = (await prisma.$queryRawUnsafe(
+  const rows = await prisma.$queryRawUnsafe<Array<{ ok: number }>>(
     `SELECT 1 AS ok FROM information_schema.TABLES WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' LIMIT 1`,
-  )) as Array<{ ok: number }>;
+  );
   return rows.length > 0;
 }
 
@@ -82,10 +82,10 @@ export async function columnType(
   table: string,
   column: string,
 ): Promise<string> {
-  const rows = (await prisma.$queryRawUnsafe(
+  const rows = await prisma.$queryRawUnsafe<Array<{ t: string }>>(
     `SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}'`,
-  )) as Array<{ t: string }>;
-  return rows.length > 0 ? String(rows[0].t) : '';
+  );
+  return rows[0]?.t ?? '';
 }
 
 export async function columnNullable(
@@ -94,11 +94,11 @@ export async function columnNullable(
   table: string,
   column: string,
 ): Promise<boolean | null> {
-  const rows = (await prisma.$queryRawUnsafe(
+  const rows = await prisma.$queryRawUnsafe<Array<{ n: string }>>(
     `SELECT IS_NULLABLE AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}'`,
-  )) as Array<{ n: string }>;
+  );
   if (rows.length === 0) return null;
-  return String(rows[0].n).toUpperCase() === 'YES';
+  return rows[0]?.n?.toUpperCase() === 'YES';
 }
 
 /**
@@ -111,11 +111,12 @@ export async function columnDefault(
   table: string,
   column: string,
 ): Promise<string | null | undefined> {
-  const rows = (await prisma.$queryRawUnsafe(
+  const rows = (await prisma.$queryRawUnsafe<Array<{ d: string | null }>>(
     `SELECT COLUMN_DEFAULT AS d FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND COLUMN_NAME = '${esc(column)}'`,
-  )) as Array<{ d: string | null }>;
+  ));
   if (rows.length === 0) return undefined;
-  return rows[0].d === null || rows[0].d === undefined ? null : String(rows[0].d);
+  if (rows[0]?.d === null || rows[0]?.d === undefined) return null;
+  return rows[0].d;
 }
 
 /**
@@ -226,9 +227,20 @@ export async function legacyGroupColumn(exec: DbExecutor, db: string): Promise<s
 
 export function toCount(rows: Array<Record<string, unknown>>): number {
   if (!rows || rows.length === 0) return 0;
-  const v = Object.values(rows[0])[0];
+  const v = Object.values(rows[0] ?? {})[0];
   if (typeof v === 'bigint') return Number(v);
   return Number(v);
+}
+
+/**
+ * `SELECT LAST_INSERT_ID()` result -> the inserted id. The row always exists for
+ * an auto-increment insert, so a missing row is a hard failure: it must never be
+ * coerced to 0, which is reserved for the "seen but unmigratable" placeholder.
+ */
+export function lastInsertId(rows: Array<{ id: number | bigint }>): number {
+  const first = rows[0];
+  if (first === undefined) throw new Error('LAST_INSERT_ID() returned no row.');
+  return Number(first.id);
 }
 
 export function toBigintString(v: unknown): string {
@@ -326,7 +338,7 @@ export async function backfillTimestamps(
 }
 
 export function dbName(): string {
-  return databaseNameFromUrl((process.env.DATABASE_URL || '').trim());
+  return databaseNameFromUrl((process.env['DATABASE_URL'] || '').trim());
 }
 
 /**

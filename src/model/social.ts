@@ -1,4 +1,4 @@
-import { SOCIAL_TARGET_TYPE } from '../constants/social';
+import { type SOCIAL_TARGET_TYPE } from '../constants/social';
 
 /** `target_types.name` of a resource that can carry social state. */
 export type SocialTargetType = (typeof SOCIAL_TARGET_TYPE)[keyof typeof SOCIAL_TARGET_TYPE];

@@ -1,6 +1,6 @@
 import pino from 'pino';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = process.env['NODE_ENV'] === 'production';
 
 export const logger = pino({
     level: isProduction ? 'info' : 'debug',
@@ -16,13 +16,15 @@ export const logger = pino({
         'req.body.refreshToken',
         'req.body.accessToken',
     ],
-    transport: isProduction
-        ? undefined
+    ...(isProduction
+        ? {}
         : {
-            target: 'pino-pretty',
-            options: {
-                colorize: true,
-                translateTime: 'HH:MM:ss',
+            transport: {
+                target: 'pino-pretty',
+                options: {
+                    colorize: true,
+                    translateTime: 'HH:MM:ss',
+                },
             },
-        },
+        }),
 });

@@ -1,14 +1,14 @@
-import { PrismaClient } from '@prisma/client';
-import { DbExecutor, backfillTimestamps, columnExists, createdNow, esc, inTx, isUuid, keepOrFill, legacyGroupColumn, ownerColumn, qi, qtable, timestampFallback, toCount, userKeyColumn } from './db';
+import { type PrismaClient } from '@prisma/client';
+import { type DbExecutor, backfillTimestamps, columnExists, createdNow, esc, inTx, lastInsertId, isUuid, keepOrFill, legacyGroupColumn, ownerColumn, qi, qtable, timestampFallback, toCount, userKeyColumn } from './db';
 import { lookupStateOrPending, quarantineDryAware, recordState } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 async function runBody(
   prisma: PrismaClient,
-  db: string,
-  runId: number,
+  _db: string,
+  _runId: number,
   dryRun: boolean,
-  entity: 'User' | 'TripGroup',
+  _entity: 'User' | 'TripGroup',
   apply: (exec: DbExecutor) => Promise<Counters>,
 ): Promise<Counters> {
   if (dryRun) {
@@ -114,6 +114,7 @@ export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: n
         await quarantineDryAware(exec, db, dryRun, runId, 'TripGroup', g, 'ORPHAN_USER', 'No surviving user owner; owner must not be invented.', { owners: ownerList }); c.quarantined++; continue;
       }
       const owner = [...new Set(usable)].sort()[0];
+      if (owner === undefined) continue;
       if (new Set(usable).size > 1) {
         await quarantineDryAware(exec, db, dryRun, runId, 'TripGroup', g, 'MULTI_OWNER', 'Several surviving owners; deterministic lowest-UUID chosen, needs review.', { owners: usable, chosen: owner });
       }
@@ -125,7 +126,7 @@ export async function phaseTripGroups(prisma: PrismaClient, db: string, runId: n
         `INSERT INTO ${qtable(db, 'trip_groups')} (${qi('ownerId')}, ${qi('createdAt')}, ${qi('updatedAt')}) VALUES ('${esc(owner)}', '${stamp}', '${stamp}')`,
       );
       const idRows = (await exec.$queryRawUnsafe(`SELECT LAST_INSERT_ID() AS id`)) as Array<{ id: number | bigint }>;
-      await recordState(exec, db, 'TripGroup', g, Number(idRows[0].id), runId);
+      await recordState(exec, db, 'TripGroup', g, lastInsertId(idRows), runId);
       c.migrated++;
     }
     return c;

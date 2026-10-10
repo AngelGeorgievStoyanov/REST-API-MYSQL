@@ -10,7 +10,7 @@ apiRouter.use('/v1', apiRouterV1);
 
 // Anything else under `/api` is answered with the shared error contract, so an
 // unknown version or path never reaches the Express default HTML 404 page.
-apiRouter.use((_req, _res, next) => next(ApiError.notFound()));
+apiRouter.use((_req, _res, next) => { next(ApiError.notFound()); });
 apiRouter.use(apiErrorMiddleware);
 
 export default apiRouter;

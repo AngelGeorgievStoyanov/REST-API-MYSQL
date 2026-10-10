@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import { SocialTargetType } from '../model/social';
+import { type PrismaClient } from '@prisma/client';
+import { type SocialTargetType } from '../model/social';
 import { ApiError } from '../utils/apiError';
 import { isSocialTargetType } from '../utils/social';
 

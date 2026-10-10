@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { commentService } from '../container';
 import { actorFrom, optionalActor, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
@@ -11,8 +11,8 @@ import { commentBodySchema, commentPageQuerySchema } from '../validation/schemas
 
 /**
  * Comment routes of API v1. Reading is public (a trip is public), writing needs
- * the authenticated author. The collection endpoints mirror the resource tree —
- * trip group, day, point and image — and are mounted at the v1 root because they
+ * the authenticated author. The collection endpoints mirror the resource tree â€”
+ * trip group, day, point and image â€” and are mounted at the v1 root because they
  * span several prefixes.
  */
 const commentController = express.Router();
@@ -24,7 +24,7 @@ commentController.get(
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForTarget(
             SOCIAL_TARGET_TYPE.TRIP_GROUP,
-            routeParam(req.params.tripGroupId),
+            routeParam(req.params['tripGroupId']),
             req.query,
             optionalActor(req),
         );
@@ -40,7 +40,7 @@ commentController.post(
         const comment = await commentService.create(
             actorFrom(req),
             SOCIAL_TARGET_TYPE.TRIP_GROUP,
-            routeParam(req.params.tripGroupId),
+            routeParam(req.params['tripGroupId']),
             req.body,
         );
         res.status(201).json(comment);
@@ -53,8 +53,8 @@ commentController.get(
     optionalAuthentication,
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForDay(
-            routeParam(req.params.tripGroupId),
-            routeParam(req.params.tripId),
+            routeParam(req.params['tripGroupId']),
+            routeParam(req.params['tripId']),
             req.query,
             optionalActor(req),
         );
@@ -69,8 +69,8 @@ commentController.post(
     asyncHandler(async (req, res) => {
         const comment = await commentService.createForDay(
             actorFrom(req),
-            routeParam(req.params.tripGroupId),
-            routeParam(req.params.tripId),
+            routeParam(req.params['tripGroupId']),
+            routeParam(req.params['tripId']),
             req.body,
         );
         res.status(201).json(comment);
@@ -84,7 +84,7 @@ commentController.get(
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForTarget(
             SOCIAL_TARGET_TYPE.POINT,
-            routeParam(req.params.pointId),
+            routeParam(req.params['pointId']),
             req.query,
             optionalActor(req),
         );
@@ -100,7 +100,7 @@ commentController.post(
         const comment = await commentService.create(
             actorFrom(req),
             SOCIAL_TARGET_TYPE.POINT,
-            routeParam(req.params.pointId),
+            routeParam(req.params['pointId']),
             req.body,
         );
         res.status(201).json(comment);
@@ -114,7 +114,7 @@ commentController.get(
     asyncHandler(async (req, res) => {
         const comments = await commentService.listForTarget(
             SOCIAL_TARGET_TYPE.IMAGE,
-            routeParam(req.params.imageId),
+            routeParam(req.params['imageId']),
             req.query,
             optionalActor(req),
         );
@@ -130,7 +130,7 @@ commentController.post(
         const comment = await commentService.create(
             actorFrom(req),
             SOCIAL_TARGET_TYPE.IMAGE,
-            routeParam(req.params.imageId),
+            routeParam(req.params['imageId']),
             req.body,
         );
         res.status(201).json(comment);
@@ -142,7 +142,7 @@ commentController.put(
     validateRequest({ params: commentIdParams, body: commentBodySchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const comment = await commentService.update(actorFrom(req), routeParam(req.params.commentId), req.body);
+        const comment = await commentService.update(actorFrom(req), routeParam(req.params['commentId']), req.body);
         res.status(200).json(comment);
     }),
 );
@@ -152,7 +152,7 @@ commentController.delete(
     validateRequest({ params: commentIdParams }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        await commentService.delete(actorFrom(req), routeParam(req.params.commentId));
+        await commentService.delete(actorFrom(req), routeParam(req.params['commentId']));
         res.status(204).send();
     }),
 );

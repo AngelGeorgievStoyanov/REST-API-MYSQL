@@ -1,4 +1,4 @@
-import { REPORT_TARGET_TYPE_VALUES } from '../constants/social';
+import { type REPORT_TARGET_TYPE_VALUES } from '../constants/social';
 
 /** DTO of the administrative report queue (one `reports` row). */
 export interface AdminReportDto {

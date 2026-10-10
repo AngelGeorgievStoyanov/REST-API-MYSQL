@@ -5,10 +5,10 @@
  * (the legacy source has none). `reports.targetId` carries no FK, like all
  * polymorphic target columns.
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { TARGET_TYPE } from './db';
 import { commentParentResolver, migrateUserTokenList, tripParentResolver } from './targets';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 export async function phaseReports(
   prisma: PrismaClient,

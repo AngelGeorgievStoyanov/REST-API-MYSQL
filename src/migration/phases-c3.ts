@@ -2,10 +2,10 @@
  * Images from trips/points/users. Exact filenames preserved; `_thumb.webp`
  * is a GCS sidecar of the stored base filename and gets no row of its own.
  */
-import { PrismaClient } from '@prisma/client';
-import { DbExecutor, backfillTimestamps, columnExists, createdNow, esc, inTx, qi, qtable, splitList, userExistsById, userKeyColumn } from './db';
+import { type PrismaClient } from '@prisma/client';
+import { type DbExecutor, backfillTimestamps, columnExists, createdNow, esc, inTx, lastInsertId, qi, qtable, splitList, userExistsById, userKeyColumn } from './db';
 import { isStateUnavailable, lookupState, lookupStateOrPending, quarantineDryAware, recordState } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
@@ -63,7 +63,7 @@ async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: bo
           `INSERT INTO ${qtable(db, 'images')} (${qi('tripId')}, ${qi('filePath')}, ${qi('createdAt')}, ${qi('updatedAt')}) VALUES (${tid}, '${esc(f.slice(0, 990))}', '${stamp}', '${stamp}')`,
         );
         const idRows = (await exec.$queryRawUnsafe(`SELECT LAST_INSERT_ID() AS id`)) as Array<{ id: number | bigint }>;
-        await recordState(exec, db, 'Image', key, Number(idRows[0].id), runId);
+        await recordState(exec, db, 'Image', key, lastInsertId(idRows), runId);
         c.migrated++;
       }
     }
@@ -104,7 +104,7 @@ async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: bo
           `INSERT INTO ${qtable(db, 'images')} (${qi('pointId')}, ${qi('filePath')}, ${qi('createdAt')}, ${qi('updatedAt')}) VALUES (${pid}, '${esc(f.slice(0, 990))}', '${stamp}', '${stamp}')`,
         );
         const idRows = (await exec.$queryRawUnsafe(`SELECT LAST_INSERT_ID() AS id`)) as Array<{ id: number | bigint }>;
-        await recordState(exec, db, 'Image', key, Number(idRows[0].id), runId);
+        await recordState(exec, db, 'Image', key, lastInsertId(idRows), runId);
         c.migrated++;
       }
     }
@@ -128,7 +128,7 @@ async function runImages(exec: DbExecutor, db: string, runId: number, dryRun: bo
           `INSERT INTO ${qtable(db, 'images')} (${qi('ownerId')}, ${qi('filePath')}, ${qi('createdAt')}, ${qi('updatedAt')}) VALUES ('${esc(legacy)}', '${esc(f.slice(0, 990))}', '${stamp}', '${stamp}')`,
         );
         const idRows = (await exec.$queryRawUnsafe(`SELECT LAST_INSERT_ID() AS id`)) as Array<{ id: number | bigint }>;
-        await recordState(exec, db, 'Image', key, Number(idRows[0].id), runId);
+        await recordState(exec, db, 'Image', key, lastInsertId(idRows), runId);
         c.migrated++;
       }
     }

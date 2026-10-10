@@ -1,5 +1,5 @@
-import { Prisma, PrismaClient } from '@prisma/client';
-import { AdminReportRecord, CreatedReportRecord } from '../model/report';
+import { Prisma, type PrismaClient } from '@prisma/client';
+import { type AdminReportRecord, type CreatedReportRecord } from '../model/report';
 import { socialTargetKey } from '../utils/social';
 
 export class ReportRepository {

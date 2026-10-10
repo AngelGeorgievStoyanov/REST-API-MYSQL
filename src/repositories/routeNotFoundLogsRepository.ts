@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import { RouteNotFoundLogSummary } from '../model/admin';
+import { type PrismaClient } from '@prisma/client';
+import { type RouteNotFoundLogSummary } from '../model/admin';
 import {
     MAX_ACTOR_ID_LENGTH,
     MAX_BODY_LENGTH,
@@ -20,7 +20,7 @@ export interface RouteNotFoundLogRecord {
     body: unknown;
     params: unknown;
     clientIp: string;
-    actorId?: string;
+    actorId?: string | undefined;
 }
 
 

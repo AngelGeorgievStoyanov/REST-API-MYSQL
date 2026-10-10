@@ -4,15 +4,16 @@
  * and either migrated or quarantined — never split or guessed. Idempotent
  * via migration_state + the final UNIQUE keys.
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import {
-  DbExecutor,
+  type DbExecutor,
   backfillTimestamps,
   columnExists,
   createdNow,
   esc,
   inTx,
   isUuid,
+  lastInsertId,
   legacyKeyColumn,
   qi,
   qtable,
@@ -20,7 +21,7 @@ import {
   userExistsById,
 } from './db';
 import {
-  TargetResolution,
+  type TargetResolution,
   isStateUnavailable,
   lookupState,
   lookupStateOrPending,
@@ -28,7 +29,7 @@ import {
   recordState,
   resolveTripGroupIntForTrip,
 } from './state';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 export interface TokenListConfig {
   entity: string;
@@ -169,7 +170,7 @@ export async function migrateUserTokenList(
         const idRows = (await exec.$queryRawUnsafe(
           `SELECT ${qi('id')} AS id FROM ${qtable(db, cfg.targetTable)} WHERE ${where.join(' AND ')} LIMIT 1`,
         )) as Array<{ id: number | bigint }>;
-        await recordState(exec, db, cfg.entity, stateKey, Number(idRows[0].id), runId);
+        await recordState(exec, db, cfg.entity, stateKey, lastInsertId(idRows), runId);
         c.migrated++;
       }
     }

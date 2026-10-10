@@ -1,5 +1,5 @@
-import { ImageRecord, SocialImageDto } from './image';
-import { SocialState } from './social';
+import { type ImageRecord, type SocialImageDto } from './image';
+import { type SocialState } from './social';
 
 /**
  * Persistence notes for these DTOs (prisma/schema.prisma is the source of truth):

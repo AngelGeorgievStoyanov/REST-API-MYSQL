@@ -1,5 +1,5 @@
-import multer, { MulterError, StorageEngine } from 'multer';
-import { NextFunction, Request, RequestHandler, Response } from 'express';
+import multer, { MulterError, type StorageEngine } from 'multer';
+import { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { IMAGE_UPLOAD_LIMITS, UPLOAD_FIELD_NAME } from '../constants/imageStorage';
 import { ImageObjectAlreadyExistsError, UnsupportedImageError } from './imageValidation';
 import { ApiError } from '../utils/apiError';
@@ -12,7 +12,7 @@ let uploadSingleFile: RequestHandler | null = null;
  */
 function getUploadMiddleware(): RequestHandler {
     if (!uploadSingleFile) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { storage } = require('./storageConfig') as { storage: StorageEngine };
         uploadSingleFile = multer({ storage, limits: IMAGE_UPLOAD_LIMITS }).single(UPLOAD_FIELD_NAME);
     }
@@ -26,23 +26,23 @@ function getUploadMiddleware(): RequestHandler {
  */
 export function imageUpload(req: Request, res: Response, next: NextFunction): void {
     getUploadMiddleware()(req, res, (error: unknown) => {
-        if (error instanceof MulterError) {
-            next(ApiError.validation(`Image upload failed: ${error.message}.`));
-            return;
-        }
+            if (error instanceof MulterError) {
+                next(ApiError.validation(`Image upload failed: ${error.message}.`));
+                return;
+            }
 
-        if (error instanceof UnsupportedImageError) {
-            next(ApiError.validation(`Image upload failed: ${error.message}`));
-            return;
-        }
+            if (error instanceof UnsupportedImageError) {
+                next(ApiError.validation(`Image upload failed: ${error.message}`));
+                return;
+            }
 
-        if (error instanceof ImageObjectAlreadyExistsError) {
-            next(ApiError.conflict('The image could not be stored because its generated key already exists.'));
-            return;
-        }
+            if (error instanceof ImageObjectAlreadyExistsError) {
+                next(ApiError.conflict('The image could not be stored because its generated key already exists.'));
+                return;
+            }
 
-        next(error ?? undefined);
-    });
+            next(error ?? undefined);
+        });
 }
 
 /** The storage engine reports the stored object name as `destination`. */

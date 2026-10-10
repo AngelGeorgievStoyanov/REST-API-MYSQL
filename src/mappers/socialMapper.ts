@@ -1,5 +1,5 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { SocialState, SocialTargetType } from '../model/social';
+import { type SocialState, type SocialTargetType } from '../model/social';
 
 export function toSocialState(input: {
     targetType: SocialTargetType;

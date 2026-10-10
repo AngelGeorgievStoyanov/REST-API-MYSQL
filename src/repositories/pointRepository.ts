@@ -1,6 +1,6 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { type Prisma, type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { PointRecord, PointWriteInput } from '../model/trip';
+import { type PointRecord, type PointWriteInput } from '../model/trip';
 import { toPointRecord } from '../mappers/pointPersistenceMapper';
 import { sortPointsByNumber } from '../utils/point';
 import { deleteSocialRecordsForTargets, socialCleanupTargets } from './polymorphicTargets';

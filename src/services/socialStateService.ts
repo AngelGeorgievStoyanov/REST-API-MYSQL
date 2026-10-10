@@ -1,13 +1,13 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { ReportTargetType } from '../model/report';
-import { SocialState, SocialStates, SocialTargetRef, SocialTargetType } from '../model/social';
+import { type ReportTargetType } from '../model/report';
+import { type SocialState, type SocialStates, type SocialTargetRef, type SocialTargetType } from '../model/social';
 import { socialTargetKey } from '../utils/social';
 import { toSocialState } from '../mappers/socialMapper';
-import { CommentRepository } from '../repositories/commentRepository';
-import { FavoriteRepository } from '../repositories/favoriteRepository';
-import { LikeRepository } from '../repositories/likeRepository';
-import { ReportRepository } from '../repositories/reportRepository';
-import { TargetTypeRepository } from '../repositories/targetTypeRepository';
+import { type CommentRepository } from '../repositories/commentRepository';
+import { type FavoriteRepository } from '../repositories/favoriteRepository';
+import { type LikeRepository } from '../repositories/likeRepository';
+import { type ReportRepository } from '../repositories/reportRepository';
+import { type TargetTypeRepository } from '../repositories/targetTypeRepository';
 
 function unique(values: number[]): number[] {
     return [...new Set(values)];

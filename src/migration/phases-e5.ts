@@ -4,11 +4,11 @@
  * exact final FK/index set, drops legacy-only columns and finally the
  * migration control tables. Idempotent and shape-probed: reruns are no-ops.
  */
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { TARGET_TYPES, columnExists, columnNullable, esc, qi, qtable, tableExists, userKeyColumn } from './db';
 import { quarantineDryAware } from './state';
 import { phaseConstraints } from './phases-d3';
-import { Counters } from './types';
+import { type Counters } from './types';
 
 async function fkExists(prisma: PrismaClient, db: string, name: string): Promise<boolean> {
   const rows = (await prisma.$queryRawUnsafe(

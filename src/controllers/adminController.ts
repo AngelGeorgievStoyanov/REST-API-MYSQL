@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { authConfig } from '../config/auth';
 import { ADMIN_OR_MODERATOR_ROLES, ADMIN_RATE_LIMIT_MAX } from '../constants/admin';
 import {
@@ -38,7 +38,7 @@ adminController.put(
     validateRequest({ params: userIdParams, body: adminUserUpdateSchema }),
     adminOrModerator,
     asyncHandler(async (req, res) => {
-        res.status(200).json(await adminUserService.updateUser(actorFrom(req), routeParam(req.params.userId), req.body));
+        res.status(200).json(await adminUserService.updateUser(actorFrom(req), routeParam(req.params['userId']), req.body));
     }),
 );
 
@@ -48,7 +48,7 @@ adminController.delete(
     validateRequest({ params: userIdParams }),
     adminOrModerator,
     asyncHandler(async (req, res) => {
-        await adminUserService.deleteUser(routeParam(req.params.userId));
+        await adminUserService.deleteUser(routeParam(req.params['userId']));
         res.status(204).send();
     }),
 );
@@ -96,7 +96,7 @@ adminController.delete(
     validateRequest({ params: adminReportIdParams }),
     adminOrModerator,
     asyncHandler(async (req, res) => {
-        await reportService.remove(routeParam(req.params.reportId));
+        await reportService.remove(routeParam(req.params['reportId']));
         res.status(204).send();
     }),
 );

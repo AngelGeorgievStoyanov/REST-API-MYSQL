@@ -1,6 +1,6 @@
 import { MODERATOR_ROLES } from '../constants/trip';
-import { CommentDto, CommentListResponse, CommentPermissions, CommentRecord } from '../model/comment';
-import { TripActor } from '../model/trip';
+import { type CommentDto, type CommentListResponse, type CommentPermissions, type CommentRecord } from '../model/comment';
+import { type TripActor } from '../model/trip';
 import { toIsoString } from '../utils/utils';
 
 /** `reportedByMe` is the viewer's report state for this comment, resolved in batch by the service. */

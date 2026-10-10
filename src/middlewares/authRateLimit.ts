@@ -1,4 +1,4 @@
-import { NextFunction, Request, RequestHandler, Response } from 'express';
+import { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import type { AuthRateLimitConfig } from '../config/auth';
 import { AUTH_RATE_LIMIT_PRUNE_THRESHOLD } from '../constants/auth';
 import { ApiError } from '../utils/apiError';

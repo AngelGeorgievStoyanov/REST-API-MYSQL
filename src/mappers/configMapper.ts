@@ -1,15 +1,15 @@
 import {
-    SelectOption as PrismaSelectOption,
-    SelectType as PrismaSelectType,
-    ServiceConfig as PrismaServiceConfig,
-    ServiceType as PrismaServiceType,
+    type SelectOption as PrismaSelectOption,
+    type SelectType as PrismaSelectType,
+    type ServiceConfig as PrismaServiceConfig,
+    type ServiceType as PrismaServiceType,
 } from '@prisma/client';
 import {
-    SelectConfig,
-    SelectOption,
-    ServiceConfig,
-    ServiceConfigEntry,
-    ServiceConfigValueType,
+    type SelectConfig,
+    type SelectOption,
+    type ServiceConfig,
+    type ServiceConfigEntry,
+    type ServiceConfigValueType,
 } from '../model/config';
 
 /** Prisma persistence-to-domain mapping used by ConfigRepository. */

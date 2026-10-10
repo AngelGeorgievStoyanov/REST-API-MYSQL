@@ -1,10 +1,10 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { GROUP_SELECT_TYPE, TOP_TRIPS_LIMIT, TRANSPORT_SELECT_TYPE, CURRENCY_SELECT_TYPE } from '../constants/trip';
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
-import { ImageDto } from '../model/image';
-import { SocialTargetRef } from '../model/social';
-import { TripActor, TripDay, TripGroupResponse } from '../model/trip';
-import { ImageFileStorage } from '../storage/imageFileStorage';
+import { type ImageDto } from '../model/image';
+import { type SocialTargetRef } from '../model/social';
+import { type TripActor, type TripDay, type TripGroupResponse } from '../model/trip';
+import { type ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip, toResourcePermissions } from '../utils/authorization';
 import { getImageBaseUrl } from '../utils/image';
@@ -26,9 +26,9 @@ import {
 import { dynamicConfig } from './dynamicConfig';
 import { parseIdList, parsePositiveId } from '../utils/validation';
 import { attachUploadedImage } from './imageAttachment';
-import { SocialStateService } from './socialStateService';
-import { DayContext, TripRepository } from '../repositories/tripRepository';
-import { TripGroupDetailsRecord } from '../model/trip';
+import { type SocialStateService } from './socialStateService';
+import { type DayContext, type TripListCriteria, type TripRepository } from '../repositories/tripRepository';
+import { type TripGroupDetailsRecord } from '../model/trip';
 
 /** Social targets of one day row: the day itself, its images, its points and their images. */
 export function toDayTargets(day: {
@@ -99,18 +99,22 @@ export class TripService {
     async listTrips(rawQuery: unknown, actor: TripActor | null): Promise<TripGroupResponse[]> {
         const query = parseListQuery(rawQuery);
 
-        const { rows } = await this.repository.findPage({
+        const criteria: TripListCriteria = {
             skip: (query.page - 1) * query.limit,
             take: query.limit,
-            search: query.search ?? undefined,
-            groupValues: query.group
-                ? resolveSelectFilterValues(GROUP_SELECT_TYPE, query.group, 'group')
-                : undefined,
-            transportValues: query.transport
-                ? resolveSelectFilterValues(TRANSPORT_SELECT_TYPE, query.transport, 'transport')
-                : undefined,
             sort: query.sort,
-        });
+        };
+        if (query.search !== undefined && query.search !== null) {
+            criteria.search = query.search;
+        }
+        if (query.group) {
+            criteria.groupValues = resolveSelectFilterValues(GROUP_SELECT_TYPE, query.group, 'group');
+        }
+        if (query.transport) {
+            criteria.transportValues = resolveSelectFilterValues(TRANSPORT_SELECT_TYPE, query.transport, 'transport');
+        }
+
+        const { rows } = await this.repository.findPage(criteria);
 
         const groupIds = rows.map((row) => row.id);
         if (groupIds.length === 0) return [];
@@ -184,8 +188,9 @@ export class TripService {
     }
 
     private async toDetails(row: TripGroupDetailsRecord, actor: TripActor | null): Promise<TripGroupResponse> {
-        const responses = await toGroupResponses([row], this.socialStates, actor);
-        return responses[0];
+        const [response] = await toGroupResponses([row], this.socialStates, actor);
+        if (response === undefined) throw ApiError.tripNotFound();
+        return response;
     }
 
     async createDay(actor: TripActor, rawTripGroupId: string, body: unknown): Promise<TripGroupResponse> {

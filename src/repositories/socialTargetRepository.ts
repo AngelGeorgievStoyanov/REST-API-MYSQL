@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { ReportTargetRef } from '../model/report';
-import { SocialTargetContext, SocialTargetRef } from '../model/social';
+import { type ReportTargetRef } from '../model/report';
+import { type SocialTargetContext, type SocialTargetRef } from '../model/social';
 import { ApiError } from '../utils/apiError';
-import { TargetTypeRepository } from './targetTypeRepository';
+import { type TargetTypeRepository } from './targetTypeRepository';
 
 /**
  * Resolves a polymorphic `(targetTypeId, targetId)` pair to the resource it points
