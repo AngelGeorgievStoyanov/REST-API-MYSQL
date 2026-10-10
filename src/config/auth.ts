@@ -60,13 +60,14 @@ function positiveSeconds(env: AuthEnvironmentSource, name: string, fallback: num
  */
 export function loadAuthConfig(env: AuthEnvironmentSource = process.env): AuthConfig {
     const production = isProduction(env);
-    const secret = env['JWT_ACCESS_SECRET']?.trim() || '';
+    const secret = env['JWT_ACCESS_SECRET']?.trim() ?? '';
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- Checks whether the configured secret is empty; it does not compare secret values.
     if (secret === '') {
         throw new Error('JWT_ACCESS_SECRET is required to start the API (v1 authentication).');
     }
 
-    const emailUser = env['EMAIL_USER']?.trim() || '';
-    const emailPassword = env['PASS_EMAIL']?.trim() || '';
+    const emailUser = env['EMAIL_USER']?.trim() ?? '';
+    const emailPassword = env['PASS_EMAIL']?.trim() ?? '';
     const configuredTransport = env['AUTH_MAIL_TRANSPORT']?.trim().toLowerCase();
     const mailTransport: AuthMailTransport = configuredTransport === 'file'
         ? 'file'
@@ -77,14 +78,14 @@ export function loadAuthConfig(env: AuthEnvironmentSource = process.env): AuthCo
             : (emailUser !== '' && emailPassword !== '' ? 'smtp' : (production ? 'smtp' : 'file'));
 
     const sameSite = env['COOKIE_SAME_SITE']?.trim().toLowerCase();
-    const verifyEmailPath = env['AUTH_VERIFY_EMAIL_PATH']?.trim() || '/verify-email';
-    const passwordResetPath = env['AUTH_PASSWORD_RESET_PATH']?.trim() || '/reset-password';
+    const verifyEmailPath = env['AUTH_VERIFY_EMAIL_PATH']?.trim() ?? '/verify-email';
+    const passwordResetPath = env['AUTH_PASSWORD_RESET_PATH']?.trim() ?? '/reset-password';
 
     return {
         accessTokenSecret: secret,
         accessTokenTtlSeconds: positiveSeconds(env, 'ACCESS_TOKEN_EXPIRES_IN', DEFAULT_ACCESS_TOKEN_TTL_SECONDS),
         refreshTokenTtlSeconds: positiveSeconds(env, 'REFRESH_TOKEN_EXPIRES_IN', DEFAULT_REFRESH_TOKEN_TTL_SECONDS),
-        appUrl: (env['AUTH_APP_URL']?.trim() || CONNECTIONURL).replace(/\/+$/, ''),
+        appUrl: (env['AUTH_APP_URL']?.trim() ?? CONNECTIONURL).replace(/\/+$/, ''),
         verifyEmailPath: verifyEmailPath.startsWith('/') ? verifyEmailPath : `/${verifyEmailPath}`,
         passwordResetPath: passwordResetPath.startsWith('/') ? passwordResetPath : `/${passwordResetPath}`,
         cookieSecure: production || env['COOKIE_SECURE']?.trim().toLowerCase() === 'true',

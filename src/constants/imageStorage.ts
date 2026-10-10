@@ -20,6 +20,8 @@ export const IMAGE_LIMIT_MESSAGE = `A maximum of ${MAX_IMAGES_PER_ENTITY} images
  */
 export const ALLOWED_IMAGE_FORMATS = ['jpeg', 'png', 'webp', 'gif'] as const;
 
+export type AllowedImageFormat = (typeof ALLOWED_IMAGE_FORMATS)[number];
+
 /**
  * Decoded-size ceilings of one upload. They are a policy decision, not a column
  * width, and they are enforced on the decoded image header before the file is

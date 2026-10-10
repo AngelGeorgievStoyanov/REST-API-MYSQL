@@ -6,7 +6,7 @@ import {
     PASSWORD_RESET_TOKEN_TTL_SECONDS,
 } from '../constants/auth';
 import { VALIDATION_LIMITS } from '../constants/validation/limits';
-import type { AuthActor, AuthSessionDto, AuthUserResponse, MessageResponse, SessionPresenceResponse } from '../model/auth';
+import type { AuthActor, AuthSessionDto, AuthUserRecord, AuthUserResponse, MessageResponse, SessionPresenceResponse } from '../model/auth';
 import { type ImageDto } from '../model/image';
 import { ApiError } from '../utils/apiError';
 import {
@@ -33,7 +33,6 @@ import {
     toSessionPresenceResponse,
 } from '../mappers/userMapper';
 import { asRecord, requireTrimmedString } from '../utils/validation';
-import type { AuthUserRecord } from '../model/auth';
 import { type AuthUserRepository } from '../repositories/authUserRepository';
 import { type EmailVerificationTokenRepository } from '../repositories/emailVerificationTokenRepository';
 import { type FailedLogRepository } from '../repositories/failedLogRepository';
@@ -127,7 +126,7 @@ export class AuthService {
         const record = asRecord(body, 'Request body');
         const email = normalizeEmail(record['email']);
         const user = await this.users.findByEmail(email);
-        if (user && user.emailVerifiedAt === null) await this.issueVerificationToken(user);
+        if (user?.emailVerifiedAt === null) await this.issueVerificationToken(user);
 
         return toMessageResponse('If the account exists and is not verified yet, a new verification email was sent.');
     }
@@ -230,7 +229,7 @@ export class AuthService {
 
         try {
             const row = await this.refreshTokens.findByHash(hashToken(rawRefreshToken));
-            if (!row || row.revokedAt !== null) return toSessionPresenceResponse(false);
+            if (row?.revokedAt !== null) return toSessionPresenceResponse(false);
             if (row.expiresAt.getTime() <= Date.now()) return toSessionPresenceResponse(false);
 
             const user = await this.users.findById(row.userId);
@@ -249,7 +248,7 @@ export class AuthService {
     async logout(rawRefreshToken: string | null): Promise<MessageResponse> {
         if (rawRefreshToken) {
             const row = await this.refreshTokens.findByHash(hashToken(rawRefreshToken));
-            if (row && row.revokedAt === null) await this.refreshTokens.revoke(row.id, new Date());
+            if (row?.revokedAt === null) await this.refreshTokens.revoke(row.id, new Date());
         }
 
         return toMessageResponse('Logged out.');
@@ -392,6 +391,7 @@ export class AuthService {
             expiresAt: new Date(now.getTime() + EMAIL_VERIFICATION_TOKEN_TTL_SECONDS * 1000),
         });
         if (deliverInBackground) {
+            // eslint-disable-next-line promise/prefer-await-to-then -- fire-and-forget background email delivery
             void this.mailer.sendVerificationEmail(user.email, rawToken).catch((error: unknown) => {
                 console.log(`[auth] verification email delivery failed: ${getErrorMessage(error)}`);
             });

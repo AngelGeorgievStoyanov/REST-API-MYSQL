@@ -24,11 +24,29 @@ const IP_EVIDENCE_HEADERS = [
  * reached a valid router but matched no endpoint of it. It forwards the shared
  * API 404 after best-effort logging; a logging failure never changes the answer.
  */
-export const routeNotFoundLogsMiddleware: RequestHandler = async (
+export const routeNotFoundLogsMiddleware: RequestHandler = (
     req: Request,
     _res: Response,
     next: NextFunction,
-): Promise<void> => {
+): void => {
+    void runRouteNotFoundLogging(req, next);
+};
+
+async function runRouteNotFoundLogging(
+    req: Request,
+    next: NextFunction,
+): Promise<void> {
+    try {
+        await logRouteNotFound(req, next);
+    } catch (error: unknown) {
+        next(error);
+    }
+}
+
+async function logRouteNotFound(
+    req: Request,
+    next: NextFunction,
+): Promise<void> {
     try {
         await routeNotFoundLogsService.recordEvent({
             url: req.baseUrl,
@@ -43,12 +61,19 @@ export const routeNotFoundLogsMiddleware: RequestHandler = async (
             clientIp: clientIpDetails(req),
             actorId: optionalActor(req)?.id,
         });
-    } catch (error) {
-        logger.error({ err: error, method: req.method, url: req.baseUrl }, 'Route-not-found log failed');
+    } catch (error: unknown) {
+        logger.error(
+            {
+                err: error,
+                method: req.method,
+                url: req.baseUrl,
+            },
+            'Route-not-found log failed',
+        );
     }
 
     next(ApiError.notFound());
-};
+}
 
 /** Diagnostic IP evidence only; raw proxy headers are never used for security decisions. */
 function clientIpDetails(req: Request): string {
@@ -63,11 +88,6 @@ function clientIpDetails(req: Request): string {
 
     const remoteAddress = req.socket.remoteAddress;
     if (remoteAddress) details.push(`remoteAddress: ${remoteAddress}`);
-
-    const connectionAddress = req.connection?.remoteAddress;
-    if (connectionAddress && connectionAddress !== remoteAddress) {
-        details.push(`req.connection.remoteAddress: ${connectionAddress}`);
-    }
 
     if (req.ip) details.push(`req.ip: ${req.ip}`);
 

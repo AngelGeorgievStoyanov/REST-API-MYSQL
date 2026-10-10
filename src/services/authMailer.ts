@@ -49,8 +49,10 @@ export class AuthMailer {
     private writeDevMail(to: string, subject: string, html: string): void {
         try {
             const directory = join(tmpdir(), 'hack-trip-auth-mail');
+            // eslint-disable-next-line security/detect-non-literal-fs-filename -- controlled temp directory path
             mkdirSync(directory, { recursive: true });
             const file = join(directory, `${Date.now()}-${subject.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.html`);
+            // eslint-disable-next-line security/detect-non-literal-fs-filename -- generated filename in controlled temp directory
             writeFileSync(file, `<!-- to: ${to} -->\n${html}\n`, 'utf8');
             console.log(`[auth] "${subject}" written to ${file}`);
         } catch (error) {

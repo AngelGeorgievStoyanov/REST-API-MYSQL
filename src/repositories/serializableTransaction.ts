@@ -21,6 +21,7 @@ export async function runSerializableWithRetry<T>(
 ): Promise<T> {
     for (let attempt = 1; ; attempt += 1) {
         try {
+            // eslint-disable-next-line no-await-in-loop -- retry loop for serialization conflicts
             return await prisma.$transaction(work, {
                 isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
             });

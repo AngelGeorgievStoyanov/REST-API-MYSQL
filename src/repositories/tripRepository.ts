@@ -422,12 +422,14 @@ export class TripRepository {
     async reorderDays(groupId: number, tripIds: number[]): Promise<void> {
         await this.prisma.$transaction(async (tx) => {
             for (const [index, tripId] of tripIds.entries()) {
+                // eslint-disable-next-line no-await-in-loop -- sequential negative markers prevent collisions
                 await tx.trip.update({
                     where: { id: tripId, tripGroupId: groupId },
                     data: { dayNumber: -(index + 1) },
                 });
             }
             for (const [index, tripId] of tripIds.entries()) {
+                // eslint-disable-next-line no-await-in-loop -- sequential positive assignment required
                 await tx.trip.update({
                     where: { id: tripId, tripGroupId: groupId },
                     data: { dayNumber: index + 1 },
@@ -523,6 +525,7 @@ export class TripRepository {
             pointId: image.pointId,
             ownerId: image.ownerId,
             tripGroupId: day?.tripGroupId ?? null,
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
             groupOwnerId: day?.tripGroup?.ownerId ?? null,
         };
     }

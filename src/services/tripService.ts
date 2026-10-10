@@ -3,7 +3,7 @@ import { GROUP_SELECT_TYPE, TOP_TRIPS_LIMIT, TRANSPORT_SELECT_TYPE, CURRENCY_SEL
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { type ImageDto } from '../model/image';
 import { type SocialTargetRef } from '../model/social';
-import { type TripActor, type TripDay, type TripGroupResponse } from '../model/trip';
+import { type TripActor, type TripDay, type TripGroupDetailsRecord, type TripGroupResponse } from '../model/trip';
 import { type ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip, toResourcePermissions } from '../utils/authorization';
@@ -28,7 +28,6 @@ import { parseIdList, parsePositiveId } from '../utils/validation';
 import { attachUploadedImage } from './imageAttachment';
 import { type SocialStateService } from './socialStateService';
 import { type DayContext, type TripListCriteria, type TripRepository } from '../repositories/tripRepository';
-import { type TripGroupDetailsRecord } from '../model/trip';
 
 /** Social targets of one day row: the day itself, its images, its points and their images. */
 export function toDayTargets(day: {
@@ -104,7 +103,7 @@ export class TripService {
             take: query.limit,
             sort: query.sort,
         };
-        if (query.search !== undefined && query.search !== null) {
+        if (query.search !== null) {
             criteria.search = query.search;
         }
         if (query.group) {
@@ -318,7 +317,7 @@ export class TripService {
     async deleteImage(actor: TripActor, rawImageId: string): Promise<void> {
         const imageId = parsePositiveId(rawImageId, 'Image id');
         const image = await this.repository.findImageContext(imageId);
-        if (!image || image.tripGroupId === null) throw ApiError.notFound('Image not found.');
+        if (!image?.tripGroupId) throw ApiError.notFound('Image not found.');
 
         await this.assertCanModify(actor, image.tripGroupId);
 
@@ -334,7 +333,7 @@ export class TripService {
      */
     private async assertDayAccess(actor: TripActor, tripGroupId: number, tripId: number): Promise<DayContext> {
         const day = await this.repository.findDayContext(tripId);
-        if (!day || day.tripGroupId !== tripGroupId) throw ApiError.notFound('Day not found.');
+        if (day?.tripGroupId !== tripGroupId) throw ApiError.notFound('Day not found.');
 
         await this.assertCanModify(actor, tripGroupId);
         return day;

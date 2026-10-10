@@ -106,7 +106,7 @@ export function requireEnumValue<T extends string>(value: unknown, allowed: read
 }
 
 export function parsePositiveId(rawId: unknown, label: string): number {
-    const value = Array.isArray(rawId) ? rawId[0] : rawId;
+    const value = Array.isArray(rawId) ? (rawId[0] as unknown) : rawId;
     const id = Number(value);
     if (!Number.isInteger(id) || id <= 0) {
         throw ApiError.validation(`${label} must be a positive integer.`);

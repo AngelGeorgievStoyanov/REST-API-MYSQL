@@ -46,11 +46,14 @@ async function init(configRepository: ConfigRepository, configEnvironment: Envir
 async function refreshDynamicConfigs(): Promise<void> {
     if (refreshInFlight) return refreshInFlight;
 
-    refreshInFlight = runRefresh();
+    const promise = runRefresh();
+    refreshInFlight = promise;
     try {
-        await refreshInFlight;
+        await promise;
     } finally {
-        refreshInFlight = null;
+        if (refreshInFlight === promise) {
+            refreshInFlight = null;
+        }
     }
 }
 
@@ -60,12 +63,14 @@ function startRefreshTimer(): void {
     }
     if (refreshTimer) return;
 
-    refreshTimer = setInterval(() => {
+    const tick = () => {
+        // eslint-disable-next-line promise/prefer-await-to-then -- setInterval callback cannot be async
         refreshDynamicConfigs().catch((err: unknown) => {
             const reason = getErrorMessage(err);
             console.log(`[config] slow refresh failed, keeping last known good config: ${reason}`);
         });
-    }, environment.slowRefreshSeconds * 1000);
+    };
+    refreshTimer = setInterval(tick, environment.slowRefreshSeconds * 1000);
     refreshTimer.unref();
 }
 

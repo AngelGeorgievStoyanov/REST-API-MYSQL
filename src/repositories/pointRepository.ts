@@ -46,6 +46,7 @@ export class PointRepository {
         });
         if (!day) return null;
 
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
         return { tripId: day.id, tripGroupId: day.tripGroupId, groupOwnerId: day.tripGroup?.ownerId ?? null };
     }
 
@@ -60,13 +61,15 @@ export class PointRepository {
                 trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
             },
         });
-        if (!point || point.tripId === null) return null;
+        if (!point?.tripId) return null;
 
         return {
             id: point.id,
             tripId: point.tripId,
             pointNumber: point.pointNumber,
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
             tripGroupId: point.trip?.tripGroupId ?? null,
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
             groupOwnerId: point.trip?.tripGroup?.ownerId ?? null,
         };
     }
@@ -155,6 +158,7 @@ export class PointRepository {
             });
             for (const row of remaining) {
                 if (row.pointNumber <= deletedNumber) continue;
+                // eslint-disable-next-line no-await-in-loop -- sequential updates required for pointNumber density
                 await tx.point.update({ where: { id: row.id }, data: { pointNumber: row.pointNumber - 1 } });
             }
         });
@@ -167,12 +171,14 @@ export class PointRepository {
             // collide with a not-yet-moved point that still holds that number.
             // The column is a signed INT, so the markers are ordinary values.
             for (const [index, pointId] of pointIds.entries()) {
+                // eslint-disable-next-line no-await-in-loop -- sequential negative markers prevent collisions
                 await tx.point.updateMany({
                     where: { id: pointId, tripId },
                     data: { pointNumber: -(index + 1) },
                 });
             }
             for (const [index, pointId] of pointIds.entries()) {
+                // eslint-disable-next-line no-await-in-loop -- sequential positive assignment required
                 await tx.point.updateMany({
                     where: { id: pointId, tripId },
                     data: { pointNumber: index + 1 },

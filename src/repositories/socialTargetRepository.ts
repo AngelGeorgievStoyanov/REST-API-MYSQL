@@ -62,8 +62,9 @@ export class SocialTargetRepository {
                     where: { id: target.targetId },
                     select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } },
                 });
-                if (!day || day.tripGroupId === null) return null;
+                if (!day?.tripGroupId) return null;
 
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
                 return { ...target, tripGroupId: day.tripGroupId, tripGroupOwnerId: day.tripGroup?.ownerId ?? null };
             }
             case SOCIAL_TARGET_TYPE.POINT: {
@@ -71,9 +72,11 @@ export class SocialTargetRepository {
                     where: { id: target.targetId },
                     select: { trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } } },
                 });
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
                 const tripGroupId = point?.trip?.tripGroupId ?? null;
                 if (tripGroupId === null) return null;
 
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
                 return { ...target, tripGroupId, tripGroupOwnerId: point?.trip?.tripGroup?.ownerId ?? null };
             }
             case SOCIAL_TARGET_TYPE.IMAGE: {
@@ -96,6 +99,7 @@ export class SocialTargetRepository {
                 return {
                     ...target,
                     tripGroupId: day?.tripGroupId ?? null,
+                    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
                     tripGroupOwnerId: day?.tripGroup?.ownerId ?? null,
                 };
             }

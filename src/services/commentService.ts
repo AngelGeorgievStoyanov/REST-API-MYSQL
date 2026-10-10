@@ -103,7 +103,7 @@ export class CommentService {
 
     async delete(actor: TripActor, rawCommentId: string): Promise<void> {
         const comment = await this.findComment(rawCommentId);
-        await this.assertCanDelete(actor, comment);
+        this.assertCanDelete(actor, comment);
 
         await this.repository.delete(comment.id);
     }
@@ -131,7 +131,7 @@ export class CommentService {
             targetType: SOCIAL_TARGET_TYPE.DAY,
             targetId: parsePositiveId(rawTripId, 'Trip id'),
         });
-        if (!context || context.tripGroupId !== tripGroupId) throw ApiError.notFound('Day not found.');
+        if (context?.tripGroupId !== tripGroupId) throw ApiError.notFound('Day not found.');
 
         return context.targetId;
     }
@@ -140,7 +140,7 @@ export class CommentService {
      * The author or a moderator may delete a comment. The trip-group owner has no
      * special deletion right beyond being the author or a moderator.
      */
-    private async assertCanDelete(actor: TripActor, comment: CommentRecord): Promise<void> {
+    private assertCanDelete(actor: TripActor, comment: CommentRecord): void {
         if (comment.ownerId === actor.id) return;
         if (MODERATOR_ROLES.includes(actor.role)) return;
 

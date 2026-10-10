@@ -136,6 +136,7 @@ export async function deleteSocialRecordsForTargets(
     }
 
     for (const deleteRelation of SOCIAL_RELATION_DELETERS) {
+        // eslint-disable-next-line no-await-in-loop -- sequential batch deleters required for referential integrity
         await deleteRelation(tx, groups);
     }
 }

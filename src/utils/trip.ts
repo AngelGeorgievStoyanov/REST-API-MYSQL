@@ -135,7 +135,7 @@ export function parseTripBody(body: unknown): TripWriteRequest {
 }
 
 export function parseDayCreateBody(body: unknown): DayCreateRequest {
-    const record = asRecord(body === undefined || body === null ? {} : body, 'Request body');
+    const record = asRecord(body ?? {}, 'Request body');
     rejectOwnershipAndParentFields(record, 'Day');
 
     return {

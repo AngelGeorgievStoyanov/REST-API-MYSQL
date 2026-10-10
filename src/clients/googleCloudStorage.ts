@@ -7,6 +7,7 @@ import {
     IMAGE_THUMBNAIL,
     STORAGE_MAX_RETRIES,
     STORAGE_TOTAL_TIMEOUT,
+    type AllowedImageFormat,
 } from '../constants/imageStorage';
 import { thumbnailFileName } from '../storage/imageFileStorage';
 import { assertAcceptedImage, ImageObjectAlreadyExistsError } from '../storage/imageValidation';
@@ -55,16 +56,28 @@ export class GoogleCloudStorage implements StorageEngine {
             info?: Partial<UploadedFile>
         ) => void
     ): void {
-        void this.storeFile(file, callback).catch((error: unknown) => { callback(toError(error)); });
+        let called = false;
+
+        const handleResult = (error?: Error | null, info?: Partial<UploadedFile>): void => {
+            if (called) return;
+            called = true;
+            callback(error, info);
+        };
+
+        void (async () => {
+            try {
+                const info = await this.processFile(file);
+                handleResult(null, info);
+            } catch (error: unknown) {
+                handleResult(toError(error));
+            }
+        })();
     }
 
-    private async storeFile(
-        file: UploadedFile,
-        callback: (error?: Error | null, info?: Partial<UploadedFile>) => void,
-    ): Promise<void> {
+    private async processFile(file: UploadedFile): Promise<Partial<UploadedFile>> {
         const chunks: Buffer[] = [];
-        for await (const chunk of file.stream) {
-            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        for await (const chunk of file.stream as unknown as AsyncIterable<Buffer>) {
+            chunks.push(toBuffer(chunk));
         }
 
         const uploadedBuffer = Buffer.concat(chunks);
@@ -92,14 +105,14 @@ export class GoogleCloudStorage implements StorageEngine {
                 await this.saveCreateOnly(thumbnailDestination, thumbnailBuffer, 'image/webp');
                 createdObjects.push(thumbnailDestination);
             }
-
-            callback(null, { destination, size: sanitizedBuffer.length });
         } catch (error) {
             await Promise.all(createdObjects.map((objectName) => this.removeObject(objectName).catch((cleanupError: unknown) => {
                 console.log(`[images] could not remove failed upload object "${objectName}": ${toError(cleanupError).message}`);
             })));
-            callback(toError(error));
+            throw error;
         }
+
+        return { destination, size: sanitizedBuffer.length };
     }
 
     private async saveCreateOnly(objectName: string, data: Buffer, contentType: string): Promise<void> {
@@ -132,9 +145,24 @@ export class GoogleCloudStorage implements StorageEngine {
             ? [destination, thumbnailFileName(destination)]
             : [destination];
 
-        Promise.all(objectNames.map((objectName) => this.removeObject(objectName)))
-            .then(() => { callback(null); })
-            .catch((error: Error) => { callback(error); });
+        void this.removeFiles(objectNames, callback);
+    }
+
+    private async removeFiles(objectNames: string[], callback: (error: Error | null) => void): Promise<void> {
+        let called = false;
+
+        const handleResult = (error: Error | null): void => {
+            if (called) return;
+            called = true;
+            callback(error);
+        };
+
+        try {
+            await Promise.all(objectNames.map((objectName) => this.removeObject(objectName)));
+            handleResult(null);
+        } catch (error: unknown) {
+            handleResult(toError(error));
+        }
     }
 
     private async removeObject(objectName: string): Promise<void> {
@@ -147,7 +175,7 @@ export class GoogleCloudStorage implements StorageEngine {
 
 async function sanitizeImage(
     buffer: Buffer,
-    format: typeof import('../constants/imageStorage').ALLOWED_IMAGE_FORMATS[number],
+    format: AllowedImageFormat,
 ): Promise<Buffer> {
     const image = sharp(buffer, { animated: format === 'gif' }).rotate();
 
@@ -170,4 +198,8 @@ function isPreconditionFailure(error: unknown): boolean {
 
 function toError(error: unknown): Error {
     return error instanceof Error ? error : new Error('Image storage operation failed.');
+}
+
+function toBuffer(chunk: Buffer): Buffer {
+    return Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
 }

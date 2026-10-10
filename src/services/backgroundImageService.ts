@@ -19,7 +19,9 @@ export class BackgroundImageService {
             throw ApiError.internal('The background image base URL is not configured.');
         }
 
+        const urlBase: string = baseUrl;
         const name = names[Math.floor(Math.random() * names.length)];
-        return { url: `${baseUrl}/${name}` };
+        if (!name) throw ApiError.notFound('No background image is available.');
+        return { url: `${urlBase}/${name}` };
     }
 }

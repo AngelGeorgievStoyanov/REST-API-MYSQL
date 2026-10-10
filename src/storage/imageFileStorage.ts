@@ -43,8 +43,10 @@ async function listPageFromGcs(page: number, pageSize: number): Promise<{ items:
     let nextQuery: object | undefined;
 
     for (let currentPage = 1; currentPage <= page; currentPage++) {
+        // eslint-disable-next-line no-await-in-loop -- sequential GCS pagination
         [files, nextQuery] = await bucket.getFiles(query);
         if (currentPage === page) break;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- nextQuery is object | undefined
         if (!nextQuery) {
             files = [];
             break;
@@ -68,6 +70,7 @@ export const gcsImageFileStorage: ImageFileStorage & ImageInventoryStorage = {
     remove: removeFromGcs,
     async removeMany(filePaths: string[]): Promise<void> {
         for (const filePath of filePaths) {
+            // eslint-disable-next-line no-await-in-loop -- sequential deletion for GCS consistency
             await removeFromGcs(filePath);
         }
     },

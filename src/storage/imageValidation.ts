@@ -92,7 +92,7 @@ function assertAcceptedDimensions(decoded: DecodedImageFacts): void {
         );
     }
 
-    const frames = pages !== undefined && pages > 0 ? pages : 1;
+    const frames = pages ?? 1;
     if (width * height * frames > MAX_IMAGE_PIXELS) {
         throw new UnsupportedImageError(
             `Unsupported image size ${width}x${height} in ${frames} frame(s): the limit is ${MAX_IMAGE_PIXELS} pixels.`,
@@ -105,7 +105,7 @@ async function decodeFacts(fileBuffer: Buffer): Promise<DecodedImageFacts> {
     try {
         const metadata = await sharp(fileBuffer).metadata();
         return {
-            format: metadata.format ?? 'unknown',
+            format: metadata.format ?? 'unknown', // eslint-disable-line @typescript-eslint/no-unnecessary-condition -- sharp metadata.format can be undefined
             width: metadata.width,
             height: metadata.height,
             // `sharp` reports the height of a single page for multi-page images.
