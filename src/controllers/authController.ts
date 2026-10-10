@@ -62,8 +62,9 @@ function clearRefreshCookie(res: express.Response): void {
 
 /** IP and user agent of the attempt; observability data for the failed-log table. */
 function loginContext(req: express.Request): LoginContext {
+    const socketAddress = req.socket.remoteAddress ?? '';
     return {
-        ip: req.ip ?? req.socket.remoteAddress ?? '',
+        ip: req.ip || socketAddress,
         userAgent: req.header('user-agent') ?? '',
     };
 }

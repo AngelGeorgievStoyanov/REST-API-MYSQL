@@ -26,8 +26,9 @@ tripController.get('/top', validateRequest({}), optionalAuthentication, asyncHan
     res.status(200).json(await tripService.getTopTrips(optionalActor(req)));
 }));
 
-tripController.get('/background', validateRequest({}), optionalAuthentication, asyncHandler(async (_req, res) => {
+tripController.get('/background', validateRequest({}), optionalAuthentication, asyncHandler((_req, res) => {
     res.status(200).json(backgroundImageService.getRandomBackground());
+    return Promise.resolve();
 }));
 
 tripController.get('/:tripGroupId', validateRequest({ params: tripGroupIdParams }), optionalAuthentication, asyncHandler(async (req, res) => {

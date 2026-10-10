@@ -17,7 +17,8 @@ export const publicApiRateLimit: RequestHandler = (req: Request, _res: Response,
     const now = Date.now();
     if (buckets.size >= MAX_BUCKETS_BEFORE_PRUNE) pruneExpiredBuckets(now);
 
-    const key = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const socketAddress = req.socket.remoteAddress ?? '';
+    const key = req.ip || socketAddress || 'unknown';
     const current = buckets.get(key);
     if (!current || now - current.startedAt >= WINDOW_MS) {
         buckets.set(key, { startedAt: now, requests: 1 });

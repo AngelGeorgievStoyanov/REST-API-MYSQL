@@ -25,9 +25,12 @@ export function loadEnvironmentConfig(
 ): EnvironmentConfig {
     const production = env['NODE_ENV'] === 'production';
 
+    const rawRefresh = env['CONFIG_SLOW_REFRESH_SECONDS']?.trim() ?? '';
+    const rawToken = env['PUBLIC_FRONTEND_TOKEN']?.trim() ?? '';
+
     return {
-        slowRefreshSeconds: Number(env['CONFIG_SLOW_REFRESH_SECONDS'] || DEFAULT_SLOW_REFRESH_SECONDS),
-        publicFrontendToken: env['PUBLIC_FRONTEND_TOKEN']?.trim() || DEFAULT_PUBLIC_FRONTEND_TOKEN,
+        slowRefreshSeconds: Number(rawRefresh === '' ? DEFAULT_SLOW_REFRESH_SECONDS : rawRefresh),
+        publicFrontendToken: rawToken === '' ? DEFAULT_PUBLIC_FRONTEND_TOKEN : rawToken,
         corsOrigins: [...(production ? PRODUCTION_CORS_ORIGINS : DEVELOPMENT_CORS_ORIGINS)],
     };
 }

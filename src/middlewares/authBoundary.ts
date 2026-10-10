@@ -67,6 +67,7 @@ async function authenticate(req: Request, next: NextFunction, required: boolean,
 
     // A request without a bearer value is not a valid Frontend API request: it
     // is answered with the production 404, never with anonymous authentication.
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- Null check, not a secret comparison.
     if (token === null) {
         next(ApiError.notFound());
         return;
@@ -75,6 +76,7 @@ async function authenticate(req: Request, next: NextFunction, required: boolean,
     // The public frontend token is never a JWT. It marks an anonymous public
     // Frontend context that grants no user, session or ownership identity and
     // no write capability, so a protected operation remains unauthorized.
+    // eslint-disable-next-line security/detect-possible-timing-attacks -- Public token, never a secret; raw bearer string compared.
     if (token === publicFrontendToken) {
         if (required) next(ApiError.unauthorized());
         else next();

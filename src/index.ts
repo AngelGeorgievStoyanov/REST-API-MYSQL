@@ -30,7 +30,7 @@ const app = express();
 
 configureApplication(app, environment);
 
-bootstrap(environment);
+void bootstrap(environment);
 
 /**
  * Wires the HTTP stack in the order one request travels through it: the client

@@ -18,11 +18,11 @@ const PUBLIC_CONFIG_KEYS = {
 
 export function toPublicServiceConfigList(services: ServiceConfig[]): PublicServiceConfig[] {
     return services.flatMap((service) => {
-        const allowedKeys = PUBLIC_CONFIG_KEYS[service.key as keyof typeof PUBLIC_CONFIG_KEYS];
+        const allowedKeys = PUBLIC_CONFIG_KEYS[service.key as keyof typeof PUBLIC_CONFIG_KEYS] as readonly string[] | undefined;
         if (!allowedKeys) return [];
 
         const configs = service.configs
-            .filter((config) => (allowedKeys as readonly string[]).includes(config.key))
+            .filter((config) => allowedKeys.includes(config.key))
             .map((config) => ({
                 id: config.id,
                 serviceTypeId: config.serviceTypeId,

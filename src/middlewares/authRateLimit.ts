@@ -21,7 +21,8 @@ export function authRateLimit(bucket: string, max: number, config: AuthRateLimit
         const windowMs = config.windowSeconds * 1000;
         pruneExpired(now, windowMs);
 
-        const key = `${bucket}:${req.ip ?? req.socket.remoteAddress ?? 'unknown'}`;
+        const socketAddress = req.socket.remoteAddress ?? '';
+        const key = `${bucket}:${req.ip || socketAddress || 'unknown'}`;
         const current = buckets.get(key);
 
         if (current === undefined || now - current.windowStartedAt >= windowMs) {

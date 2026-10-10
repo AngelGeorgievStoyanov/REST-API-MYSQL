@@ -40,7 +40,8 @@ export function apiErrorMiddleware(
 function bodyParserFailure(error: unknown): ApiError | null {
     if (typeof error !== 'object' || error === null) return null;
 
-    const type = Reflect.get(error, 'type');
+    const type = (Reflect.get(error, 'type') as unknown) as string | undefined;
+    if (type === undefined) return null;
     if (type === 'entity.too.large') return ApiError.validation('The request body is too large.');
     if (type === 'entity.parse.failed') return ApiError.validation('The request body is not valid JSON.');
     if (type === 'encoding.unsupported') return ApiError.validation('The request body encoding is not supported.');
