@@ -867,9 +867,11 @@ await storageGoogle
 * If a later refresh fails, the last successfully loaded list remains available.
 * Refresh failure MUST NOT fail application startup solely because the background-image bucket could not be read.
 * Refresh failure SHOULD be logged at `warn` level with enough context for operational diagnosis, without exposing secrets.
-* The background service selects one entry randomly from the currently available dynamic-config list.
-* The controller returns only the selected background value required by the Frontend, not the complete GCS file list.
-* The returned value must be usable by the Frontend as the background image URL.
+* The background service selects entries randomly from the currently available dynamic-config list.
+* The controller returns only the selected background values required by the Frontend, not the complete GCS file list.
+* The returned values must be usable by the Frontend as background image URLs.
+* The service returns both the current background image and a distinct next background image so the Frontend can preload the next image before transitioning.
+* When fewer than two images are available, the service returns the same image for both current and next.
 * Background image URLs are public GCS objects and do not require a user session.
 * The exact public base URL is supplied by the image/dynamic configuration rather than hard-coded into the controller.
 * If the dynamic configuration currently contains no background entries because no successful load has ever completed, the service returns an appropriate `404 NOT_FOUND` response rather than generating an invalid URL.
@@ -879,9 +881,20 @@ Response:
 
 ```json
 {
-  "url": "<public-background-image-url>"
+  "current": {
+    "url": "https://storage.googleapis.com/hack-trip-background-images/IMG_5060.JPG"
+  },
+  "next": {
+    "url": "https://storage.googleapis.com/hack-trip-background-images/IMG_5061.JPG"
+  }
 }
 ```
+
+* `current.url` (string) — the background image selected for the current API response.
+* `next.url` (string) — the background image selected for the subsequent background transition.
+* When at least two eligible images exist, `current.url` and `next.url` are different.
+* When only one eligible image exists, `next.url` equals `current.url`.
+* Both URLs are generated using the existing backend configuration (GCS bucket object name + public base URL). They are never hardcoded.
 
 The controller must not contain GCS access logic, random-selection logic, file-list loading logic, or response mapping/business logic. Those responsibilities belong to the service/configuration layers.
 
@@ -1711,7 +1724,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | GET    | `/trips/top`                           | Public           | none                                                                    | 200 `TripGroupResponse[]` (max 5)    | 401                     |
 | GET    | `/me/trips`                | Auth             | none                                                                    | 200 `TripGroupResponse[]`            | 401, 403                |
 | GET    | `/me/favorites`            | Auth             | none                                                                    | 200 `TripGroupResponse[]`            | 401, 403                |
-| GET    | `/trips/background`              | Public           | none                                                                    | 200 `{ url }`                        | 401, 404                |
+| GET    | `/trips/background`              | Public           | none                                                                    | 200 `{ current: { url }, next: { url } }`       | 401, 404                |
 | POST   | `/trips`                              | Auth             | `{ dayNumber, title, description, group, transport }`                   | 201 `TripGroupResponse`              | 400, 401, 403           |
 | DELETE | `/trips/:tripGroupId`                 | Owner/Mod        | param `tripGroupId`                                                     | 204                                  | 400, 401, 403, 404      |
 | POST   | `/trips/:tripGroupId/days`            | Owner/Mod        | param `tripGroupId`; body `{ dayNumber, title?, description? }`         | 201 `TripGroupResponse`              | 400, 401, 403, 404, 409 |
@@ -1853,13 +1866,20 @@ GET /api/v1/trips/background
 
 with the public frontend token.
 
-The response contains one selected public image URL:
+The response contains the current and next public image URLs for preloading:
 
 ```json
 {
-  "url": "<public-background-image-url>"
+  "current": {
+    "url": "<public-background-image-url>"
+  },
+  "next": {
+    "url": "<public-background-image-url>"
+  }
 }
 ```
+
+When two or more background images are available, `current.url` and `next.url` are distinct. When only one image is available, the same URL appears in both objects.
 
 The Frontend does not need to know the GCS bucket name, list filenames, or perform GCS listing.
 
@@ -1867,7 +1887,7 @@ The Frontend must not repeatedly request the full background file list. Backgrou
 
 ### 22.7 Dynamic configuration and background images
 
-`GET /trips/background` returns one selected public image URL as `{ "url": "<public-background-image-url>" }`. The Frontend consumes that URL; it must not list GCS objects, choose object names, or hard-code bucket contents. Background discovery, caching, last-known-good behavior, warning logs, random selection, and URL construction are Backend responsibilities documented in §23.
+`GET /trips/background` returns both the current and next public background image URLs as `{ "current": { "url": "<url>" }, "next": { "url": "<url>" } }` to support frontend preloading. The Frontend consumes those URLs; it must not list GCS objects, choose object names, or hard-code bucket contents. Background discovery, caching, last-known-good behavior, warning logs, random selection, and URL construction are Backend responsibilities documented in §23.
 
 ### 22.8 Frontend Zod module map
 
@@ -1954,8 +1974,8 @@ Dynamic Config
 Background Service
     |
     +--> reads names from dynamic config
-    +--> chooses random name
-    +--> builds/resolves public URL
+    +--> chooses current and next (distinct when available)
+    +--> builds/resolves public URLs
     |
     v
 Background Controller
@@ -2053,15 +2073,20 @@ The background service receives the currently available list:
 ]
 ```
 
-and selects one entry randomly.
+and selects a current and a next image. When two or more entries are available, the current and next entries are distinct. When only one entry is available, it appears in both current and next.
 
-The service then resolves the selected object into the public URL expected by the Frontend.
+The service then resolves the selected objects into the public URLs expected by the Frontend.
 
-The controller receives the final value and returns:
+The controller receives the final values and returns:
 
 ```json
 {
-  "url": "<url>"
+  "current": {
+    "url": "<url>"
+  },
+  "next": {
+    "url": "<url>"
+  }
 }
 ```
 

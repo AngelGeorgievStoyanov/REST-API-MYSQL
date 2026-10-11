@@ -27,7 +27,7 @@ tripController.get('/top', validateRequest({}), optionalAuthentication, asyncHan
 }));
 
 tripController.get('/background', validateRequest({}), optionalAuthentication, asyncHandler((_req, res) => {
-    res.status(200).json(backgroundImageService.getRandomBackground());
+    res.status(200).json(backgroundImageService.getBackgroundPair());
     return Promise.resolve();
 }));
 

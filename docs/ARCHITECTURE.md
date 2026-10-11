@@ -792,18 +792,18 @@ GET /api/v1/trips/background
     ->
 authentication boundary
     ->
-background-image service
+background-image service (getBackgroundPair)
     ->
 dynamic configuration list
     ->
-random selection
+random selection (current + next)
     ->
 controller
     ->
 JSON
 ```
 
-The service reads the cached dynamic configuration, selects one available object at random, and prepares the public value returned to the controller. The controller returns JSON only; it does not access GCS, read storage directly, perform random selection, or perform response mapping.
+The service reads the cached dynamic configuration, selects a current and a next image (distinct when two or more are available), and prepares the public values returned to the controller. The controller returns JSON only; it does not access GCS, read storage directly, perform random selection, or perform response mapping.
 
 The endpoint is public/anonymous and follows the existing public Frontend request contract:
 
