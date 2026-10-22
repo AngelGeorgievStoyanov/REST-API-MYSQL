@@ -326,7 +326,7 @@ Authorization model:
 | POST/DELETE `/likes`                     | NO                 | YES                                  | —     | —       | —     |
 | POST/DELETE `/favorites`                 | NO                 | YES                                  | —     | —       | —     |
 | POST `/reports`                          | NO                 | YES                                  | —     | —       | —     |
-| DELETE `/reports/:reportId`                | NO                 | CONDITIONAL (own report only)        | —     | CONDITIONAL (own report only) | CONDITIONAL (own report only) |
+| DELETE `/reports`                         | NO                 | YES                                  | —     | YES     | YES   |
 | GET `/admin/users`                        | NO                 | NO                                   | NO    | YES     | YES   |
 | PUT `/admin/users/:userId`                | NO                 | NO                                   | NO    | PARTIAL (no role/password) | YES |
 | DELETE `/admin/users/:userId`             | NO                 | NO                                   | NO    | YES     | YES   |
@@ -1293,13 +1293,16 @@ Mounted at `/api/v1/reports`.
 
 Reports are never read back through `/reports`: users never receive the administrative report queue; the queue is served only by `GET /admin/reports` (§16.10). A report's author may, however, withdraw their own report:
 
-### 15.2 DELETE `/reports/:reportId`
+### 15.2 DELETE `/reports`
 
-* Auth: `requireAuthentication`; allowed only for the report's author (else `403 FORBIDDEN`).
-* Path params (strict): `{ reportId }` (positive integer).
+* Auth: `requireAuthentication`.
+* Query (strict): `{ targetType, targetId }` — the same target the report was created for. `targetType` is one of `tripGroup`, `day`/`trip`, `point`, `image`, `comment`; `targetId` must be a positive integer.
 * Response `204` (empty). Removes the report record only; the reported content stays untouched.
-* Errors: missing report -> `404 NOT_FOUND`; not the author -> `403 FORBIDDEN` ("Only the report author can delete this report.").
-* This operation is separate from the administrative removal `DELETE /admin/reports/:reportId` (§16.11), which requires the `admin`/`manager` role and checks no authorship.
+* The withdrawal is addressed by the reported target, exactly like `DELETE /likes` and `DELETE /favorites`, so no report id is needed and none is accepted.
+* The reporter is taken exclusively from the authentication context and is part of the delete predicate, so a user can only ever remove their own report of that target. `userId` must never be accepted from the query string.
+* Errors: an unknown or unsupported `targetType`/`targetId` -> `400 VALIDATION_ERROR`; a target that does not exist -> `404 NOT_FOUND`.
+* A user has at most one report per target, so the operation removes at most one record. Removing a report the user does not have is a successful no-op (`204`), exactly like removing a like or a favorite that is not there.
+* This operation is separate from the administrative removal `DELETE /admin/reports/:reportId` (§16.11), which requires the `admin`/`manager` role, addresses a report by its id and checks no authorship.
 
 ---
 
@@ -1616,7 +1619,6 @@ The new trip-data endpoints do not accept query parameters unless explicitly doc
 | `imageIdParams`       | `imageId` (positive int)                      |
 | `commentIdParams`     | `commentId` (positive int)                    |
 | `tripGroupIdParams`   | `tripGroupId` (positive int)                  |
-| `reportIdParams`      | `reportId` (positive int) — author-facing report removal |
 | `adminReportIdParams` | `reportId` (positive int)                     |
 
 The new `/me/trips` and `/me/favorites` endpoints intentionally do not use `userIdParams`.
@@ -1690,6 +1692,7 @@ DATABASE MODELS (not returned by the API): `User`, `TripGroup`, `Trip`, `Point`,
 21. **Background refresh failure is non-fatal**: failure to refresh the GCS background list must preserve the last successful list and must not invalidate already loaded dynamic configuration.
 22. **Admin/manager report access is protected**: normal authenticated users cannot list or delete administrative reports.
 23. **Deleting a report does not delete the reported resource**: report removal and content moderation/removal are separate operations.
+24. **A report withdrawal is addressed by its target**: `DELETE /reports` takes `targetType` + `targetId` and removes only the authenticated user's own report of that target. It never accepts a report id and never accepts a user id; a report the user does not have is a successful no-op.
 
 The frontend must preserve these semantics and must never silently turn an invalid authenticated request into an anonymous request.
 
@@ -1756,7 +1759,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | POST   | `/favorites`                         | Auth             | `{ tripGroupId }`                                                       | 200 `SocialState`                    | 400, 401, 404           |
 | DELETE | `/favorites`                         | Auth             | query `tripGroupId`                                                     | 204                                  | 400, 401, 404           |
 | POST   | `/reports`                           | Auth             | `{ targetType, targetId, reason? }`                                     | 201 `ReportDto`                      | 400, 401, 404, 409      |
-| DELETE | `/reports/:reportId`                  | Author           | param `reportId`                                                        | 204                                  | 400, 401, 403, 404      |
+| DELETE | `/reports`                          | Auth             | query `targetType,targetId`                                             | 204                                  | 400, 401, 404           |
 | GET    | `/admin/users`                        | admin/manager    | query `page,pageSize`                                                   | 200 `AdminPage<AuthUserDto>`         | 400, 401, 403           |
 | PUT    | `/admin/users/:userId`                | admin/manager    | param `userId`; body `{ firstName?, lastName?, email?, role?, status?, emailVerified?, password? }` (role/password admin-only) | 200 `AuthUserDto`                    | 400, 401, 403, 404, 409 |
 | DELETE | `/admin/users/:userId`                | admin/manager    | param `userId`                                                          | 204                                  | 400, 401, 403, 404, 409 |
@@ -1909,10 +1912,10 @@ src/validations/
 | `trips/`    | `tripWriteSchema`, `tripListQuerySchema`, `dayCreateSchema`, `dayUpdateSchema`, `dayReorderSchema`, `pointReorderSchema`                                                                                |
 | `points/`   | `pointCreateSchema`, `pointUpdateSchema`                                                                                                                                                                |
 | `comments/` | `commentBodySchema`, `commentPageQuerySchema`                                                                                                                                                           |
-| `social/`   | `socialTargetBodySchema`, `socialTargetQuerySchema`, `favoriteBodySchema`, `favoriteQuerySchema`, `reportBodySchema`, `reportTargetTypeInput`                                                           |
+| `social/`   | `socialTargetBodySchema`, `socialTargetQuerySchema`, `favoriteBodySchema`, `favoriteQuerySchema`, `reportBodySchema`, `reportTargetQuerySchema`, `reportTargetTypeInput`                                     |
 | `admin/`    | `adminUserUpdateSchema`, `failedLogDeleteSchema`, `adminPaginationQuerySchema`, `adminReportIdParams`                                                                                                   |
 
-Route-parameter schemas (section 18.7) are shared and used across modules: `userIdParams`, `tripIdOnlyParams`, `tripDayParams`, `pointIdParams`, `pointImageParams`, `imageIdParams`, `commentIdParams`, `tripGroupIdParams`, `reportIdParams`, `adminReportIdParams`.
+Route-parameter schemas (section 18.7) are shared and used across modules: `userIdParams`, `tripIdOnlyParams`, `tripDayParams`, `pointIdParams`, `pointImageParams`, `imageIdParams`, `commentIdParams`, `tripGroupIdParams`, `adminReportIdParams`.
 
 ### 22.9 API ownership rule
 
@@ -2211,7 +2214,17 @@ A user cannot submit:
 
 to impersonate another reporter.
 
-### 25.2 Supported report targets
+### 25.2 Withdrawing a report
+
+The reporter withdraws their own report through the same target they reported:
+
+```text
+DELETE /api/v1/reports?targetType=<targetType>&targetId=<targetId>
+```
+
+The withdrawal is addressed by the reported target, like `DELETE /likes` and `DELETE /favorites`, so the Frontend never needs to keep a report id around. The reporter is taken from the authentication context and is part of the delete predicate, so a user can only ever remove their own report of that target. Removing a report the user does not have is a successful no-op.
+
+### 25.3 Supported report targets
 
 The current report contract supports these canonical targets:
 
@@ -2225,7 +2238,7 @@ comment
 
 This allows the Frontend to report inappropriate trip content and comments.
 
-### 25.3 Automatic admin visibility
+### 25.4 Automatic admin visibility
 
 Once a report is successfully persisted:
 
@@ -2243,7 +2256,7 @@ GET /admin/reports
 
 No additional Frontend action is required to make the report appear in the administrative queue.
 
-### 25.4 Admin/manager access
+### 25.5 Admin/manager access
 
 Only:
 
@@ -2261,15 +2274,16 @@ DELETE /admin/reports/:reportId
 
 Normal users cannot access the report queue.
 
-### 25.5 Delete report vs delete content
+### 25.6 Delete report vs delete content
 
 These are intentionally different:
 
 ```text
+DELETE /reports?targetType=<targetType>&targetId=<targetId>
 DELETE /admin/reports/:reportId
 ```
 
-means:
+mean:
 
 ```text
 remove the report record
@@ -2299,6 +2313,7 @@ The following currently implemented capabilities are part of this API contract. 
 | My Favorites   | `GET /me/favorites`    | Auth          | Current user's favorite trip groups   |
 | Background     | `GET /trips/background`      | Public        | Random public GCS background          |
 | Report list    | `GET /admin/reports`              | Admin/Manager | Automatically lists persisted reports |
+| Withdraw report | `DELETE /reports`               | Auth          | Removes the current user's own report of a target, addressed by `targetType` + `targetId`; a report the user does not have is a no-op |
 | Delete report  | `DELETE /admin/reports/:reportId` | Admin/Manager | Deletes report record only            |
 | Report comment | `POST /reports`                  | Auth          | `targetType=comment` supported        |
 | Session probe | `GET /auth/session` | Public | Read-only refresh-session presence check; no token rotation or user data |
@@ -2320,6 +2335,7 @@ The following currently implemented capabilities are part of this API contract. 
 13. **The background controller returns JSON only.**
 14. **Reports created by users automatically become visible to admin/manager through the report queue.**
 15. **Deleting a report does not delete the reported content.**
-16. **Existing endpoints continue to follow the authentication, security, image, comment, trip, schema, and DTO rules defined in this contract unless a specific section states otherwise.**
+16. **A user withdraws their own report by its target**: `DELETE /reports?targetType=…&targetId=…`, never by a report id.
+17. **Existing endpoints continue to follow the authentication, security, image, comment, trip, schema, and DTO rules defined in this contract unless a specific section states otherwise.**
 17. **Keep the endpoint inventory, schemas, DTOs, and security rules aligned with the implemented backend when they evolve.
 18. **`GET /auth/session` is the only new session-presence probe: it is read-only, returns only `hasSession`, and must not rotate or expose refresh/access tokens or user identity.**

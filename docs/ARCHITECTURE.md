@@ -366,7 +366,7 @@ The `/api/v1` endpoint inventory below is derived from the mounted routers and c
 | Images         | `DELETE /images/:imageId`                                                                                                                                                                                                                                                                                                  |
 | Likes          | `POST` and `DELETE /likes`                                                                                                                                                                                                                                                                                                 |
 | Favorites      | `POST` and `DELETE /favorites`                                                                                                                                                                                                                                                                                             |
-| Reports        | `POST /reports`; `DELETE /reports/:reportId` (author withdraw); anonymous contexts cannot create reports                        |
+| Reports        | `POST /reports`; `DELETE /reports?targetType=…&targetId=…` (author withdraw); anonymous contexts cannot create reports                        |
 | Admin reports | `GET /admin/reports`, `DELETE /admin/reports/:reportId`; moderation access is restricted to `admin` and `manager` |
 
 Comments are mounted at the v1 root because their collections span several resource prefixes.
@@ -1084,9 +1084,10 @@ Reports are created by authenticated users and persisted as report records targe
 The moderation boundary is separate from report creation:
 
 * `POST /api/v1/reports` creates a report for the authenticated actor;
-* `DELETE /api/v1/reports/:reportId` lets the report's author withdraw their own report; it is separate from the moderation queue;
+* `DELETE /api/v1/reports?targetType=…&targetId=…` lets the reporter withdraw their own report of that target; it is addressed by the reported target, like `DELETE /api/v1/likes` and `DELETE /api/v1/favorites`, so no report id is involved;
+* the withdrawal is scoped by the reporter inside the delete predicate, so a user can only ever remove their own report of that target; a report the user does not have is a successful no-op;
 * `GET /api/v1/admin/reports` lists persisted reports for moderation triage;
-* `DELETE /api/v1/admin/reports/:reportId` removes a report record;
+* `DELETE /api/v1/admin/reports/:reportId` removes a report record by its id and stays separate from the author withdrawal;
 * report listing and admin deletion are restricted to `admin` and `manager`;
 * ordinary users cannot read or delete the moderation queue.
 

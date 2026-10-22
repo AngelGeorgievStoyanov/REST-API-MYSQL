@@ -29,6 +29,22 @@ export const reportBodySchema = z.object({
     reason: optionalText(LIMITS.report.reason),
 }).strict();
 
+/**
+ * The same report target, sent in the query string of the DELETE operation
+ * (query values arrive as strings).
+ */
+export const reportTargetQuerySchema = z.object({
+    targetType: reportTargetTypeInput,
+    targetId: positiveIdQuery,
+}).strict();
+
+/**
+ * Validated shape of a report target query string. `targetType` still carries
+ * the client spelling here; the parser normalizes it to the canonical target
+ * type of the domain model.
+ */
+export type ReportTargetQuery = z.infer<typeof reportTargetQuerySchema>;
+
 export const commentPageQuerySchema = z.object({
     page: optionalInt(LIMITS.pagination.page),
     limit: optionalInt(LIMITS.pagination.commentLimit),

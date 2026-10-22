@@ -19,7 +19,7 @@ import promise from 'eslint-plugin-promise';
 export default tseslint.config(
   // 1. Generated output and third-party code — never linted.
   {
-    ignores: ['build/**', 'dist/**', 'coverage/**', 'node_modules/**'],
+    ignores: ['build/**', 'dist/**', 'coverage/**', 'node_modules/**', 'src/migration/**', 'src/db/**'],
   },
 
   // 2. Core JavaScript recommended + security + promise for the whole tree.

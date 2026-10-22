@@ -29,14 +29,6 @@ export class ReportRepository {
         }
     }
 
-    /** Reporter of one report, used for the ownership check of a withdrawal. */
-    async findOwner(reportId: number): Promise<{ id: number; userId: string } | null> {
-        return this.prisma.report.findUnique({
-            where: { id: reportId },
-            select: { id: true, userId: true },
-        });
-    }
-
     /** One page of the moderation queue: newest reports first, tie-break by id. */
     async listPage(skip: number, take: number): Promise<AdminReportRecord[]> {
         return this.prisma.report.findMany({
@@ -61,6 +53,16 @@ export class ReportRepository {
         });
 
         return new Set(rows.map((row) => socialTargetKey(row.targetTypeId, row.targetId)));
+    }
+
+    /**
+     * Removes the caller's own report for one target. The reporter is part of
+     * the delete predicate, so a report of another user can never be removed
+     * through it. A user has at most one report per target, so at most one row
+     * is deleted; removing a report the user does not have is a no-op.
+     */
+    async removeOwned(userId: string, targetTypeId: number, targetId: number): Promise<void> {
+        await this.prisma.report.deleteMany({ where: { userId, targetTypeId, targetId } });
     }
 
     /** `false` means the report no longer exists (already removed). */

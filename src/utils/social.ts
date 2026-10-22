@@ -12,6 +12,7 @@ import {
 import { type CommentCreateRequest, type CommentUpdateRequest } from '../model/comment';
 import { type ReportTargetRef, type ReportTargetType } from '../model/report';
 import { type SocialTargetRef, type SocialTargetType } from '../model/social';
+import { type ReportTargetQuery } from '../validation/schemas/social.schemas';
 import { ApiError } from './apiError';
 import { firstValue } from './utils';
 import { asRecord, optionalPositiveInt, optionalString, parsePositiveId, requireTrimmedString } from './validation';
@@ -77,6 +78,18 @@ export function parseSocialTargetQuery(query: unknown): SocialTargetRef {
     return {
         targetType: parseTargetType(record['targetType'], 'targetType'),
         targetId: parsePositiveId(record['targetId'], 'targetId'),
+    };
+}
+
+/**
+ * Target of a report deletion query string: the social target types plus
+ * `comment`. The query is the validated shape of `reportTargetQuerySchema`, so
+ * the schema stays the single source of truth for the accepted values.
+ */
+export function parseReportTargetQuery(query: ReportTargetQuery): ReportTargetRef {
+    return {
+        targetType: parseReportTargetType(query.targetType, 'targetType'),
+        targetId: parsePositiveId(query.targetId, 'targetId'),
     };
 }
 

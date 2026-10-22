@@ -2,10 +2,11 @@ import { type TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
 import { type AdminReportDto, type ReportDto } from '../model/report';
 import { toAdminReportDto, toReportDto } from '../mappers/reportMapper';
-import { parseReportBody, parseReportTargetBody, isReportTargetType } from '../utils/social';
+import { parseReportBody, parseReportTargetBody, parseReportTargetQuery, isReportTargetType } from '../utils/social';
 import { type ReportRepository } from '../repositories/reportRepository';
 import { type SocialTargetRepository } from '../repositories/socialTargetRepository';
 import { type TargetTypeRepository } from '../repositories/targetTypeRepository';
+import { type ReportTargetQuery } from '../validation/schemas/social.schemas';
 import { type AdminPage } from '../model/admin';
 import { toAdminPageDto } from '../mappers/adminMapper';
 import { parseAdminPagination } from '../utils/adminPagination';
@@ -69,20 +70,17 @@ export class ReportService {
     }
 
     /**
-     * Withdrawal by the report's author: the ownership comes exclusively from the
-     * authenticated actor, so a known id can never remove another user's report.
-     * The delete itself reuses the same repository operation as the admin removal.
+     * Withdrawal of the caller's own report for one target. The reporter comes
+     * exclusively from the authenticated actor and the target from the request,
+     * so the deletion is scoped to the caller's own report of that target.
+     * Removing a report the user does not have is a no-op, exactly like
+     * removing a like or a favorite that is not there.
      */
-    async removeOwned(actor: TripActor, rawReportId: string): Promise<void> {
-        const reportId = parsePositiveId(rawReportId, 'Report id');
-        const report = await this.repository.findOwner(reportId);
-        if (!report) throw ApiError.notFound('Report not found.');
+    async removeOwned(actor: TripActor, query: ReportTargetQuery): Promise<void> {
+        const target = parseReportTargetQuery(query);
+        await this.targets.requireReportContext(target);
+        const typeId = await this.targetTypes.requireIdByRowName(target.targetType);
 
-        if (report.userId !== actor.id) {
-            throw ApiError.forbidden('Only the report author can delete this report.');
-        }
-
-        const removed = await this.repository.delete(reportId);
-        if (!removed) throw ApiError.notFound('Report not found.');
+        await this.repository.removeOwned(actor.id, typeId, target.targetId);
     }
 }

@@ -105,9 +105,6 @@ export const commentIdParams = z.object({ commentId: positiveIdParam }).strict()
 export const tripGroupIdParams = z.object({ tripGroupId: positiveIdParam }).strict();
 export const adminReportIdParams = z.object({ reportId: positiveIdParam }).strict();
 
-/** `:reportId` of the author-facing report removal route. */
-export const reportIdParams = z.object({ reportId: positiveIdParam }).strict();
-
 /**
  * Numeric resource id inside a JSON body: a true JSON number (an integer within
  * the id bounds). Strings, booleans, `null` and fractional values are rejected.
