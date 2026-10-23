@@ -90,6 +90,7 @@ model TargetType {
 
   comments Comment[]
   likes    Like[]
+  favorites Favorite[]
   reports  Report[]
 
   @@map("target_types")
@@ -145,7 +146,6 @@ model TripGroup {
   updatedAt DateTime? @updatedAt
 
   trips     Trip[]
-  favorites Favorite[]
 
   @@index([ownerId], map: "ix_tg_owner")
   @@map("trip_groups")
@@ -228,6 +228,9 @@ model Comment {
   targetTypeId Int
   targetType   TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comments_target_type")
   targetId     Int
+  parentCommentId Int?
+  parentComment Comment? @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_comments_parent")
+  replies Comment[] @relation("CommentReplies")
   countEdited  Int?       @default(0)
 
   createdAt DateTime?
@@ -235,6 +238,7 @@ model Comment {
 
   @@index([ownerId], map: "ix_comments_owner")
   @@index([targetTypeId, targetId], map: "ix_comments_target")
+  @@index([parentCommentId, createdAt, id], map: "ix_comments_parent")
   @@map("comments")
 }
 
@@ -367,16 +371,16 @@ model Like {
 }
 
 model Favorite {
-  // Favorites are attached to a trip group, not to a single day row.
   id          Int       @id @default(autoincrement())
   userId      String    @db.VarChar(36)
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_fav_user")
-  tripGroupId Int
-  tripGroup   TripGroup @relation(fields: [tripGroupId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_fav_trip_group")
+  targetTypeId Int
+  targetType TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_fav_target_type")
+  targetId Int
   createdAt   DateTime?
 
-  @@unique([userId, tripGroupId], map: "uq_fav_user_group")
-  @@index([tripGroupId], map: "ix_fav_tg")
+  @@unique([userId, targetTypeId, targetId], map: "uq_fav_user_target")
+  @@index([targetTypeId, targetId], map: "ix_fav_target")
   @@index([userId], map: "ix_fav_u")
   @@map("favorites")
 }

@@ -14,6 +14,7 @@ const commentSelect = {
     countEdited: true,
     targetTypeId: true,
     targetId: true,
+    parentCommentId: true,
     createdAt: true,
     updatedAt: true,
 } satisfies Prisma.CommentSelect;
@@ -29,6 +30,7 @@ function toCommentRecord(row: CommentRow): CommentRecord {
         countEdited: row.countEdited,
         targetTypeId: row.targetTypeId,
         targetId: row.targetId,
+        parentCommentId: row.parentCommentId,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
     };
@@ -40,7 +42,7 @@ export class CommentRepository {
     /** Newest first; `id` breaks ties because the live `createdAt` is nullable. */
     async listPage(targetTypeId: number, targetId: number, skip: number, take: number): Promise<CommentRecord[]> {
         const rows = await this.prisma.comment.findMany({
-            where: { targetTypeId, targetId },
+            where: { targetTypeId, targetId, parentCommentId: null },
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             skip,
             take,
@@ -50,7 +52,7 @@ export class CommentRepository {
     }
 
     async countByTarget(targetTypeId: number, targetId: number): Promise<number> {
-        return this.prisma.comment.count({ where: { targetTypeId, targetId } });
+        return this.prisma.comment.count({ where: { targetTypeId, targetId, parentCommentId: null } });
     }
 
     /** Batch comment counts of many targets, keyed by `targetTypeId:targetId`. */
@@ -59,7 +61,7 @@ export class CommentRepository {
 
         const rows = await this.prisma.comment.groupBy({
             by: ['targetTypeId', 'targetId'],
-            where: { targetId: { in: targetIds } },
+            where: { targetId: { in: targetIds }, parentCommentId: null },
             _count: { _all: true },
         });
 
@@ -77,11 +79,13 @@ export class CommentRepository {
         ownerId: string;
         nameAuthor: string;
         comment: string;
+        parentCommentId?: number | null;
     }): Promise<CommentRecord> {
         const row = await this.prisma.comment.create({
             data: {
                 targetTypeId: data.targetTypeId,
                 targetId: data.targetId,
+                parentCommentId: data.parentCommentId ?? null,
                 ownerId: data.ownerId,
                 nameAuthor: data.nameAuthor,
                 comment: data.comment,
@@ -105,10 +109,28 @@ export class CommentRepository {
         await this.prisma.$transaction(async (tx) => {
             // A comment is itself a report target, so the central cleanup removes
             // the reports pointing at it together with the row.
-            await deleteSocialRecordsForTargets(tx, socialCleanupTargets(COMMENT_TARGET_TYPE, [commentId]));
+            const replies = await tx.comment.findMany({ where: { parentCommentId: commentId }, select: { id: true } });
+            const ids = [commentId, ...replies.map((reply) => reply.id)];
+            await deleteSocialRecordsForTargets(tx, socialCleanupTargets(COMMENT_TARGET_TYPE, ids));
+            if (replies.length > 0) await tx.comment.deleteMany({ where: { id: { in: replies.map((reply) => reply.id) } } });
 
             await tx.comment.delete({ where: { id: commentId } });
         });
+    }
+
+    async listReplies(parentCommentId: number, skip: number, take: number): Promise<CommentRecord[]> {
+        const rows = await this.prisma.comment.findMany({ where: { parentCommentId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip, take, select: commentSelect });
+        return rows.map(toCommentRecord);
+    }
+
+    async countReplies(parentCommentId: number): Promise<number> {
+        return this.prisma.comment.count({ where: { parentCommentId } });
+    }
+
+    async countRepliesByParents(parentIds: number[]): Promise<Map<number, number>> {
+        if (parentIds.length === 0) return new Map();
+        const rows = await this.prisma.comment.groupBy({ by: ['parentCommentId'], where: { parentCommentId: { in: parentIds } }, _count: { _all: true } });
+        return new Map(rows.flatMap((row) => row.parentCommentId === null ? [] : [[row.parentCommentId, row._count._all] as const]));
     }
 
     /** `comments.nameAuthor` is a NOT NULL snapshot of the author's name. */

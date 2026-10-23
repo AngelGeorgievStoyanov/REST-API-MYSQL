@@ -16,12 +16,15 @@ export const socialTargetQuerySchema = z.object({
     targetId: positiveIdQuery,
 }).strict();
 
-export const favoriteBodySchema = z.object({ tripGroupId: positiveId }).strict();
-export const favoriteQuerySchema = z.object({ tripGroupId: positiveIdQuery }).strict();
+const favoriteTargetBodySchema = z.object({ targetType: targetTypeInput, targetId: positiveId }).strict();
+const favoriteTargetQuerySchema = z.object({ targetType: targetTypeInput, targetId: positiveIdQuery }).strict();
+export const favoriteBodySchema = z.union([z.object({ tripGroupId: positiveId }).strict(), favoriteTargetBodySchema]);
+export const favoriteQuerySchema = z.union([z.object({ tripGroupId: positiveIdQuery }).strict(), favoriteTargetQuerySchema]);
 
 export const commentBodySchema = z.object({
     comment: trimmedString(LIMITS.comment.comment),
 }).strict();
+export const replyCreateBodySchema = commentBodySchema;
 
 export const reportBodySchema = z.object({
     targetType: reportTargetTypeInput,

@@ -1,5 +1,5 @@
 import { type Prisma } from '@prisma/client';
-import { COMMENT_TARGET_TYPE, SOCIAL_TARGET_TYPE } from '../constants/social';
+import { COMMENT_TARGET_TYPE } from '../constants/social';
 
 /**
  * Central social cleanup for deleted resources.
@@ -60,19 +60,8 @@ async function deleteReports(tx: Prisma.TransactionClient, groups: SocialCleanup
     await tx.report.deleteMany({ where: polymorphicTargetFilter(groups) });
 }
 
-/**
- * Favorites are attached to a trip group through their own foreign key
- * (`favorites.tripGroupId`), not through `targetTypeId`/`targetId`. The FK is
- * NO ACTION, so a favorite left behind would block the group delete; the
- * cleanup therefore removes it before the trip group row is deleted.
- */
 async function deleteFavorites(tx: Prisma.TransactionClient, groups: SocialCleanupGroup[]): Promise<void> {
-    const tripGroupIds = groups
-        .filter((group) => group.targetType === SOCIAL_TARGET_TYPE.TRIP_GROUP)
-        .flatMap((group) => group.targetIds);
-    if (tripGroupIds.length === 0) return;
-
-    await tx.favorite.deleteMany({ where: { tripGroupId: { in: [...new Set(tripGroupIds)] } } });
+    await tx.favorite.deleteMany({ where: polymorphicTargetFilter(groups) });
 }
 
 /**

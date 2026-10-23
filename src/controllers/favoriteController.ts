@@ -7,7 +7,6 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { validateRequest } from '../validation/validateRequest';
 import { favoriteBodySchema, favoriteQuerySchema } from '../validation/schemas/social.schemas';
 
-/** Favorites exist on trip groups only. */
 const favoriteController = express.Router();
 
 favoriteController.post(

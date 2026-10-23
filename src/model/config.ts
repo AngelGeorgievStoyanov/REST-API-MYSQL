@@ -50,3 +50,16 @@ export interface PublicServiceConfig {
     isActive: boolean;
     configs: PublicServiceConfigEntry[];
 }
+
+export interface SocialConfig {
+    key: string;
+    isActive: boolean;
+    targets: SocialConfigTarget[];
+}
+
+export interface SocialConfigTarget {
+    key: string;
+    create: boolean;
+    edit: boolean;
+    delete: boolean;
+}

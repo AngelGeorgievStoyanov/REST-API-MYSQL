@@ -8,16 +8,18 @@ export interface CommentPermissions {
     canDelete: boolean;
 }
 
-/**
- * Social state of one comment. A comment is a report-only target — it is never
- * a like or favorite target — so it carries no like/favorite fields.
- */
 export interface CommentSocialState {
+    likes: number;
+    likedByMe: boolean;
+    comments: { count: number };
+    favorites: number;
+    favoritedByMe: boolean;
     reportedByMe: boolean;
 }
 
 export interface CommentDto {
     id: number;
+    parentCommentId: number | null;
     author: CommentAuthor;
     comment: string;
     permissions: CommentPermissions;
@@ -34,6 +36,7 @@ export interface CommentRecord {
     countEdited: number | null;
     targetTypeId: number;
     targetId: number;
+    parentCommentId: number | null;
     createdAt: Date | null;
     updatedAt: Date | null;
 }

@@ -3,22 +3,20 @@ import {
     MAX_COMMENT_LENGTH,
     MAX_COMMENT_PAGE_SIZE,
     MAX_REPORT_REASON_LENGTH,
-    REPORT_TARGET_TYPE_INPUT_VALUES,
-    REPORT_TARGET_TYPE_VALUES,
     SOCIAL_TARGET_TYPE,
     SOCIAL_TARGET_TYPE_INPUT,
     SOCIAL_TARGET_TYPE_INPUT_VALUES,
 } from '../constants/social';
 import { type CommentCreateRequest, type CommentUpdateRequest } from '../model/comment';
-import { type ReportTargetRef, type ReportTargetType } from '../model/report';
+import { type ReportTargetType } from '../model/report';
+import { type ReportTargetRef } from '../model/report';
 import { type SocialTargetRef, type SocialTargetType } from '../model/social';
 import { type ReportTargetQuery } from '../validation/schemas/social.schemas';
 import { ApiError } from './apiError';
 import { firstValue } from './utils';
 import { asRecord, optionalPositiveInt, optionalString, parsePositiveId, requireTrimmedString } from './validation';
 
-const ACCEPTED_TARGET_TYPES = 'tripGroup, day, point, image';
-const ACCEPTED_REPORT_TARGET_TYPES = 'tripGroup, day, point, image, comment';
+const ACCEPTED_TARGET_TYPES = 'tripGroup, day, trip, point, image, comment';
 
 function parseTargetType(value: unknown, field: string): SocialTargetType {
     const raw = firstValue(value);
@@ -29,18 +27,6 @@ function parseTargetType(value: unknown, field: string): SocialTargetType {
     if (accepted === undefined) throw ApiError.validation(`"${field}" must be one of: ${ACCEPTED_TARGET_TYPES}.`);
 
     return SOCIAL_TARGET_TYPE_INPUT[accepted];
-}
-
-/** Report target type: the social mapping plus the report-only `comment`. */
-function parseReportTargetType(value: unknown, field: string): ReportTargetType {
-    const raw = firstValue(value);
-    if (typeof raw !== 'string') throw ApiError.validation(`"${field}" is required.`);
-
-    const normalized = raw.trim().toLowerCase();
-    const accepted = REPORT_TARGET_TYPE_INPUT_VALUES.find((candidate) => candidate === normalized);
-    if (accepted === undefined) throw ApiError.validation(`"${field}" must be one of: ${ACCEPTED_REPORT_TARGET_TYPES}.`);
-
-    return accepted === 'comment' ? 'comment' : SOCIAL_TARGET_TYPE_INPUT[accepted];
 }
 
 function recordOf(value: unknown, what: string): Record<string, unknown> {
@@ -63,12 +49,7 @@ export function parseSocialTargetBody(body: unknown): SocialTargetRef {
 
 /** Target of a report body: the social target types plus `comment`. */
 export function parseReportTargetBody(body: unknown): ReportTargetRef {
-    const record = recordOf(body, 'Request body');
-
-    return {
-        targetType: parseReportTargetType(record['targetType'], 'targetType'),
-        targetId: parsePositiveId(record['targetId'], 'targetId'),
-    };
+    return parseSocialTargetBody(body);
 }
 
 /** Target of a mutation query string, used by the DELETE operations. */
@@ -87,13 +68,9 @@ export function parseSocialTargetQuery(query: unknown): SocialTargetRef {
  * the schema stays the single source of truth for the accepted values.
  */
 export function parseReportTargetQuery(query: ReportTargetQuery): ReportTargetRef {
-    return {
-        targetType: parseReportTargetType(query.targetType, 'targetType'),
-        targetId: parsePositiveId(query.targetId, 'targetId'),
-    };
+    return parseSocialTargetQuery(query);
 }
 
-/** Favorites are addressed by trip group id, in a body or in a query string. */
 export function parseTripGroupId(value: unknown): number {
     const record = recordOf(value, 'Request body');
 
@@ -137,7 +114,6 @@ export function parseCommentPageQuery(rawQuery: unknown): { page: number; limit:
 }
 
 const SOCIAL_TARGET_TYPE_VALUES: string[] = Object.values(SOCIAL_TARGET_TYPE);
-const REPORT_TARGET_TYPE_VALUES_LIST: string[] = Object.values(REPORT_TARGET_TYPE_VALUES);
 
 export function isSocialTargetType(value: string): value is SocialTargetType {
     return SOCIAL_TARGET_TYPE_VALUES.includes(value);
@@ -145,7 +121,7 @@ export function isSocialTargetType(value: string): value is SocialTargetType {
 
 /** Narrowing guard for a `target_types.name` read back from the database. */
 export function isReportTargetType(value: string): value is ReportTargetType {
-    return REPORT_TARGET_TYPE_VALUES_LIST.includes(value);
+    return isSocialTargetType(value);
 }
 
 /** Map key of one polymorphic target inside a batch aggregate result. */

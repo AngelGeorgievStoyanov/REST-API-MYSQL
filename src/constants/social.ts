@@ -1,8 +1,3 @@
-/**
- * `target_types.name` values of the polymorphic social targets, as they exist in
- * the live database. The table also holds `comment`, which the Phase 3 contract
- * does not expose as a target, so it is not part of this list.
- */
 export const SOCIAL_TARGET_TYPE = {
     /** A whole trip, i.e. one `trip_groups` row. */
     TRIP_GROUP: 'tripGroup',
@@ -10,13 +5,14 @@ export const SOCIAL_TARGET_TYPE = {
     DAY: 'trip',
     POINT: 'point',
     IMAGE: 'image',
+    COMMENT: 'comment',
 } as const;
 
 /**
  * Lower-case `targetType` values accepted from a client, including the two
  * spellings of a day (`day` in the API wording, `trip` in the database).
  */
-export const SOCIAL_TARGET_TYPE_INPUT_VALUES = ['tripgroup', 'day', 'trip', 'point', 'image'] as const;
+export const SOCIAL_TARGET_TYPE_INPUT_VALUES = ['tripgroup', 'day', 'trip', 'point', 'image', 'comment'] as const;
 
 /** Canonical target type, derived from the live values so no model import is needed. */
 type CanonicalTargetType = (typeof SOCIAL_TARGET_TYPE)[keyof typeof SOCIAL_TARGET_TYPE];
@@ -31,16 +27,10 @@ export const SOCIAL_TARGET_TYPE_INPUT: Record<
     trip: SOCIAL_TARGET_TYPE.DAY,
     point: SOCIAL_TARGET_TYPE.POINT,
     image: SOCIAL_TARGET_TYPE.IMAGE,
+    comment: SOCIAL_TARGET_TYPE.COMMENT,
 };
 
-/**
- * Target types reports may address: the social ones plus `comment`, which is a
- * report-only target (comments are never a like/favorite target). Kept apart
- * from the social input list so the like/favorite contract stays unchanged.
- */
-export const REPORT_TARGET_TYPE_INPUT_VALUES = ['tripgroup', 'day', 'trip', 'point', 'image', 'comment'] as const;
-
-/** `target_types.name` of a comment: a report target only, never a like/favorite target. */
+export const REPORT_TARGET_TYPE_INPUT_VALUES = SOCIAL_TARGET_TYPE_INPUT_VALUES;
 export const COMMENT_TARGET_TYPE = 'comment' as const;
 
 /** `targetType` values as reports and the admin report queue expose them. */

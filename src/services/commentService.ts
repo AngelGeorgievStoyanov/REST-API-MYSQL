@@ -7,10 +7,11 @@ import { ApiError } from '../utils/apiError';
 import { parseCommentCreateBody, parseCommentPageQuery, parseCommentUpdateBody } from '../utils/social';
 import { parsePositiveId } from '../utils/validation';
 import { type CommentRepository } from '../repositories/commentRepository';
-import { toCommentDto, toCommentListResponse } from '../mappers/commentMapper';
+import { toCommentDto } from '../mappers/commentMapper';
 import { type SocialTargetRepository } from '../repositories/socialTargetRepository';
 import { type TargetTypeRepository } from '../repositories/targetTypeRepository';
 import { type SocialStateService } from './socialStateService';
+import { checkSocialPermission } from '../utils/socialPermissions';
 
 
 export class CommentService {
@@ -31,14 +32,11 @@ export class CommentService {
             this.repository.countByTarget(typeId, target.targetId),
         ]);
 
-        // One report batch for the whole page; an anonymous caller issues no report query.
-        const reportedCommentIds = await this.socialStates.reportedTargetIds(
-            actor?.id ?? null,
-            COMMENT_TARGET_TYPE,
-            rows.map((row) => row.id),
-        );
-
-        return toCommentListResponse(rows, actor, page.page, page.limit, total, reportedCommentIds);
+        const states = await this.socialStates.statesFor(actor?.id ?? null, rows.map((row) => ({ targetType: COMMENT_TARGET_TYPE, targetId: row.id })));
+        return { items: rows.map((row) => {
+            const state = states.get(COMMENT_TARGET_TYPE, row.id);
+            return toCommentDto(row, actor, state.reportedByMe, state);
+        }), page: page.page, limit: page.limit, total };
     }
 
     /** The day must belong to the trip group from the URL; the day resource is a `trips` row. */
@@ -55,6 +53,7 @@ export class CommentService {
         body: unknown,
     ): Promise<CommentDto> {
         const target = await this.resolveTarget(targetType, rawId);
+        checkSocialPermission(actor, 'comment', target.targetType, 'create');
         const request = parseCommentCreateBody(body);
 
         const [typeId, nameAuthor] = await Promise.all([
@@ -72,7 +71,8 @@ export class CommentService {
 
         // A comment that was just created carries no report from its author yet,
         // so the report state handed to the shared mapper is empty.
-        return toCommentDto(row, actor, false);
+        const state = await this.socialStates.stateFor(actor.id, { targetType: COMMENT_TARGET_TYPE, targetId: row.id });
+        return toCommentDto(row, actor, state.reportedByMe, state);
     }
 
     async createForDay(
@@ -89,6 +89,7 @@ export class CommentService {
     /** Only the author or a moderator may edit a comment; deleting is a moderation action. */
     async update(actor: TripActor, rawCommentId: string, body: unknown): Promise<CommentDto> {
         const comment = await this.findComment(rawCommentId);
+        checkSocialPermission(actor, comment.parentCommentId === null ? 'comment' : 'replyComment', 'comment', 'edit');
         if (comment.ownerId !== actor.id && !MODERATOR_ROLES.includes(actor.role)) {
             throw ApiError.forbidden('Only the author or a moderator can edit a comment.');
         }
@@ -96,16 +97,51 @@ export class CommentService {
         const request = parseCommentUpdateBody(body);
         const row = await this.repository.update(comment.id, request.comment, (comment.countEdited ?? 0) + 1);
 
-        const reportedCommentIds = await this.socialStates.reportedTargetIds(actor.id, COMMENT_TARGET_TYPE, [row.id]);
-
-        return toCommentDto(row, actor, reportedCommentIds.has(row.id));
+        const state = await this.socialStates.stateFor(actor.id, { targetType: COMMENT_TARGET_TYPE, targetId: row.id });
+        return toCommentDto(row, actor, state.reportedByMe, state);
     }
 
     async delete(actor: TripActor, rawCommentId: string): Promise<void> {
         const comment = await this.findComment(rawCommentId);
+        checkSocialPermission(actor, comment.parentCommentId === null ? 'comment' : 'replyComment', 'comment', 'delete');
         this.assertCanDelete(actor, comment);
 
         await this.repository.delete(comment.id);
+    }
+
+    async listReplies(rawCommentId: string, query: unknown, actor: TripActor | null): Promise<CommentListResponse> {
+        const parent = await this.findComment(rawCommentId);
+        if (parent.parentCommentId !== null) throw ApiError.notFound('Comment not found.');
+        const page = parseCommentPageQuery(query);
+        const [rows, total] = await Promise.all([this.repository.listReplies(parent.id, (page.page - 1) * page.limit, page.limit), this.repository.countReplies(parent.id)]);
+        const states = await this.socialStates.statesFor(actor?.id ?? null, rows.map((row) => ({ targetType: COMMENT_TARGET_TYPE, targetId: row.id })));
+        return { items: rows.map((row) => {
+            const state = states.get(COMMENT_TARGET_TYPE, row.id);
+            return toCommentDto(row, actor, state.reportedByMe, state);
+        }), page: page.page, limit: page.limit, total };
+    }
+
+    async createReply(actor: TripActor, rawCommentId: string, body: unknown): Promise<CommentDto> {
+        const parent = await this.findComment(rawCommentId);
+        if (parent.parentCommentId !== null) throw ApiError.notFound('Comment not found.');
+        checkSocialPermission(actor, 'replyComment', 'comment', 'create');
+        const request = parseCommentCreateBody(body);
+        const nameAuthor = await this.repository.findAuthorName(actor.id);
+        const row = await this.repository.create({ targetTypeId: parent.targetTypeId, targetId: parent.targetId, parentCommentId: parent.id, ownerId: actor.id, nameAuthor, comment: request.comment });
+        const state = await this.socialStates.stateFor(actor.id, { targetType: COMMENT_TARGET_TYPE, targetId: row.id });
+        return toCommentDto(row, actor, state.reportedByMe, state);
+    }
+
+    async updateReply(actor: TripActor, rawReplyId: string, body: unknown): Promise<CommentDto> {
+        const row = await this.findComment(rawReplyId);
+        if (row.parentCommentId === null) throw ApiError.notFound('Reply not found.');
+        return this.update(actor, rawReplyId, body);
+    }
+
+    async deleteReply(actor: TripActor, rawReplyId: string): Promise<void> {
+        const row = await this.findComment(rawReplyId);
+        if (row.parentCommentId === null) throw ApiError.notFound('Reply not found.');
+        return this.delete(actor, rawReplyId);
     }
 
     private async findComment(rawCommentId: string): Promise<CommentRecord> {

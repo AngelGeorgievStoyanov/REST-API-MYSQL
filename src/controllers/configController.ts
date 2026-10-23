@@ -15,6 +15,10 @@ configController.get('/services', validateRequest({}), optionalAuthentication, (
     res.status(200).json(dynamicConfig.getPublicServiceConfigs());
 });
 
+configController.get('/social', validateRequest({}), optionalAuthentication, (_req, res) => {
+    res.status(200).json({ social: dynamicConfig.getSocialConfig() });
+});
+
 configController.use(apiErrorMiddleware);
 configController.use(routeNotFoundLogsMiddleware);
 

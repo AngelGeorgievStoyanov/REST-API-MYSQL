@@ -6,7 +6,7 @@ import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
-import { commentIdParams, imageIdParams, pointIdParams, tripDayParams, tripGroupIdParams } from '../validation/schemas/common.schemas';
+import { commentIdParams, imageIdParams, pointIdParams, replyIdParams, tripDayParams, tripGroupIdParams } from '../validation/schemas/common.schemas';
 import { commentBodySchema, commentPageQuerySchema } from '../validation/schemas/social.schemas';
 
 /**
@@ -156,6 +156,26 @@ commentController.delete(
         res.status(204).send();
     }),
 );
+
+commentController.get('/comments/:commentId/replies', validateRequest({ params: commentIdParams, query: commentPageQuerySchema }), optionalAuthentication, asyncHandler(async (req, res) => {
+    const result = await commentService.listReplies(routeParam(req.params['commentId']), req.query, optionalActor(req));
+    res.status(200).json(result);
+}));
+
+commentController.post('/comments/:commentId/replies', validateRequest({ params: commentIdParams, body: commentBodySchema }), requireAuthentication, asyncHandler(async (req, res) => {
+    const result = await commentService.createReply(actorFrom(req), routeParam(req.params['commentId']), req.body);
+    res.status(201).json(result);
+}));
+
+commentController.put('/replies/:replyId', validateRequest({ params: replyIdParams, body: commentBodySchema }), requireAuthentication, asyncHandler(async (req, res) => {
+    const result = await commentService.updateReply(actorFrom(req), routeParam(req.params['replyId']), req.body);
+    res.status(200).json(result);
+}));
+
+commentController.delete('/replies/:replyId', validateRequest({ params: replyIdParams }), requireAuthentication, asyncHandler(async (req, res) => {
+    await commentService.deleteReply(actorFrom(req), routeParam(req.params['replyId']));
+    res.status(204).send();
+}));
 
 commentController.use(apiErrorMiddleware);
 

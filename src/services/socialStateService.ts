@@ -1,4 +1,3 @@
-import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { type ReportTargetType } from '../model/report';
 import { type SocialState, type SocialStates, type SocialTargetRef, type SocialTargetType } from '../model/social';
 import { socialTargetKey } from '../utils/social';
@@ -28,19 +27,17 @@ export class SocialStateService {
      */
     async statesFor(actorId: string | null, targets: SocialTargetRef[]): Promise<SocialStates> {
         const targetIds = unique(targets.map((target) => target.targetId));
-        const groupIds = unique(
-            targets
-                .filter((target) => target.targetType === SOCIAL_TARGET_TYPE.TRIP_GROUP)
-                .map((target) => target.targetId),
-        );
+        const targetRefs = targets.map((target) => ({ targetType: target.targetType, targetId: target.targetId }));
 
-        const [typeIds, likeCounts, commentCounts, favoriteCounts, likedKeys, favoritedGroups, reportedKeys] = await Promise.all([
-            this.targetTypes.loadIds(),
+        const typeIds = await this.targetTypes.loadIds();
+        const commentTargetIds = unique(targets.filter((target) => target.targetType === 'comment').map((target) => target.targetId));
+        const [likeCounts, commentCounts, replyCounts, favoriteCounts, likedKeys, favoritedGroups, reportedKeys] = await Promise.all([
             this.likes.countByTargets(targetIds),
             this.comments.countByTargets(targetIds),
-            this.favorites.countByGroups(groupIds),
+            this.comments.countRepliesByParents(commentTargetIds),
+            this.favorites.countByTargets(typeIds, targetRefs),
             actorId ? this.likes.likedTargetKeys(actorId, targetIds) : Promise.resolve(new Set<string>()),
-            actorId ? this.favorites.favoritedGroupIds(actorId, groupIds) : Promise.resolve(new Set<number>()),
+            actorId ? this.favorites.favoritedTargetKeys(actorId, targetRefs, typeIds) : Promise.resolve(new Set<string>()),
             actorId ? this.reports.reportedTargetKeys(actorId, targetIds) : Promise.resolve(new Set<string>()),
         ]);
 
@@ -53,20 +50,15 @@ export class SocialStateService {
                     targetType,
                     likes: likeCounts.get(key) ?? 0,
                     likedByMe: likedKeys.has(key),
-                    commentCount: commentCounts.get(key) ?? 0,
-                    favorites: favoriteCounts.get(targetId) ?? 0,
-                    favoritedByMe: favoritedGroups.has(targetId),
+                    commentCount: targetType === 'comment' ? replyCounts.get(targetId) ?? 0 : commentCounts.get(key) ?? 0,
+                    favorites: favoriteCounts.get(key) ?? 0,
+                    favoritedByMe: favoritedGroups.has(key),
                     reportedByMe: reportedKeys.has(key),
                 });
             },
         };
     }
 
-    /**
-     * Batch viewer state of a report-only target such as a comment: the subset of
-     * `targetIds` the actor has reported. Reuses the report lookup of the social
-     * state, so a whole comment page costs one query and an anonymous call none.
-     */
     async reportedTargetIds(actorId: string | null, targetType: ReportTargetType, targetIds: number[]): Promise<Set<number>> {
         const ids = unique(targetIds);
         if (actorId === null || ids.length === 0) return new Set();

@@ -1,4 +1,4 @@
-import { type REPORT_TARGET_TYPE_VALUES } from '../constants/social';
+import { type SocialTargetRef, type SocialTargetType } from './social';
 
 /** DTO of the administrative report queue (one `reports` row). */
 export interface AdminReportDto {
@@ -22,14 +22,10 @@ export interface CreatedReportRecord {
     createdAt: Date | null;
 }
 
-/** Target types a report can address, including the report-only `comment`. */
-export type ReportTargetType = (typeof REPORT_TARGET_TYPE_VALUES)[number];
+export type ReportTargetType = SocialTargetType;
 
 /** Pointer to the resource a report addresses. */
-export interface ReportTargetRef {
-    targetType: ReportTargetType;
-    targetId: number;
-}
+export type ReportTargetRef = SocialTargetRef;
 
 /** One `reports` row: the columns the admin report queue exposes. */
 export interface AdminReportRecord {

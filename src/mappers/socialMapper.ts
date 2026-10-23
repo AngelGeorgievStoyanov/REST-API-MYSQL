@@ -1,4 +1,3 @@
-import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { type SocialState, type SocialTargetType } from '../model/social';
 
 export function toSocialState(input: {
@@ -17,9 +16,7 @@ export function toSocialState(input: {
         reportedByMe: input.reportedByMe,
     };
 
-    if (input.targetType === SOCIAL_TARGET_TYPE.TRIP_GROUP) {
-        state.favorites = input.favorites ?? 0;
-        state.favoritedByMe = input.favoritedByMe ?? false;
-    }
+    state.favorites = input.favorites ?? 0;
+    state.favoritedByMe = input.favoritedByMe ?? false;
     return state;
 }

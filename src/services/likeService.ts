@@ -1,6 +1,7 @@
 import { type SocialState } from '../model/social';
 import { type TripActor } from '../model/trip';
 import { parseSocialTargetBody, parseSocialTargetQuery } from '../utils/social';
+import { checkSocialPermission } from '../utils/socialPermissions';
 import { type LikeRepository } from '../repositories/likeRepository';
 import { type SocialStateService } from './socialStateService';
 import { type SocialTargetRepository } from '../repositories/socialTargetRepository';
@@ -18,6 +19,7 @@ export class LikeService {
     async add(actor: TripActor, body: unknown): Promise<SocialState> {
         const target = parseSocialTargetBody(body);
         await this.targets.requireContext(target);
+        checkSocialPermission(actor, 'like', target.targetType, 'create');
         const typeId = await this.targetTypes.requireId(target.targetType);
 
         await this.repository.add(actor.id, typeId, target.targetId);
@@ -29,6 +31,7 @@ export class LikeService {
     async remove(actor: TripActor, query: unknown): Promise<void> {
         const target = parseSocialTargetQuery(query);
         await this.targets.requireContext(target);
+        checkSocialPermission(actor, 'like', target.targetType, 'delete');
         const typeId = await this.targetTypes.requireId(target.targetType);
 
         await this.repository.remove(actor.id, typeId, target.targetId);

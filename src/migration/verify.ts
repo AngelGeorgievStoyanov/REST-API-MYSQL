@@ -366,7 +366,7 @@ export async function verifyMigration(
     }
     return broken;
   };
-  for (const table of ['comments', 'likes', 'reports']) {
+  for (const table of ['comments', 'likes', 'favorites', 'reports']) {
     const broken = await polymorphicBroken(table);
     push(
       `${table}.targetTypeId/targetId resolve`,

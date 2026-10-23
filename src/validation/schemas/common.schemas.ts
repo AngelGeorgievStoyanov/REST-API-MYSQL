@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { REPORT_TARGET_TYPE_INPUT_VALUES, SOCIAL_TARGET_TYPE_INPUT_VALUES } from '../../constants/social';
+import { SOCIAL_TARGET_TYPE_INPUT_VALUES } from '../../constants/social';
 import { POSITIVE_INT_PATTERN, UUID_PATTERN } from '../../constants/validation/patterns';
 import { VALIDATION_LIMITS } from '../../constants/validation/limits';
 
@@ -102,6 +102,7 @@ export const pointIdParams = z.object({ pointId: positiveIdParam }).strict();
 export const pointImageParams = z.object({ pointId: positiveIdParam, imageId: positiveIdParam }).strict();
 export const imageIdParams = z.object({ imageId: positiveIdParam }).strict();
 export const commentIdParams = z.object({ commentId: positiveIdParam }).strict();
+export const replyIdParams = z.object({ replyId: positiveIdParam }).strict();
 export const tripGroupIdParams = z.object({ tripGroupId: positiveIdParam }).strict();
 export const adminReportIdParams = z.object({ reportId: positiveIdParam }).strict();
 
@@ -130,11 +131,7 @@ export const targetTypeInput = z.string()
     .transform((value) => value.toLowerCase())
     .pipe(z.enum(SOCIAL_TARGET_TYPE_INPUT_VALUES));
 
-/** Reports additionally accept `comment` as a target, which likes/favorites do not. */
-export const reportTargetTypeInput = z.string()
-    .trim()
-    .transform((value) => value.toLowerCase())
-    .pipe(z.enum(REPORT_TARGET_TYPE_INPUT_VALUES));
+export const reportTargetTypeInput = targetTypeInput;
 
 /** Complete ordered child list of one parent, as sent by the reorder endpoints. */
 export function idList(bounds: NumberBounds): z.ZodType<number[]> {

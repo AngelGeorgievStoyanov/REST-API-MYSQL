@@ -1,4 +1,5 @@
-import { type PublicServiceConfig, type SelectConfig, type ServiceConfig } from '../model/config';
+import { type PublicServiceConfig, type SelectConfig, type ServiceConfig, type SocialConfig } from '../model/config';
+import { SOCIAL_CONFIG } from '../constants/socialConfig';
 import { type ConfigRepository } from '../repositories/configRepository';
 import { getErrorMessage } from '../utils/error';
 import { type EnvironmentConfig } from '../config/environment';
@@ -8,6 +9,7 @@ import { listBackgroundImageNames } from '../storage/backgroundImageStorage';
 export interface DynamicConfig {
     selects: SelectConfig[];
     services: ServiceConfig[];
+    social: readonly SocialConfig[];
     loadedAt: number;
 }
 
@@ -36,6 +38,13 @@ async function init(configRepository: ConfigRepository, configEnvironment: Envir
         environment = null;
         throw new Error(`Initial config load failed: ${reason}`, { cause: err });
     }
+
+    currentConfig = {
+        selects: currentConfig?.selects ?? [],
+        services: currentConfig?.services ?? [],
+        social: SOCIAL_CONFIG,
+        loadedAt: Date.now(),
+    };
 
     startRefreshTimer();
 
@@ -130,14 +139,18 @@ async function refreshSlow(): Promise<void> {
     // neither fails startup nor discards the last successfully loaded list.
     await refreshBackgroundImages();
 
-    const [selects, services] = await Promise.all([
-        repository.getSelectTypes(),
-        repository.getServiceConfigs(),
-    ]);
+    const selectTypesResult: SelectConfig[] = await repository.getSelectTypes();
+    const serviceConfigsResult: ServiceConfig[] = await repository.getServiceConfigs();
 
-    if (selects.length > 0) {
+    if (selectTypesResult.length > 0) {
         // Atomic success path: the selected config is fully valid, so it becomes the new current config.
-        currentConfig = { selects, services, loadedAt: Date.now() };
+        const nextConfig: DynamicConfig = {
+            selects: selectTypesResult,
+            services: serviceConfigsResult,
+            social: SOCIAL_CONFIG,
+            loadedAt: Date.now(),
+        };
+        currentConfig = nextConfig;
         return;
     }
 
@@ -163,6 +176,10 @@ function getBackgroundImages(): string[] {
     return backgroundImages;
 }
 
+function getSocialConfig(): readonly SocialConfig[] {
+    return getConfig().social;
+}
+
 export const dynamicConfig = {
     init,
     refreshDynamicConfigs,
@@ -174,5 +191,6 @@ export const dynamicConfig = {
     getServiceConfig,
     getPublicServiceConfigs,
     getBackgroundImages,
+    getSocialConfig,
 };
 

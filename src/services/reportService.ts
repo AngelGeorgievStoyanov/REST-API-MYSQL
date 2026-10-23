@@ -3,6 +3,7 @@ import { ApiError } from '../utils/apiError';
 import { type AdminReportDto, type ReportDto } from '../model/report';
 import { toAdminReportDto, toReportDto } from '../mappers/reportMapper';
 import { parseReportBody, parseReportTargetBody, parseReportTargetQuery, isReportTargetType } from '../utils/social';
+import { checkSocialPermission } from '../utils/socialPermissions';
 import { type ReportRepository } from '../repositories/reportRepository';
 import { type SocialTargetRepository } from '../repositories/socialTargetRepository';
 import { type TargetTypeRepository } from '../repositories/targetTypeRepository';
@@ -23,7 +24,8 @@ export class ReportService {
     /** Reports are write-only from the public API: they are never read back. */
     async create(actor: TripActor, body: unknown): Promise<ReportDto> {
         const target = parseReportTargetBody(body);
-        await this.targets.requireReportContext(target);
+        await this.targets.requireContext(target);
+        checkSocialPermission(actor, 'report', target.targetType, 'create');
 
         const { reason } = parseReportBody(body);
         const typeId = await this.targetTypes.requireIdByRowName(target.targetType);
@@ -69,16 +71,10 @@ export class ReportService {
         if (!removed) throw ApiError.notFound('Report not found.');
     }
 
-    /**
-     * Withdrawal of the caller's own report for one target. The reporter comes
-     * exclusively from the authenticated actor and the target from the request,
-     * so the deletion is scoped to the caller's own report of that target.
-     * Removing a report the user does not have is a no-op, exactly like
-     * removing a like or a favorite that is not there.
-     */
     async removeOwned(actor: TripActor, query: ReportTargetQuery): Promise<void> {
         const target = parseReportTargetQuery(query);
-        await this.targets.requireReportContext(target);
+        await this.targets.requireContext(target);
+        checkSocialPermission(actor, 'report', target.targetType, 'delete');
         const typeId = await this.targetTypes.requireIdByRowName(target.targetType);
 
         await this.repository.removeOwned(actor.id, typeId, target.targetId);

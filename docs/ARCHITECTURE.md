@@ -357,7 +357,7 @@ The `/api/v1` endpoint inventory below is derived from the mounted routers and c
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Auth           | `POST /auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/confirm-password`, `/auth/forgot-password`, `/auth/reset-password`; `GET /auth/session`, `/auth/me`, `/auth/me/image`; `PUT /auth/me`, `/auth/me/password`; `POST /auth/me/image`; `DELETE /auth/me/image` |
 | Admin          | `GET /admin/users`; `PUT` and `DELETE /admin/users/:userId`; `GET /admin/failed-login-logs`; `DELETE /admin/failed-login-logs`; `GET /admin/route-not-found-logs`; `GET /admin/images/cloud`, `/admin/images/database`, `/admin/images/orphans`                                                                            |
-| Config         | `GET /config/selects`, `/config/services`                                                                                                                                                                                                                                                                                  |
+| Config         | `GET /config/selects`, `/config/services`, `/config/social`                                                                                                                                                                                                                                                                                  |
 | Comments       | `GET` and `POST /trip-groups/:tripGroupId/comments`; `/trips/:tripGroupId/days/:tripId/comments`; `/points/:pointId/comments`; `/images/:imageId/comments`; `PUT` and `DELETE /comments/:commentId`                                                                                                                              |
 | Trips and days | `GET /trips`, `/trips/:tripGroupId`; `POST /trips`, `/trips/:tripGroupId/days`, `/trips/:tripGroupId/days/:tripId/images`; `PUT /trips/:tripGroupId/days/reorder`, `/trips/:tripGroupId/days/:tripId`; `DELETE /trips/:tripGroupId`, `/trips/:tripGroupId/days/:tripId` |
 | Trip discovery/social | `GET /trips/top`, `GET /trips/background`; public discovery endpoints use the public Frontend token |
@@ -589,9 +589,9 @@ Deleting a resource removes the social records of every level that is being remo
 | `DELETE /api/v1/points/:pointId` | the point's and every image's of that point |
 | `DELETE /api/v1/trips/:tripGroupId/days/:tripId` | the day's, its points' and all of their images' |
 | `DELETE /api/v1/trips/:tripGroupId` | the trip group's, its days', points' and images' |
-| `DELETE /api/v1/comments/:commentId` | the reports targeting the comment |
+| `DELETE /api/v1/comments/:commentId` | the comment's replies and their likes, favorites and reports, plus the parent's likes, favorites and reports |
 
-Favorites are trip-group scoped (`favorites.tripGroupId`, FK NO ACTION). They are removed by the same cleanup before the trip group row is deleted, so a favorite can never survive as an orphan and can never block a group delete. Profile image removal and profile image replacement delete the replaced image's social records the same way.
+Favorites use `(targetTypeId, targetId)` persistence and retain the legacy `{ tripGroupId }` API form for trip groups. They are removed by the same cleanup before their target rows are deleted. Profile image removal and profile image replacement delete the replaced image's social records the same way.
 
 The cleanup is registry driven: every social relationship registers one batch deleter in `SOCIAL_RELATION_DELETERS`. A new social feature is integrated by adding its deleter there; the resource delete flows remain unchanged. All cleanup queries are batched (one `deleteMany` per relationship with a single `(targetTypeId, targetId IN (...))` filter), so deleting a day with many points and images does not issue per-row deletes.
 
@@ -817,6 +817,22 @@ The public token establishes no user identity or ownership.
 If no successful background-image list has ever been loaded and the cached list is empty, the service follows the API contract's defined error behavior rather than fabricating an image URL.
 
 Private configuration values such as database credentials, JWT signing secrets, SMTP passwords, and GCS credentials are supplied through the environment and are not committed to source control.
+
+### Social action configuration
+
+`src/constants/socialConfig.ts` is the source of the social action configuration. `src/services/dynamicConfig.ts` puts this constant into the in-memory configuration during initialization and returns it through `getSocialConfig()`. The social configuration is not read from the database; the dynamic-config refresh also reuses the same constant.
+
+The Frontend reads it from `GET /api/v1/config/social`, which returns `{ social: SocialConfig[] }`. The route uses `optionalAuthentication`, so the normal public Frontend request uses the client marker and public bearer token; an authenticated request receives the same configuration.
+
+Each action has a `key`, `isActive` flag, and `targets` array; each target contains `key`, `create`, `edit`, and `delete` flags. Current actions are `like`, `favorite`, `report`, `comment`, and `replyComment`; target types are `tripGroup`, `trip`, `point`, `image`, and `comment`. Like and favorite permit create/delete on `tripGroup` and `comment`; report permits create/delete on `tripGroup` and `comment`. Comment creation is configured for resource targets, while comment edit/delete and reply create/edit/delete are configured on the `comment` target. All actions are active; disabled operations/targets have false flags.
+
+`src/utils/socialPermissions.ts` provides `checkSocialPermission(actor, action, targetType, operation)`. It reads the current config and rejects a missing action, inactive action, unconfigured target, or disabled operation with `403 FORBIDDEN`. The actor parameter does not affect this configuration check. This check is used by `LikeService.add` and `remove`, `FavoriteService.add` and `remove`, `ReportService.create` and `removeOwned`, and comment/reply mutations in `CommentService`. Admin report listing/removal do not use this social-action check.
+
+Before the permission check, social mutation services parse the target and use `SocialTargetRepository.requireContext()` to confirm it exists. Likes, favorites, and reports share the polymorphic `(targetType,targetId)` form; Favorite also accepts the existing `tripGroupId` form. Comment targets resolve through the comment row to its underlying resource and ownership context, while permission checks use the requested `comment` target type. Replies reuse target type `comment` and their own comment ID.
+
+Reply routes are `GET/POST /comments/:commentId/replies` and `PUT/DELETE /replies/:replyId`. `parentCommentId` links a reply to one regular comment; replies cannot be nested further. Root comment list/count queries exclude replies, which are listed separately. Deleting a parent deletes its replies and cleans their social records in the same transaction.
+
+The Frontend can use the response to control social-action UI visibility. Backend services enforce the configured action/target/operation gate for the listed mutations, alongside request validation and resource checks. The response is not itself an authorization decision and does not replace those backend checks.
 
 ## Request pipeline
 
@@ -1051,7 +1067,7 @@ Development mail transport may write generated messages to the operating-system 
 * does not accept a `userId` route parameter, query parameter, or body field;
 * resolves the current user exclusively from the authenticated request context;
 * reads the authenticated user's persisted `Favorite` records server-side;
-* favorites are associated with `tripGroupId`;
+* returns trip groups represented by Favorite rows with target type `tripGroup`;
 * resolves the corresponding trip groups/trips from those persisted favorite relationships;
 * returns raw `TripGroupResponse[]`;
 * uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:tripGroupId`;

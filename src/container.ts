@@ -55,7 +55,7 @@ const pointService = new PointService(pointRepository, gcsImageFileStorage, soci
 
 const commentService = new CommentService(commentRepository, socialTargetRepository, targetTypeRepository, socialStateService);
 const likeService = new LikeService(likeRepository, socialTargetRepository, targetTypeRepository, socialStateService);
-const favoriteService = new FavoriteService(favoriteRepository, socialTargetRepository, socialStateService, tripRepository);
+const favoriteService = new FavoriteService(favoriteRepository, socialTargetRepository, socialStateService, tripRepository, targetTypeRepository);
 const reportService = new ReportService(reportRepository, socialTargetRepository, targetTypeRepository);
 
 const authUserRepository = new AuthUserRepository(prisma);

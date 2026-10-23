@@ -151,7 +151,8 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     ['likes', 'targetId', 'likes.targetId populated'],
     ['reports', 'targetTypeId', 'reports.targetTypeId populated'],
     ['reports', 'targetId', 'reports.targetId populated'],
-    ['favorites', 'tripGroupId', 'favorites.tripGroupId populated'],
+    ['favorites', 'targetTypeId', 'favorites.targetTypeId populated'],
+    ['favorites', 'targetId', 'favorites.targetId populated'],
   ];
   for (const [table, col, stmt] of tokenChecks) {
     const n = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, table)} WHERE ${qi(col)} IS NULL OR ${qi(col)} = 0`);
@@ -159,8 +160,14 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
       ? { stmt, pending: `${table} table missing (ddl phase not applied yet)` }
       : { stmt, n });
   }
-  const favOrphanGroups = await orphanInt('favorites', 'tripGroupId', 'trip_groups');
-  if (favOrphanGroups !== null) inputs.push({ stmt: 'favorites.tripGroupId resolves to a trip_groups row', n: favOrphanGroups });
+  const favWrongTargetType = await safeCount(
+    `SELECT COUNT(*) AS c FROM ${qtable(db, 'favorites')} WHERE ${qi('targetTypeId')} <> 1`,
+  );
+  if (favWrongTargetType !== null) inputs.push({ stmt: 'favorites.targetTypeId = 1 (tripGroup)', n: favWrongTargetType });
+  const favOrphanGroups = await safeCount(
+    `SELECT COUNT(*) AS c FROM ${qtable(db, 'favorites')} f LEFT JOIN ${qtable(db, 'trip_groups')} g ON g.${qi('id')} = f.${qi('targetId')} WHERE f.${qi('targetId')} IS NOT NULL AND g.${qi('id')} IS NULL`,
+  );
+  if (favOrphanGroups !== null) inputs.push({ stmt: 'favorites.targetId resolves to trip_groups (targetTypeId 1)', n: favOrphanGroups });
   const likesOrphanTrips = await safeCount(
     `SELECT COUNT(*) AS c FROM ${qtable(db, 'likes')} k LEFT JOIN ${qtable(db, 'trips')} p ON p.${qi('id')} = k.${qi('targetId')} WHERE k.${qi('targetTypeId')} = 2 AND p.${qi('id')} IS NULL`,
   );
@@ -178,6 +185,7 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     const ttTypeRefs: Array<[string, string]> = [
       ['comments', 'targetTypeId'],
       ['likes', 'targetTypeId'],
+      ['favorites', 'targetTypeId'],
       ['reports', 'targetTypeId'],
     ];
     for (const [table, col] of ttTypeRefs) {

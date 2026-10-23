@@ -29,7 +29,6 @@ export class TargetTypeRepository {
         return names;
     }
 
-    /** Every `target_types` row keyed by id, including the report-only `comment`. */
     async loadAllNames(): Promise<Map<number, string>> {
         const rows = await this.prisma.targetType.findMany({ select: { id: true, name: true } });
         return new Map(rows.map((row) => [row.id, row.name]));

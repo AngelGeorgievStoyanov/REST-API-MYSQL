@@ -1,7 +1,6 @@
 import { type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { type ReportTargetRef } from '../model/report';
-import { type SocialTargetContext, type SocialTargetRef } from '../model/social';
+import { type SocialTargetContext, type SocialTargetType } from '../model/social';
 import { ApiError } from '../utils/apiError';
 import { type TargetTypeRepository } from './targetTypeRepository';
 
@@ -16,37 +15,14 @@ export class SocialTargetRepository {
         private readonly targetTypes: TargetTypeRepository,
     ) { }
 
-    /** Target that has to exist; a missing target is a 404 for the client. */
-    async requireContext(target: SocialTargetRef): Promise<SocialTargetContext> {
+    async requireContext(target: { targetType: 'comment' | SocialTargetType; targetId: number }): Promise<SocialTargetContext> {
         const context = await this.findContext(target);
         if (!context) throw ApiError.notFound('The target resource does not exist.');
 
         return context;
     }
 
-    /**
-     * Existence check of a report target. A reported comment resolves to the
-     * resource the comment itself points at, so reports on comments carry the
-     * same ownership context as the reported content.
-     */
-    async requireReportContext(target: ReportTargetRef): Promise<SocialTargetContext> {
-        if (target.targetType !== 'comment') {
-            return this.requireContext({ targetType: target.targetType, targetId: target.targetId });
-        }
-
-        const comment = await this.prisma.comment.findUnique({
-            where: { id: target.targetId },
-            select: { targetTypeId: true, targetId: true },
-        });
-        if (!comment) throw ApiError.notFound('The target resource does not exist.');
-
-        const targetType = (await this.targetTypes.loadNames()).get(comment.targetTypeId);
-        if (!targetType) throw ApiError.internal('The target type of this comment is unknown.');
-
-        return this.requireContext({ targetType, targetId: comment.targetId });
-    }
-
-    async findContext(target: SocialTargetRef): Promise<SocialTargetContext | null> {
+    async findContext(target: { targetType: SocialTargetType; targetId: number }): Promise<SocialTargetContext | null> {
         switch (target.targetType) {
             case SOCIAL_TARGET_TYPE.TRIP_GROUP: {
                 const group = await this.prisma.tripGroup.findUnique({
@@ -102,6 +78,18 @@ export class SocialTargetRepository {
                     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
                     tripGroupOwnerId: day?.tripGroup?.ownerId ?? null,
                 };
+            }
+            case SOCIAL_TARGET_TYPE.COMMENT: {
+                const comment = await this.prisma.comment.findUnique({
+                    where: { id: target.targetId },
+                    select: { targetTypeId: true, targetId: true },
+                });
+                if (!comment) return null;
+                const rootType = (await this.targetTypes.loadNames()).get(comment.targetTypeId);
+                if (!rootType || rootType === SOCIAL_TARGET_TYPE.COMMENT) return null;
+                const root = await this.findContext({ targetType: rootType, targetId: comment.targetId });
+                if (!root) return null;
+                return { ...target, tripGroupId: root.tripGroupId, tripGroupOwnerId: root.tripGroupOwnerId };
             }
         }
     }

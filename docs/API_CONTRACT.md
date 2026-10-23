@@ -297,6 +297,7 @@ Authorization model:
 | GET/POST/DELETE `/auth/me/image`          | NO                 | YES (self only)                      | —     | —       | —     |
 | GET `/config/selects`                     | YES (public token) | YES                                  | —     | —       | —     |
 | GET `/config/services`                    | YES (public token) | YES                                  | —     | —       | —     |
+| GET `/config/social`                      | YES (public token) | YES                                  | —     | —       | —     |
 | GET `/trips`                              | YES (public token) | YES                                  | —     | —       | —     |
 | GET `/trips/:tripGroupId`                          | YES (public token) | YES                                  | —     | —       | —     |
 | GET `/trips/top`                     | YES (public token) | YES                                  | —     | —       | —     |
@@ -517,6 +518,77 @@ Mounted at `/api/v1/config`. Auth: `optionalAuthentication` (public token = anon
   "isActive": true,
   "configs": [
     { "id": 0, "serviceTypeId": 0, "key": "<string>", "value": "<string>", "type": "string"|"number"|"boolean"|"json", "isActive": true }
+  ]
+}
+```
+
+### 7.3 GET `/config/social`
+
+* Auth: `optionalAuthentication`. No body/query/params.
+* Response `200`: `{ "social": SocialConfig[] }` — the complete social action configuration.
+* Source: `dynamicConfig.getSocialConfig()`.
+* Returns all actions, targets and flags, including those with value `false`. Does not filter out inactive actions or disallowed operations.
+* The public Frontend request uses `x-hacktrip-client: web` and `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`. `optionalAuthentication` also accepts a valid user access token; both anonymous and authenticated callers receive the same configuration.
+
+`isActive` enables or disables an action as a whole. Each target's `create`, `edit`, and `delete` fields indicate whether that operation is enabled for that action and target. These fields describe the configuration used by the backend permission check; they are not user-specific permissions. The current actions are `like`, `favorite`, `report`, `comment`, and `replyComment`; the target types are `tripGroup`, `trip`, `point`, `image`, and `comment`. The values below match `SOCIAL_CONFIG`.
+
+If an action is absent, inactive, a target is absent for the action, or the requested operation is disabled, the shared backend check rejects the operation with `403 FORBIDDEN`. Request target validation and target existence checks also run in the corresponding mutation service; unsupported or malformed target input is handled by those validations.
+
+`SocialConfig`:
+
+```json
+{
+  "social": [
+    {
+      "key": "like", "isActive": true,
+      "targets": [
+        { "key": "tripGroup", "create": true, "edit": false, "delete": true },
+        { "key": "trip", "create": false, "edit": false, "delete": false },
+        { "key": "point", "create": false, "edit": false, "delete": false },
+        { "key": "image", "create": false, "edit": false, "delete": false },
+        { "key": "comment", "create": true, "edit": false, "delete": true }
+      ]
+    },
+    {
+      "key": "favorite", "isActive": true,
+      "targets": [
+        { "key": "tripGroup", "create": true, "edit": false, "delete": true },
+        { "key": "trip", "create": false, "edit": false, "delete": false },
+        { "key": "point", "create": false, "edit": false, "delete": false },
+        { "key": "image", "create": false, "edit": false, "delete": false },
+        { "key": "comment", "create": true, "edit": false, "delete": true }
+      ]
+    },
+    {
+      "key": "report", "isActive": true,
+      "targets": [
+        { "key": "tripGroup", "create": true, "edit": false, "delete": true },
+        { "key": "trip", "create": false, "edit": false, "delete": false },
+        { "key": "point", "create": false, "edit": false, "delete": false },
+        { "key": "image", "create": false, "edit": false, "delete": false },
+        { "key": "comment", "create": true, "edit": false, "delete": true }
+      ]
+    },
+    {
+      "key": "comment", "isActive": true,
+      "targets": [
+        { "key": "tripGroup", "create": true, "edit": false, "delete": false },
+        { "key": "trip", "create": true, "edit": false, "delete": false },
+        { "key": "point", "create": true, "edit": false, "delete": false },
+        { "key": "image", "create": true, "edit": false, "delete": false },
+        { "key": "comment", "create": false, "edit": true, "delete": true }
+      ]
+    },
+    {
+      "key": "replyComment", "isActive": true,
+      "targets": [
+        { "key": "tripGroup", "create": false, "edit": false, "delete": false },
+        { "key": "trip", "create": false, "edit": false, "delete": false },
+        { "key": "point", "create": false, "edit": false, "delete": false },
+        { "key": "image", "create": false, "edit": false, "delete": false },
+        { "key": "comment", "create": true, "edit": true, "delete": true }
+      ]
+    }
   ]
 }
 ```
@@ -822,9 +894,8 @@ This is the authenticated user's favorite trip-group list.
 * Anonymous/public token -> `401 UNAUTHORIZED`.
 * No `userId` is accepted in the path, query, or body.
 * The backend obtains the authenticated user's UUID exclusively from the authenticated request context.
-* Favorites exist **only at trip-group level**.
-* The backend resolves the authenticated user's favorite records by the authenticated actor's server-side user id and then resolves the corresponding `tripGroupId` values.
-* A favorite points to a trip group, never to an individual day/trip row.
+* This listing returns trip groups only, resolved from polymorphic Favorite rows whose target type is `tripGroup`.
+* The backend resolves the authenticated user's favorite records by the authenticated actor's server-side user id and then resolves the corresponding target IDs as trip groups.
 * Response `200`: raw `TripGroupResponse[]`.
 * The response uses the exact same unified trip-group structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:tripGroupId`.
 * Each item contains only `id` (the trip-group id), server-computed `permissions`, trip-group `social`, and the existing `days[]` structure.
@@ -910,6 +981,17 @@ The controller must not contain GCS access logic, random-selection logic, file-l
 * Auth: `requireAuthentication` + owner/moderator.
 * Path params (strict): `{ tripGroupId }` — the `trip_groups.id` of the whole trip.
 * Response `204` (empty).
+
+### 12.5 Replies
+
+Replies are comment rows with a non-null `parentCommentId`. They retain the same target as their parent, and a reply cannot itself be a parent; the API supports one reply level.
+
+* `GET /comments/:commentId/replies` — public read; accepts optional `page,limit` and returns `CommentListResponse`.
+* `POST /comments/:commentId/replies` — authenticated; strict body `{ comment }`; returns `201 CommentDto`.
+* `PUT /replies/:replyId` — authenticated author or moderator; strict body `{ comment }`; returns `200 CommentDto`.
+* `DELETE /replies/:replyId` — authenticated author or moderator; returns `204`.
+
+Comment and reply DTOs include `parentCommentId` (`null` for a regular comment) and viewer-aware like, favorite, reply-count, and report fields in `social`. Replies are social targets using their own comment ID.
 
 ### 8.9 POST `/trips/:tripGroupId/days`
 
@@ -1083,7 +1165,7 @@ Non-negotiable point field rules:
 }
 ```
 
-`favorites` and `favoritedByMe` are present only on trip-group targets. `reportedByMe` reflects whether the authenticated actor has reported the target and is `false` for anonymous callers.
+`favorites` and `favoritedByMe` are present on trip-group and comment/reply targets; `reportedByMe` reflects whether the authenticated actor has reported the target and is `false` for anonymous callers. Comment DTO social state includes all six fields.
 
 ### 10.10 `ImageDto` / `SocialImageDto`
 
@@ -1167,10 +1249,18 @@ Mounted at the v1 root (`commentController` spans several prefixes). Reading is 
 ```text
 {
   "id": 0,
+  "parentCommentId": null,
   "author": { "name": "<string>" },
   "comment": "<string>",
   "permissions": { "canEdit": true, "canDelete": true },
-  "social": { "reportedByMe": false },
+  "social": {
+    "likes": 0,
+    "likedByMe": false,
+    "comments": { "count": 0 },
+    "favorites": 0,
+    "favoritedByMe": false,
+    "reportedByMe": false
+  },
   "createdAt": null | "<iso>",
   "updatedAt": null | "<iso>"
 }
@@ -1232,7 +1322,7 @@ Mounted at `/api/v1/likes`.
 
 ### 13.3 Valid `targetType` values
 
-Accepted input values (case-insensitive, trimmed, lowercased): `tripgroup`, `day`, `trip`, `point`, `image`.
+Accepted input values (case-insensitive, trimmed, lowercased): `tripgroup`, `day`, `trip`, `point`, `image`, `comment`.
 
 Canonical mapping:
 
@@ -1243,6 +1333,7 @@ Canonical mapping:
 | `trip`      | `trip` (alias of `day`)                      | a day row (`trips.id`)          |
 | `point`     | `point`                                      | a point (`points.id`)           |
 | `image`     | `image`                                      | an image (`images.id`)          |
+| `comment`   | `comment`                                    | a comment or reply (`comments.id`) |
 
 `targetId` is the numeric id of that resource. `trip` is the accepted alias of `day`.
 
@@ -1250,18 +1341,18 @@ Canonical mapping:
 
 ## 14. Favorite Endpoints
 
-Mounted at `/api/v1/favorites`. Favorites exist on trip groups only.
+Mounted at `/api/v1/favorites`. Existing trip-group requests remain supported; the polymorphic form also addresses comments and replies when allowed by Social Config.
 
 ### 14.1 POST `/favorites`
 
 * Auth: `requireAuthentication`.
-* Body (strict): `{ tripGroupId }` — `tripGroupId` must be a true JSON number (integer id).
-* Response `200`: `SocialState` (the group's state, including `favorites`/`favoritedByMe`). Idempotent.
+* Body (strict): either `{ tripGroupId }` (legacy-compatible form) or `{ targetType, targetId }`; IDs are true JSON numbers. The polymorphic form uses the shared target vocabulary, with authorization determined by Social Config.
+* Response `200`: `SocialState` for the requested target. Idempotent.
 
 ### 14.2 DELETE `/favorites`
 
 * Auth: `requireAuthentication`.
-* Query (strict): `{ tripGroupId }` — the query value arrives as a numeric string that parses to an integer id.
+* Query (strict): either `{ tripGroupId }` (legacy-compatible form) or `{ targetType, targetId }`; query IDs are numeric strings.
 * Response `204` (empty). Idempotent.
 
 ---
@@ -1655,8 +1746,9 @@ The API returns DTOs, not database models. The following are the API response sh
 | `CommentListResponse`                 | comment list                                                |
 | `ReportDto`                           | report create                                               |
 | `AdminReportDto`                      | admin report list                                           |
-| `SelectConfig[]`                      | GET /config/selects                                         |
-| `PublicServiceConfig[]`               | GET /config/services                                        |
+| `SelectConfig[]`                      | GET /config/selects                                 |
+| `PublicServiceConfig[]`               | GET /config/services                                       |
+| `SocialConfig[]` (wrapped as `{ social }`) | GET /config/social                                      |
 | `AdminPage<T>`                        | admin list endpoints                                        |
 | `FailedLogDto`                        | GET /admin/failed-login-logs                                |
 | `RouteNotFoundLogDto`                 | GET /admin/route-not-found-logs                             |
@@ -1686,7 +1778,7 @@ DATABASE MODELS (not returned by the API): `User`, `TripGroup`, `Trip`, `Point`,
 15. **Public GET with an invalid Authorization token**: `401 UNAUTHORIZED`; never silently turned anonymous.
 16. **My Trips never accepts a user id from the Frontend**: the authenticated actor is always obtained server-side from the access token.
 17. **My Favorites never accepts a user id from the Frontend**: the authenticated actor is always obtained server-side from the access token.
-18. **Favorites are trip-group scoped**: `favorites.tripGroupId` is the only favorite resource reference.
+18. **My Favorites returns trip groups**: Favorite persistence is polymorphic; existing `/favorites` requests using `tripGroupId` remain supported.
 19. **Top 5 is public**: anonymous users can request it with the public frontend bearer token.
 20. **Background is public**: anonymous users can request a random background with the public frontend bearer token.
 21. **Background refresh failure is non-fatal**: failure to refresh the GCS background list must preserve the last successful list and must not invalidate already loaded dynamic configuration.
@@ -1722,6 +1814,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | POST   | `/auth/reset-password`                | None             | `{ token, password }`                                                   | 200 `{ message }`                    | 400, 403                |
 | GET    | `/config/selects`                     | Public           | none                                                                    | 200 `SelectConfig[]`                 | 401                     |
 | GET    | `/config/services`                    | Public           | none                                                                    | 200 `PublicServiceConfig[]`          | 401                     |
+| GET    | `/config/social`                      | Public           | none                                                                    | 200 `{ social: SocialConfig[] }`     | 401                     |
 | GET    | `/trips`                              | Public           | query `page,limit,search,group,transport,sort`                          | 200 `TripGroupResponse[]`            | 400, 401                |
 | GET    | `/trips/:tripGroupId`                 | Public           | param `tripGroupId` (INT)                                              | 200 `TripGroupResponse`              | 400, 401, 404           |
 | GET    | `/trips/top`                           | Public           | none                                                                    | 200 `TripGroupResponse[]` (max 5)    | 401                     |
@@ -1754,10 +1847,14 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | POST   | `/images/:imageId/comments`           | Auth             | param `imageId`; body `{ comment }`                                     | 201 `CommentDto`                     | 400, 401, 404           |
 | PUT    | `/comments/:commentId`                | Author/Mod       | param `commentId`; body `{ comment }`                                   | 200 `CommentDto`                     | 400, 401, 403, 404      |
 | DELETE | `/comments/:commentId`                | Author/Mod       | param `commentId`                                                       | 204                                  | 400, 401, 403, 404      |
+| GET    | `/comments/:commentId/replies`       | Public           | param `commentId`; query `page,limit`                                   | 200 `CommentListResponse`            | 400, 401, 404           |
+| POST   | `/comments/:commentId/replies`       | Auth             | param `commentId`; body `{ comment }`                                   | 201 `CommentDto`                     | 400, 401, 403, 404      |
+| PUT    | `/replies/:replyId`                  | Author/Mod       | param `replyId`; body `{ comment }`                                     | 200 `CommentDto`                     | 400, 401, 403, 404      |
+| DELETE | `/replies/:replyId`                  | Author/Mod       | param `replyId`                                                         | 204                                  | 400, 401, 403, 404      |
 | POST   | `/likes`                             | Auth             | `{ targetType, targetId }`                                              | 200 `SocialState`                    | 400, 401, 404           |
 | DELETE | `/likes`                             | Auth             | query `targetType,targetId`                                             | 204                                  | 400, 401, 404           |
-| POST   | `/favorites`                         | Auth             | `{ tripGroupId }`                                                       | 200 `SocialState`                    | 400, 401, 404           |
-| DELETE | `/favorites`                         | Auth             | query `tripGroupId`                                                     | 204                                  | 400, 401, 404           |
+| POST   | `/favorites`                         | Auth             | `{ tripGroupId }` or `{ targetType,targetId }`                          | 200 `SocialState`                    | 400, 401, 403, 404      |
+| DELETE | `/favorites`                         | Auth             | query `tripGroupId` or `targetType,targetId`                            | 204                                  | 400, 401, 403, 404      |
 | POST   | `/reports`                           | Auth             | `{ targetType, targetId, reason? }`                                     | 201 `ReportDto`                      | 400, 401, 404, 409      |
 | DELETE | `/reports`                          | Auth             | query `targetType,targetId`                                             | 204                                  | 400, 401, 404           |
 | GET    | `/admin/users`                        | admin/manager    | query `page,pageSize`                                                   | 200 `AdminPage<AuthUserDto>`         | 400, 401, 403           |
@@ -2170,7 +2267,7 @@ A group can contain multiple day/trip rows.
 
 The API must not accidentally return multiple Top 5 entries for multiple days belonging to the same group.
 
-Favorites are always:
+My Favorites entries are selected by:
 
 ```text
 userId + tripGroupId
@@ -2321,7 +2418,7 @@ The following currently implemented capabilities are part of this API contract. 
 ### Non-negotiable rules
 
 1. **Do not add `userId` to My Trips or My Favorites URLs.**
-2. **Favorites are only by `tripGroupId`.**
+2. **My Favorites returns trip groups; Favorite writes also accept `tripGroupId` and the configured polymorphic target form.**
 3. **My Trips is based on actual trip-group ownership.**
 4. **Top 5 is grouped by trip group and limited to 5.**
 5. **Top 5 is public and works for anonymous visitors.**

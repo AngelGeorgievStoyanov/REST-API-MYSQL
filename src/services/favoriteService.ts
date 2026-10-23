@@ -1,11 +1,13 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { type SocialState } from '../model/social';
 import { type TripActor, type TripGroupResponse } from '../model/trip';
-import { parseTripGroupId } from '../utils/social';
+import { parseSocialTargetBody, parseSocialTargetQuery, parseTripGroupId } from '../utils/social';
+import { checkSocialPermission } from '../utils/socialPermissions';
 import { type FavoriteRepository } from '../repositories/favoriteRepository';
 import { type TripRepository } from '../repositories/tripRepository';
 import { type SocialStateService } from './socialStateService';
 import { type SocialTargetRepository } from '../repositories/socialTargetRepository';
+import { type TargetTypeRepository } from '../repositories/targetTypeRepository';
 import { toGroupResponses } from './tripService';
 
 export class FavoriteService {
@@ -14,24 +16,24 @@ export class FavoriteService {
         private readonly targets: SocialTargetRepository,
         private readonly states: SocialStateService,
         private readonly trips: TripRepository,
+        private readonly targetTypes: TargetTypeRepository,
     ) { }
 
-    /** Favorites exist on trip groups only; the answer is the group's social state. */
     async add(actor: TripActor, body: unknown): Promise<SocialState> {
-        const tripGroupId = await this.resolveTripGroup(parseTripGroupId(body));
-
-        await this.repository.add(actor.id, tripGroupId);
-
-        return this.states.stateFor(actor.id, {
-            targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP,
-            targetId: tripGroupId,
-        });
+        const target = this.favoriteBodyTarget(body);
+        await this.targets.requireContext(target);
+        checkSocialPermission(actor, 'favorite', target.targetType, 'create');
+        const typeId = await this.targetTypes.requireId(target.targetType);
+        await this.repository.add(actor.id, typeId, target.targetId);
+        return this.states.stateFor(actor.id, target);
     }
 
     async remove(actor: TripActor, query: unknown): Promise<void> {
-        const tripGroupId = await this.resolveTripGroup(parseTripGroupId(query));
-
-        await this.repository.remove(actor.id, tripGroupId);
+        const target = this.favoriteQueryTarget(query);
+        await this.targets.requireContext(target);
+        checkSocialPermission(actor, 'favorite', target.targetType, 'delete');
+        const typeId = await this.targetTypes.requireId(target.targetType);
+        await this.repository.remove(actor.id, typeId, target.targetId);
     }
 
     /**
@@ -51,12 +53,17 @@ export class FavoriteService {
         return toGroupResponses(rows, this.states, actor);
     }
 
-    private async resolveTripGroup(tripGroupId: number): Promise<number> {
-        await this.targets.requireContext({
-            targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP,
-            targetId: tripGroupId,
-        });
+    private favoriteBodyTarget(body: unknown) {
+        if (typeof body === 'object' && body !== null && 'tripGroupId' in body) {
+            return { targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: parseTripGroupId(body) };
+        }
+        return parseSocialTargetBody(body);
+    }
 
-        return tripGroupId;
+    private favoriteQueryTarget(query: unknown) {
+        if (typeof query === 'object' && query !== null && 'tripGroupId' in query) {
+            return { targetType: SOCIAL_TARGET_TYPE.TRIP_GROUP, targetId: parseTripGroupId(query) };
+        }
+        return parseSocialTargetQuery(query);
     }
 }
