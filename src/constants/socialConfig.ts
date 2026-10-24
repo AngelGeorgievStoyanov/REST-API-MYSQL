@@ -9,10 +9,22 @@ type Capability = Partial<Record<SocialTarget, readonly SocialOperation[]>>;
 
 /** Code allowlist: configuration can disable capabilities but cannot invent them. */
 export const SOCIAL_CAPABILITIES: Readonly<Record<SocialAction, Capability>> = {
-    like: { tripGroup: ['create', 'delete'] },
-    favorite: { tripGroup: ['create', 'delete'] },
-    report: { tripGroup: ['create', 'delete'], comment: ['create', 'delete'] },
-    comment: { trip: ['create'], point: ['create'], comment: ['edit', 'delete'] },
+    like: { tripGroup: ['create', 'delete'], image: ['create', 'delete'] },
+    favorite: { tripGroup: ['create', 'delete'], image: ['create', 'delete'] },
+    report: {
+        tripGroup: ['create', 'delete'],
+        trip: ['create', 'delete'],
+        point: ['create', 'delete'],
+        image: ['create', 'delete'],
+        comment: ['create', 'delete'],
+    },
+    comment: {
+        tripGroup: ['create'],
+        trip: ['create'],
+        point: ['create'],
+        image: ['create'],
+        comment: ['edit', 'delete'],
+    },
     replyComment: { comment: ['create', 'edit', 'delete'] },
 };
 
@@ -34,19 +46,31 @@ function target(key: SocialTarget, operations: ReturnType<typeof disabledOperati
 export const SOCIAL_CONFIG: readonly SocialConfig[] = [
     {
         key: 'like', isActive: true,
-        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip'), target('point'), target('image'), target('comment')],
+        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip'), target('point'), target('image', enabledOperations('create', 'delete')), target('comment')],
     },
     {
         key: 'favorite', isActive: true,
-        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip'), target('point'), target('image'), target('comment')],
+        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip'), target('point'), target('image', enabledOperations('create', 'delete')), target('comment')],
     },
     {
         key: 'report', isActive: true,
-        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip'), target('point'), target('image'), target('comment', enabledOperations('create', 'delete'))],
+        targets: [
+            target('tripGroup', enabledOperations('create', 'delete')),
+            target('trip', enabledOperations('create', 'delete')),
+            target('point', enabledOperations('create', 'delete')),
+            target('image', enabledOperations('create', 'delete')),
+            target('comment', enabledOperations('create', 'delete')),
+        ],
     },
     {
         key: 'comment', isActive: true,
-        targets: [target('tripGroup'), target('trip', enabledOperations('create')), target('point', enabledOperations('create')), target('image'), target('comment', enabledOperations('edit', 'delete'))],
+        targets: [
+            target('tripGroup', enabledOperations('create')),
+            target('trip', enabledOperations('create')),
+            target('point', enabledOperations('create')),
+            target('image', enabledOperations('create')),
+            target('comment', enabledOperations('edit', 'delete')),
+        ],
     },
     {
         key: 'replyComment', isActive: true,

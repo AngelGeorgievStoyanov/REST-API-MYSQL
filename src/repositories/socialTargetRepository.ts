@@ -70,13 +70,16 @@ export class SocialTargetRepository {
                 if (!image) return null;
 
                 // An image hangs off a day row or off a point; either way the trip
-                // group is the authorization context, and it may be absent.
+                // group is the authorization context. Profile images and other
+                // unattached images are not social targets.
                 const day = image.trip ?? image.point?.trip ?? null;
+                if (!day?.tripGroupId) return null;
+
                 return {
                     ...target,
-                    tripGroupId: day?.tripGroupId ?? null,
+                    tripGroupId: day.tripGroupId,
                     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
-                    tripGroupOwnerId: day?.tripGroup?.ownerId ?? null,
+                    tripGroupOwnerId: day.tripGroup?.ownerId ?? null,
                 };
             }
             case SOCIAL_TARGET_TYPE.COMMENT: {
