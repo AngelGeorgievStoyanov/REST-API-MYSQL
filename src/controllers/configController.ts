@@ -4,6 +4,7 @@ import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMid
 import { optionalAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { validateRequest } from '../validation/validateRequest';
+import { toSocialConfigResponse } from '../mappers/socialConfigMapper';
 
 const configController = express.Router();
 
@@ -16,7 +17,7 @@ configController.get('/services', validateRequest({}), optionalAuthentication, (
 });
 
 configController.get('/social', validateRequest({}), optionalAuthentication, (_req, res) => {
-    res.status(200).json({ social: dynamicConfig.getSocialConfig() });
+    res.status(200).json(toSocialConfigResponse(dynamicConfig.getSocialConfig()));
 });
 
 configController.use(apiErrorMiddleware);

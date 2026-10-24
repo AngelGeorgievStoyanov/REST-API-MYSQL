@@ -526,15 +526,15 @@ Mounted at `/api/v1/config`. Auth: `optionalAuthentication` (public token = anon
 
 * Auth: `optionalAuthentication`. No body/query/params.
 * Response `200`: `{ "social": SocialConfig[] }` — the complete social action configuration.
-* Source: `dynamicConfig.getSocialConfig()`.
+* Source: canonical in-memory settings from `dynamicConfig.getSocialConfig()`, projected by the API mapper.
 * Returns all actions, targets and flags, including those with value `false`. Does not filter out inactive actions or disallowed operations.
 * The public Frontend request uses `x-hacktrip-client: web` and `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`. `optionalAuthentication` also accepts a valid user access token; both anonymous and authenticated callers receive the same configuration.
 
-`isActive` enables or disables an action as a whole. Each target's `create`, `edit`, and `delete` fields indicate whether that operation is enabled for that action and target. These fields describe the configuration used by the backend permission check; they are not user-specific permissions. The current actions are `like`, `favorite`, `report`, `comment`, and `replyComment`; the target types are `tripGroup`, `trip`, `point`, `image`, and `comment`. The values below match `SOCIAL_CONFIG`.
+`isActive` enables or disables an action as a whole. `operations` is canonical; the legacy `create`, `edit`, and `delete` booleans are projected from the same map. `contextRules` carries contextual settings and does not describe user-specific permissions. A code capability registry allowlists implemented combinations, so configuration cannot create unsupported functionality. Current actions are `like`, `favorite`, `report`, `comment`, and `replyComment`; target types are `tripGroup`, `trip`, `point`, `image`, and `comment`.
 
-If an action is absent, inactive, a target is absent for the action, or the requested operation is disabled, the shared backend check rejects the operation with `403 FORBIDDEN`. Request target validation and target existence checks also run in the corresponding mutation service; unsupported or malformed target input is handled by those validations.
+If an action is absent, inactive, unsupported by the registry, a target is absent, or the requested operation/context is disabled, the shared backend check rejects the operation with `403 FORBIDDEN`. Authentication, authorship, ownership, and moderator checks remain separate. Comment DTO `permissions` describes viewer authorship/moderator rights; global configuration describes feature availability. Replies are permitted only when the backend resolves the root comment's stored target to `point`; nested replies remain unsupported.
 
-`SocialConfig`:
+`SocialConfig` response example (legacy flags are derived from `operations`):
 
 ```json
 {
@@ -542,51 +542,51 @@ If an action is absent, inactive, a target is absent for the action, or the requ
     {
       "key": "like", "isActive": true,
       "targets": [
-        { "key": "tripGroup", "create": true, "edit": false, "delete": true },
-        { "key": "trip", "create": false, "edit": false, "delete": false },
-        { "key": "point", "create": false, "edit": false, "delete": false },
-        { "key": "image", "create": false, "edit": false, "delete": false },
-        { "key": "comment", "create": true, "edit": false, "delete": true }
+        { "key": "tripGroup", "operations": { "create": true, "edit": false, "delete": true }, "create": true, "edit": false, "delete": true },
+        { "key": "trip", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "point", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "image", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "comment", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false }
       ]
     },
     {
       "key": "favorite", "isActive": true,
       "targets": [
-        { "key": "tripGroup", "create": true, "edit": false, "delete": true },
-        { "key": "trip", "create": false, "edit": false, "delete": false },
-        { "key": "point", "create": false, "edit": false, "delete": false },
-        { "key": "image", "create": false, "edit": false, "delete": false },
-        { "key": "comment", "create": true, "edit": false, "delete": true }
+        { "key": "tripGroup", "operations": { "create": true, "edit": false, "delete": true }, "create": true, "edit": false, "delete": true },
+        { "key": "trip", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "point", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "image", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "comment", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false }
       ]
     },
     {
       "key": "report", "isActive": true,
       "targets": [
-        { "key": "tripGroup", "create": true, "edit": false, "delete": true },
-        { "key": "trip", "create": false, "edit": false, "delete": false },
-        { "key": "point", "create": false, "edit": false, "delete": false },
-        { "key": "image", "create": false, "edit": false, "delete": false },
-        { "key": "comment", "create": true, "edit": false, "delete": true }
+        { "key": "tripGroup", "operations": { "create": true, "edit": false, "delete": true }, "create": true, "edit": false, "delete": true },
+        { "key": "trip", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "point", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "image", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "comment", "operations": { "create": true, "edit": false, "delete": true }, "create": true, "edit": false, "delete": true }
       ]
     },
     {
       "key": "comment", "isActive": true,
       "targets": [
-        { "key": "tripGroup", "create": true, "edit": false, "delete": false },
-        { "key": "trip", "create": true, "edit": false, "delete": false },
-        { "key": "point", "create": true, "edit": false, "delete": false },
-        { "key": "image", "create": true, "edit": false, "delete": false },
-        { "key": "comment", "create": false, "edit": true, "delete": true }
+        { "key": "tripGroup", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "trip", "operations": { "create": true, "edit": false, "delete": false }, "create": true, "edit": false, "delete": false },
+        { "key": "point", "operations": { "create": true, "edit": false, "delete": false }, "create": true, "edit": false, "delete": false },
+        { "key": "image", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "comment", "operations": { "create": false, "edit": true, "delete": true }, "create": false, "edit": true, "delete": true }
       ]
     },
     {
       "key": "replyComment", "isActive": true,
       "targets": [
-        { "key": "tripGroup", "create": false, "edit": false, "delete": false },
-        { "key": "trip", "create": false, "edit": false, "delete": false },
-        { "key": "point", "create": false, "edit": false, "delete": false },
-        { "key": "image", "create": false, "edit": false, "delete": false },
-        { "key": "comment", "create": true, "edit": true, "delete": true }
+        { "key": "tripGroup", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "trip", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "point", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "image", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false },
+        { "key": "comment", "operations": { "create": false, "edit": false, "delete": false }, "create": false, "edit": false, "delete": false, "contextRules": [{ "key": "point", "operations": { "create": true, "edit": true, "delete": true } }] }
       ]
     }
   ]

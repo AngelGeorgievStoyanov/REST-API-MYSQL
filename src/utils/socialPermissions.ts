@@ -1,55 +1,76 @@
+import { SOCIAL_CAPABILITIES, SOCIAL_CONTEXT_CAPABILITIES, SOCIAL_OPERATIONS, type SocialAction, type SocialOperation, type SocialTarget } from '../constants/socialConfig';
 import { type TripActor } from '../model/trip';
-import { ApiError } from './apiError';
 import { dynamicConfig } from '../services/dynamicConfig';
+import { ApiError } from './apiError';
 
-export type SocialAction = 'like' | 'favorite' | 'report' | 'comment' | 'replyComment';
-export type SocialTargetType = 'tripGroup' | 'trip' | 'point' | 'image' | 'comment';
-export type SocialOperation = 'create' | 'edit' | 'delete';
+export interface SocialPermissionContext {
+    parentTargetType: SocialTarget;
+}
 
-/**
- * Checks whether the authenticated actor is permitted to perform the given
- * social action on the given target type with the requested operation.
- *
- * The check is purely configuration-driven: it reads the current dynamic
- * configuration and verifies that the action is active, the target type is
- * configured for that action, and the requested operation is enabled.
- *
- * It does NOT check ownership or resource-level authorization; those remain
- * the responsibility of the calling service/repository layer.
- *
- * Throws ApiError.forbidden() when the operation is not permitted.
- */
 export function checkSocialPermission(
     _actor: TripActor,
     action: SocialAction,
-    targetType: SocialTargetType,
+    targetType: SocialTarget,
     operation: SocialOperation,
+    context?: SocialPermissionContext,
 ): void {
-    const socialConfig = dynamicConfig.getSocialConfig();
+    const actionConfig = dynamicConfig.getSocialConfig().find((item) => item.key === action);
+    if (!actionConfig) throw ApiError.forbidden(`Action "${action}" is not configured.`);
+    if (!isValidConfiguration(actionConfig)) {
+        throw ApiError.forbidden(`Action "${action}" has an invalid configuration.`);
+    }
+    if (!actionConfig.isActive) throw ApiError.forbidden(`Action "${action}" is disabled.`);
 
-    // 1. Does the configured action exist?
-    const actionConfig = socialConfig.find((a) => a.key === action);
-    if (!actionConfig) {
-        throw ApiError.forbidden(`Action "${action}" is not configured.`);
+    const supportedOperations = SOCIAL_CAPABILITIES[action][targetType];
+    if (!supportedOperations?.includes(operation)) {
+        throw ApiError.forbidden(`Operation "${operation}" is not supported for "${action}" on "${targetType}".`);
     }
 
-    // 2. Is the action globally active?
-    if (!actionConfig.isActive) {
-        throw ApiError.forbidden(`Action "${action}" is disabled.`);
+    const targetConfig = actionConfig.targets.find((item) => item.key === targetType);
+    if (!targetConfig) throw ApiError.forbidden(`Target "${targetType}" is not configured for action "${action}".`);
+
+    let enabled = targetConfig.operations[operation] === true;
+    if (action === 'replyComment') {
+        if (!context) throw ApiError.forbidden('The parent comment context is required.');
+        const contextualRule = targetConfig.contextRules?.find((rule) => rule.key === context.parentTargetType);
+        enabled = contextualRule?.operations[operation] === true;
+    } else if (context) {
+        throw ApiError.forbidden('This action does not accept contextual permissions.');
     }
 
-    // 3. Does the configured target exist for that action?
-    const targetConfig = actionConfig.targets.find((t) => t.key === targetType);
-    if (!targetConfig) {
-        throw ApiError.forbidden(
-            `Target "${targetType}" is not supported for action "${action}".`,
-        );
-    }
+    if (!enabled) throw ApiError.forbidden(`Operation "${operation}" is not enabled for "${action}" on "${targetType}".`);
+}
 
-    // 4. Is the requested operation enabled for that target?
-    if (!targetConfig[operation]) {
-        throw ApiError.forbidden(
-            `Operation "${operation}" is not enabled for "${action}" on "${targetType}".`,
-        );
+function isValidConfiguration(value: unknown): boolean {
+    if (!isRecord(value) || typeof value['key'] !== 'string' || typeof value['isActive'] !== 'boolean' || !Array.isArray(value['targets'])) return false;
+    if (!Object.prototype.hasOwnProperty.call(SOCIAL_CAPABILITIES, value['key'])) return false;
+    const configKey = value['key'] as SocialAction;
+    const capability = SOCIAL_CAPABILITIES[configKey];
+    const seenTargets = new Set<string>();
+    for (const rawTarget of value['targets']) {
+        if (!isRecord(rawTarget) || typeof rawTarget['key'] !== 'string' || !isRecord(rawTarget['operations'])) return false;
+        const targetKey = rawTarget['key'];
+        if (seenTargets.has(targetKey)) return false;
+        seenTargets.add(targetKey);
+        const targetCapability = capability[targetKey as SocialTarget];
+        if (!targetCapability && Object.values(rawTarget['operations']).some(Boolean)) return false;
+        if (Object.entries(rawTarget['operations']).some(([key, enabled]) => typeof enabled !== 'boolean' || !SOCIAL_OPERATIONS.includes(key as SocialOperation) || (enabled && !targetCapability?.includes(key as SocialOperation)))) return false;
+        const seenContexts = new Set<string>();
+        const rules = rawTarget['contextRules'] ?? [];
+        if (!Array.isArray(rules)) return false;
+        for (const rawRule of rules) {
+            if (!isRecord(rawRule) || typeof rawRule['key'] !== 'string' || !isRecord(rawRule['operations'])) return false;
+            const ruleKey = rawRule['key'];
+            if (seenContexts.has(ruleKey) || configKey !== 'replyComment' || targetKey !== 'comment') return false;
+            seenContexts.add(ruleKey);
+            const allowedContexts = SOCIAL_CONTEXT_CAPABILITIES.replyComment.comment;
+            if (!(allowedContexts as readonly string[]).includes(ruleKey)) return false;
+            if (Object.entries(rawRule['operations']).some(([key, enabled]) => typeof enabled !== 'boolean' || !SOCIAL_OPERATIONS.includes(key as SocialOperation) || (enabled && !targetCapability?.includes(key as SocialOperation)))) return false;
+        }
     }
+    return true;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

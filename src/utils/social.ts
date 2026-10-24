@@ -8,8 +8,7 @@ import {
     SOCIAL_TARGET_TYPE_INPUT_VALUES,
 } from '../constants/social';
 import { type CommentCreateRequest, type CommentUpdateRequest } from '../model/comment';
-import { type ReportTargetType } from '../model/report';
-import { type ReportTargetRef } from '../model/report';
+import { type ReportTargetRef, type ReportTargetType } from '../model/report';
 import { type SocialTargetRef, type SocialTargetType } from '../model/social';
 import { type ReportTargetQuery } from '../validation/schemas/social.schemas';
 import { ApiError } from './apiError';

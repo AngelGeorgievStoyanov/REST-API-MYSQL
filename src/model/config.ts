@@ -59,7 +59,21 @@ export interface SocialConfig {
 
 export interface SocialConfigTarget {
     key: string;
+    operations: Record<string, boolean>;
+    contextRules?: SocialConfigContextRule[];
+}
+
+export interface SocialConfigContextRule {
+    key: string;
+    operations: Record<string, boolean>;
+}
+
+export interface SocialConfigResponseTarget extends SocialConfigTarget {
     create: boolean;
     edit: boolean;
     delete: boolean;
+}
+
+export interface SocialConfigResponse extends Omit<SocialConfig, 'targets'> {
+    targets: SocialConfigResponseTarget[];
 }

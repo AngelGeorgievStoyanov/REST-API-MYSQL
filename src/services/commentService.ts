@@ -89,7 +89,9 @@ export class CommentService {
     /** Only the author or a moderator may edit a comment; deleting is a moderation action. */
     async update(actor: TripActor, rawCommentId: string, body: unknown): Promise<CommentDto> {
         const comment = await this.findComment(rawCommentId);
-        checkSocialPermission(actor, comment.parentCommentId === null ? 'comment' : 'replyComment', 'comment', 'edit');
+        const action = comment.parentCommentId === null ? 'comment' : 'replyComment';
+        const context = action === 'replyComment' ? await this.replyPermissionContext(comment) : undefined;
+        checkSocialPermission(actor, action, 'comment', 'edit', context);
         if (comment.ownerId !== actor.id && !MODERATOR_ROLES.includes(actor.role)) {
             throw ApiError.forbidden('Only the author or a moderator can edit a comment.');
         }
@@ -103,7 +105,9 @@ export class CommentService {
 
     async delete(actor: TripActor, rawCommentId: string): Promise<void> {
         const comment = await this.findComment(rawCommentId);
-        checkSocialPermission(actor, comment.parentCommentId === null ? 'comment' : 'replyComment', 'comment', 'delete');
+        const action = comment.parentCommentId === null ? 'comment' : 'replyComment';
+        const context = action === 'replyComment' ? await this.replyPermissionContext(comment) : undefined;
+        checkSocialPermission(actor, action, 'comment', 'delete', context);
         this.assertCanDelete(actor, comment);
 
         await this.repository.delete(comment.id);
@@ -124,7 +128,8 @@ export class CommentService {
     async createReply(actor: TripActor, rawCommentId: string, body: unknown): Promise<CommentDto> {
         const parent = await this.findComment(rawCommentId);
         if (parent.parentCommentId !== null) throw ApiError.notFound('Comment not found.');
-        checkSocialPermission(actor, 'replyComment', 'comment', 'create');
+        const parentTargetType = await this.targetTypeForComment(parent);
+        checkSocialPermission(actor, 'replyComment', 'comment', 'create', { parentTargetType });
         const request = parseCommentCreateBody(body);
         const nameAuthor = await this.repository.findAuthorName(actor.id);
         const row = await this.repository.create({ targetTypeId: parent.targetTypeId, targetId: parent.targetId, parentCommentId: parent.id, ownerId: actor.id, nameAuthor, comment: request.comment });
@@ -170,6 +175,26 @@ export class CommentService {
         if (context?.tripGroupId !== tripGroupId) throw ApiError.notFound('Day not found.');
 
         return context.targetId;
+    }
+
+    private async replyPermissionContext(reply: CommentRecord): Promise<{ parentTargetType: SocialTargetType }> {
+        if (reply.parentCommentId === null) throw ApiError.notFound('Reply not found.');
+        const parent = await this.findComment(String(reply.parentCommentId));
+        if (parent.parentCommentId !== null || parent.targetTypeId !== reply.targetTypeId || parent.targetId !== reply.targetId) {
+            throw ApiError.notFound('Reply not found.');
+        }
+        return { parentTargetType: await this.targetTypeForComment(parent) };
+    }
+
+    private async targetTypeForComment(comment: CommentRecord): Promise<SocialTargetType> {
+        const targetType = (await this.targetTypes.loadNames()).get(comment.targetTypeId);
+        if (!targetType || targetType === SOCIAL_TARGET_TYPE.COMMENT) {
+            throw ApiError.notFound('Comment not found.');
+        }
+        if (targetType === SOCIAL_TARGET_TYPE.POINT) {
+            await this.targets.requireContext({ targetType, targetId: comment.targetId });
+        }
+        return targetType;
     }
 
     /**
