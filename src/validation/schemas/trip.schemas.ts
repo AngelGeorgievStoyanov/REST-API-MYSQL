@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRIP_SORTS } from '../../constants/trip';
 import { VALIDATION_LIMITS } from '../../constants/validation/limits';
-import { idList, optionalInt, optionalText, patchText, requiredInt, trimmedString } from './common.schemas';
+import { idList, optionalInt, optionalText, patchText, requiredInt, requiredNumber, trimmedString } from './common.schemas';
 
 const LIMITS = VALIDATION_LIMITS;
 
@@ -15,7 +15,7 @@ export const tripWriteSchema = z.object({
     dayNumber: requiredInt(LIMITS.trip.dayNumber),
     title: trimmedString(LIMITS.trip.title),
     description: optionalText(LIMITS.trip.description),
-    price: z.union([z.number().min(0), z.null()]).optional(),
+    price: requiredNumber({ min: 0, max: 1000000 }),
     transport: trimmedString(LIMITS.trip.selectValue),
     countPeoples: requiredInt({ min: 1, max: VALIDATION_LIMITS.id.max }),
     group: trimmedString(LIMITS.trip.selectValue),

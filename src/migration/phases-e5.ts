@@ -184,16 +184,16 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     c.skipped++;
   }
   // `_ownerId VARCHAR(45)` -> `ownerId VARCHAR(36)` before the FKs: an FK to
-  // users.id VARCHAR(36) needs identical type/collation. NOT NULL only where
-  // the live column was NOT NULL (trips._ownerId stays nullable).
+  // users.id VARCHAR(36) needs identical type/collation. All final ownerId
+  // columns are NOT NULL per prisma/schema.prisma (trips.ownerId is
+  // `String @db.VarChar(36)` with no `?`).
   for (const table of ['trips', 'points', 'comments']) {
-    const nullable = table === 'trips' ? 'NULL DEFAULT NULL' : 'NOT NULL';
     if (!(await columnExists(prisma, db, table, '_ownerId'))) {
       c.skipped++;
       continue;
     }
     await prisma.$executeRawUnsafe(
-      `ALTER TABLE ${qtable(db, table)} CHANGE COLUMN ${qi('_ownerId')} ${qi('ownerId')} VARCHAR(36) ${nullable}`,
+      `ALTER TABLE ${qtable(db, table)} CHANGE COLUMN ${qi('_ownerId')} ${qi('ownerId')} VARCHAR(36) NOT NULL`,
     );
     c.migrated++;
   }
@@ -235,6 +235,62 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
       c.skipped++;
     }
   }
+
+  // 4c. Trip column constraints to match prisma/schema.prisma. The legacy trips
+  //     table carries wrong NULL/default constraints on these columns; the
+  //     activate phase is the single place they are corrected to the final
+  //     shape. Idempotent: MODIFY is a no-op when the column already matches.
+  if (await columnExists(prisma, db, 'trips', 'price')) {
+    // Backfill NULL prices to 0 before narrowing to NOT NULL.
+    await prisma.$executeRawUnsafe(
+      `UPDATE ${qtable(db, 'trips')} SET ${qi('price')} = 0 WHERE ${qi('price')} IS NULL`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('price')} DOUBLE NOT NULL DEFAULT 0`,
+    );
+    c.migrated++;
+  }
+  if (await columnExists(prisma, db, 'trips', 'transport')) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('transport')} VARCHAR(45) NOT NULL`,
+    );
+    c.migrated++;
+  }
+  if (await columnExists(prisma, db, 'trips', 'typeOfPeople')) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('typeOfPeople')} VARCHAR(45) NOT NULL`,
+    );
+    c.migrated++;
+  }
+  if (await columnExists(prisma, db, 'trips', 'ownerId')) {
+    if ((await columnNullable(prisma, db, 'trips', 'ownerId')) === true) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('ownerId')} VARCHAR(36) NOT NULL`,
+      );
+      c.migrated++;
+    } else {
+      c.skipped++;
+    }
+  }
+  if (await columnExists(prisma, db, 'trips', 'countEdited')) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE ${qtable(db, 'trips')} SET ${qi('countEdited')} = 0 WHERE ${qi('countEdited')} IS NULL`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('countEdited')} INT NOT NULL DEFAULT 0`,
+    );
+    c.migrated++;
+  }
+  if (await columnExists(prisma, db, 'trips', 'currency')) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE ${qtable(db, 'trips')} SET ${qi('currency')} = 'EUR' WHERE ${qi('currency')} IS NULL`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('currency')} VARCHAR(3) NOT NULL DEFAULT 'EUR'`,
+    );
+    c.migrated++;
+  }
+
 
   // 5a. Final indexes FIRST: MySQL reuses a suitable index for a FK, so no
   //     auto-created `fk_*` indexes appear (index set matches the live target).

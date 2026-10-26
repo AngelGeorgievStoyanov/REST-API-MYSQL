@@ -155,18 +155,17 @@ model Trip {
   id           Int        @id @default(autoincrement())
   title        String     @db.VarChar(60)
   description  String?    @db.VarChar(2000)
-  price        Float?
-  transport    String?    @db.VarChar(45)
+  price        Float      @default(0)
+  transport    String     @db.VarChar(45)
   countPeoples Int
-  typeOfPeople String?    @db.VarChar(45)
+  typeOfPeople String     @db.VarChar(45)
   destination  String?    @db.VarChar(60)
-  // Live ownerId is NULL-able (the FK itself exists and is RESTRICT).
-  ownerId      String?    @db.VarChar(36)
+  ownerId      String     @db.VarChar(36)
   owner        User?      @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_trips_owner")
   lat          Float?
   lng          Float?
-  countEdited  Int?       @default(0)
-  currency     String?    @default("EUR") @db.VarChar(3)
+  countEdited  Int        @default(0)
+  currency     String     @default("EUR") @db.VarChar(3)
   // Required invariants (V6 data model): every day row belongs to exactly one
   // trip group and carries a user-selected ordinal. The migration pipeline
   // (src/migration) backfills these before activation and refuses NULLs.
