@@ -47,8 +47,14 @@ export function toTripMetadataInput(ownerId: string, request: TripWriteRequest):
         dayNumber: request.dayNumber,
         title: request.title,
         description: request.description,
-        group: request.group,
+        price: request.price,
         transport: request.transport,
+        countPeoples: request.countPeoples,
+        group: request.group,
+        destination: request.destination,
+        lat: request.lat,
+        lng: request.lng,
+        currency: request.currency,
     };
 }
 

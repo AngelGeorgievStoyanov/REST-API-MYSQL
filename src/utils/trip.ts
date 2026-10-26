@@ -10,6 +10,7 @@ import {
     MAX_SELECT_VALUE_LENGTH,
     MAX_TITLE_LENGTH,
     TRANSPORT_SELECT_TYPE,
+    CURRENCY_SELECT_TYPE,
     TRIP_SORTS,
 } from '../constants/trip';
 import {
@@ -100,11 +101,11 @@ function matchesSelectValue(option: SelectOptionLookup, value: string): boolean 
 
 function resolveSelectKey(typeKey: string, value: unknown, field: string): string {
     const requested = requireTrimmedString(value, field, MAX_SELECT_VALUE_LENGTH);
-    const activeOptions = readSelectOptions(typeKey).filter((option) => option.isActive);
-    const option = activeOptions.find((candidate) => matchesSelectValue(candidate, requested));
+    const options = readSelectOptions(typeKey);
+    const option = options.find((candidate) => matchesSelectValue(candidate, requested));
 
     if (!option) {
-        const known = activeOptions.map((candidate) => candidate.key).join(', ');
+        const known = options.map((candidate) => candidate.key).join(', ');
         throw ApiError.validation(`Unknown "${field}" value "${requested}". Known values: ${known || 'none'}.`);
     }
     return option.key;
@@ -129,8 +130,14 @@ export function parseTripBody(body: unknown): TripWriteRequest {
         dayNumber: requirePositiveInt(record['dayNumber'], 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
         title: requireTrimmedString(record['title'], 'title', MAX_TITLE_LENGTH),
         description: optionalString(record['description'], 'description', MAX_DESCRIPTION_LENGTH),
-        group: resolveSelectKey(GROUP_SELECT_TYPE, record['group'], 'group'),
+        price: record['price'] !== undefined ? record['price'] as number : null,
         transport: resolveSelectKey(TRANSPORT_SELECT_TYPE, record['transport'], 'transport'),
+        countPeoples: requirePositiveInt(record['countPeoples'], 'countPeoples', VALIDATION_LIMITS.id.max),
+        group: resolveSelectKey(GROUP_SELECT_TYPE, record['group'], 'group'),
+        destination: record['destination'] !== undefined ? requireTrimmedString(record['destination'], 'destination', MAX_TITLE_LENGTH) : null,
+        lat: record['lat'] !== undefined ? record['lat'] as number : null,
+        lng: record['lng'] !== undefined ? record['lng'] as number : null,
+        currency: resolveSelectKey(CURRENCY_SELECT_TYPE, record['currency'], 'currency'),
     };
 }
 

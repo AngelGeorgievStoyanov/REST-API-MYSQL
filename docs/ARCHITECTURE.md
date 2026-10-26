@@ -824,7 +824,7 @@ Private configuration values such as database credentials, JWT signing secrets, 
 
 The Frontend reads it from `GET /api/v1/config/social`, which returns `{ social: SocialConfig[] }`. The route uses `optionalAuthentication`, so the normal public Frontend request uses the client marker and public bearer token; an authenticated request receives the same configuration.
 
-Each action has a `key`, `isActive` flag, and `targets` array. A target's `operations` map is canonical. The API mapper derives legacy `create`, `edit`, and `delete` booleans from that map so old clients can keep reading those fields without a second source of truth. `contextRules` adds contextual settings; reply operations are enabled only for the `point` root-comment context. Current actions are `like`, `favorite`, `report`, `comment`, and `replyComment`; targets are `tripGroup`, `trip`, `point`, `image`, and `comment`. Like/favorite permit create/delete on trip groups and travel images. Report permits create/delete on trip groups, days, points, travel images, comments, and replies. Root comments can be created on trip groups, days, points, and travel images; comments and replies use the `comment` target for configured edit/delete. Replies are configured on the comment target with point-only context. The image resolver requires an image to link through a day or point to a trip group, so profile and unattached images are not social targets.
+Each action has a `key`, `isActive` flag, and `targets` array. A target's `operations` map is canonical. The API mapper derives legacy `create`, `edit`, and `delete` booleans from that map so old clients can keep reading those fields without a second source of truth. `contextRules` adds contextual settings; reply operations are enabled for trip-group, day, point, and travel-image root-comment contexts. Current actions are `like`, `favorite`, `report`, `comment`, and `replyComment`; targets are `tripGroup`, `trip`, `point`, `image`, and `comment`. Like, Favorite, and Report permit create/delete on trip groups, days, points, travel images, comments, and replies (which use the `comment` target). Root comments can be created on trip groups, days, points, and travel images; comments and replies use the `comment` target for configured edit/delete. Replies cannot be nested. The image resolver requires an image to link through a day or point to a trip group, so profile and unattached images are not social targets.
 
 `src/utils/socialPermissions.ts` provides `checkSocialPermission(actor, action, targetType, operation, context?)`. It fails closed for missing/inactive configuration, an unsupported capability, a disabled operation, invalid configuration, or missing/denied required context with `403 FORBIDDEN`. Context for reply mutations is derived from the stored parent/root comment target type, never from client input. This is only the global feature gate; actor permissions are separate. Comment DTO `permissions` continues to represent author/moderator rights, while global configuration represents feature availability. The final mutation decision combines both checks on the backend. This check is used by `LikeService`, `FavoriteService`, `ReportService`, and comment/reply mutations. Admin report listing/removal do not use this social-action check.
 
@@ -1166,6 +1166,50 @@ DEFAULT_RATE_LIMIT_EMAIL_MAX
 ```
 
 The source of environment values remains under `src/config/`.
+
+### Dynamic configuration (selects and service configs)
+
+The database (`select_types`, `select_options`, `service_types`, `service_configs`) is the source of truth.
+
+Data flow:
+
+```text
+Database (select_types, select_options)
+        ->
+src/repositories/configRepository.ts (getSelectTypes())
+        ->
+src/services/dynamicConfig.ts (refreshSlow())
+        ->
+in-memory Dynamic Config cache
+        ->
+API controller (GET /api/v1/config/selects)
+        ->
+API response
+```
+
+`configRepository.getSelectTypes()` filters at the database-query level using `isActive: true` for both select types and nested options. `orderBy` is `sortOrder` then `id` for options and `id` for types.
+
+The Dynamic Config cache therefore contains only active select types and active options. Normal backend consumers treat cached select data as already filtered and do not inspect `isActive` to decide availability. If a select type is inactive, it behaves as an unknown/unavailable type to consumers.
+
+Loading and refresh behavior:
+
+* Initial load runs during startup via `dynamicConfig.init()`, which calls `refreshSlow()` then `refreshFast()`; startup fails if the initial load fails.
+* `refreshSlow()` also loads background-image names from GCS; a failed background refresh keeps the last successful list and does not invalidate the select/service config.
+* Periodic refresh runs on a timer every `slowRefreshSeconds` seconds (default `DEFAULT_SLOW_REFRESH_SECONDS = 300`, overridable via `CONFIG_SLOW_REFRESH_SECONDS`).
+* `refreshFast()` performs no database queries.
+* A refresh is atomic: the new config replaces the current one only when select types are non-empty; otherwise the previous (last-known-good) config is kept and the failure is logged.
+* Concurrent refresh calls share a single in-flight load.
+* Changes to `isActive` become visible after the next successful refresh; they are not necessarily immediate. No server restart is required.
+
+### CREATE TRIP select validation
+
+`POST /api/v1/trips` validates the `transport`, `group` (stored as `typeOfPeople`, select type `group_type`), and `currency` fields against the Dynamic Config cache. Validation is performed in `src/utils/trip.ts` (`resolveSelectKey()`), invoked from `parseTripBody()` during `tripService.createTrip()`.
+
+* Both the stable select key and the stored display value are accepted as input (case-insensitive match).
+* Only active options are present in the cache, so inactive options are unavailable and are rejected.
+* An inactive select type is absent from the cache and behaves as an unknown type, so its values are rejected.
+* Unknown or unavailable values are rejected with `400` validation errors listing the available (active) keys.
+* Validation uses the in-memory configuration; it does not query the database for each submitted select value.
 
 ## Deployment context
 

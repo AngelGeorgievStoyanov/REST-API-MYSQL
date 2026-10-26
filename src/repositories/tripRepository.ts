@@ -1,6 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { DEFAULT_COUNT_PEOPLES } from '../constants/trip';
 import {
     type DayUpdateInput,
     type DayWriteInput,
@@ -291,7 +290,7 @@ export class TripRepository {
             data: {
                 ownerId: input.ownerId,
                 createdAt: new Date(),
-                trips: { create: [this.dayCreateData(input.ownerId, input.dayNumber, input.title, input.description, input.group, input.transport)] },
+                trips: { create: [this.dayCreateData(input.ownerId, input.dayNumber, input.title, input.description, input.group, input.transport, input.price, input.countPeoples, input.destination, input.lat, input.lng, input.currency)] },
             },
             select: { id: true },
         });
@@ -547,6 +546,12 @@ export class TripRepository {
         description: string | null,
         group: string | null,
         transport: string | null,
+        price: number | null = null,
+        countPeoples: number = 1,
+        destination: string | null = null,
+        lat: number | null = null,
+        lng: number | null = null,
+        currency?: string | null,
     ): Prisma.TripUncheckedCreateWithoutTripGroupInput {
         // `tripGroupId` is intentionally omitted: `createTrip` writes this row as
         // a nested child of the group (the relation supplies the FK), while
@@ -558,9 +563,14 @@ export class TripRepository {
             transport,
             typeOfPeople: group,
             dayNumber,
-            countPeoples: DEFAULT_COUNT_PEOPLES,
+            countPeoples,
             ownerId,
             createdAt: new Date(),
+            price,
+            destination,
+            lat,
+            lng,
+            ...(currency !== undefined ? { currency } : {}),
         };
     }
 

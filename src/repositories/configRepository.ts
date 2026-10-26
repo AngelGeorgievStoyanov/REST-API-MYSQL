@@ -14,7 +14,17 @@ export class ConfigRepository {
 
     async getSelectTypes(): Promise<SelectConfig[]> {
         const types = await this.prisma.selectType.findMany({
-            include: { options: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] } },
+            where: {
+                isActive: true,
+            },
+            include: {
+                options: {
+                    where: {
+                        isActive: true,
+                    },
+                    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+                },
+            },
             orderBy: { id: 'asc' },
         });
 

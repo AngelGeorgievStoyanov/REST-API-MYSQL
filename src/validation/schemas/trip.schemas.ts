@@ -15,8 +15,14 @@ export const tripWriteSchema = z.object({
     dayNumber: requiredInt(LIMITS.trip.dayNumber),
     title: trimmedString(LIMITS.trip.title),
     description: optionalText(LIMITS.trip.description),
-    group: trimmedString(LIMITS.trip.selectValue),
+    price: z.union([z.number().min(0), z.null()]).optional(),
     transport: trimmedString(LIMITS.trip.selectValue),
+    countPeoples: requiredInt({ min: 1, max: VALIDATION_LIMITS.id.max }),
+    group: trimmedString(LIMITS.trip.selectValue),
+    destination: trimmedString({ min: 1, max: VALIDATION_LIMITS.trip.title.max }).optional(),
+    lat: z.union([z.number().min(-90).max(90), z.null()]).optional(),
+    lng: z.union([z.number().min(-180).max(180), z.null()]).optional(),
+    currency: trimmedString({ min: 1, max: 3 }),
 }).strict();
 
 /**

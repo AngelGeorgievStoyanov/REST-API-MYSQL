@@ -91,6 +91,7 @@ export class CommentService {
         const comment = await this.findComment(rawCommentId);
         const action = comment.parentCommentId === null ? 'comment' : 'replyComment';
         const context = action === 'replyComment' ? await this.replyPermissionContext(comment) : undefined;
+        if (action === 'comment') await this.targetTypeForComment(comment);
         checkSocialPermission(actor, action, 'comment', 'edit', context);
         if (comment.ownerId !== actor.id && !MODERATOR_ROLES.includes(actor.role)) {
             throw ApiError.forbidden('Only the author or a moderator can edit a comment.');
@@ -107,6 +108,7 @@ export class CommentService {
         const comment = await this.findComment(rawCommentId);
         const action = comment.parentCommentId === null ? 'comment' : 'replyComment';
         const context = action === 'replyComment' ? await this.replyPermissionContext(comment) : undefined;
+        if (action === 'comment') await this.targetTypeForComment(comment);
         checkSocialPermission(actor, action, 'comment', 'delete', context);
         this.assertCanDelete(actor, comment);
 
@@ -191,9 +193,7 @@ export class CommentService {
         if (!targetType || targetType === SOCIAL_TARGET_TYPE.COMMENT) {
             throw ApiError.notFound('Comment not found.');
         }
-        if (targetType === SOCIAL_TARGET_TYPE.POINT) {
-            await this.targets.requireContext({ targetType, targetId: comment.targetId });
-        }
+        await this.targets.requireContext({ targetType, targetId: comment.targetId });
         return targetType;
     }
 

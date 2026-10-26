@@ -9,8 +9,14 @@ type Capability = Partial<Record<SocialTarget, readonly SocialOperation[]>>;
 
 /** Code allowlist: configuration can disable capabilities but cannot invent them. */
 export const SOCIAL_CAPABILITIES: Readonly<Record<SocialAction, Capability>> = {
-    like: { tripGroup: ['create', 'delete'], image: ['create', 'delete'] },
-    favorite: { tripGroup: ['create', 'delete'], image: ['create', 'delete'] },
+    like: {
+        tripGroup: ['create', 'delete'], trip: ['create', 'delete'], point: ['create', 'delete'],
+        image: ['create', 'delete'], comment: ['create', 'delete'],
+    },
+    favorite: {
+        tripGroup: ['create', 'delete'], trip: ['create', 'delete'], point: ['create', 'delete'],
+        image: ['create', 'delete'], comment: ['create', 'delete'],
+    },
     report: {
         tripGroup: ['create', 'delete'],
         trip: ['create', 'delete'],
@@ -29,7 +35,7 @@ export const SOCIAL_CAPABILITIES: Readonly<Record<SocialAction, Capability>> = {
 };
 
 export const SOCIAL_CONTEXT_CAPABILITIES = {
-    replyComment: { comment: ['point'] },
+    replyComment: { comment: ['tripGroup', 'trip', 'point', 'image'] },
 } as const;
 
 const disabledOperations = () => ({ create: false, edit: false, delete: false });
@@ -46,11 +52,11 @@ function target(key: SocialTarget, operations: ReturnType<typeof disabledOperati
 export const SOCIAL_CONFIG: readonly SocialConfig[] = [
     {
         key: 'like', isActive: true,
-        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip'), target('point'), target('image', enabledOperations('create', 'delete')), target('comment')],
+        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip', enabledOperations('create', 'delete')), target('point', enabledOperations('create', 'delete')), target('image', enabledOperations('create', 'delete')), target('comment', enabledOperations('create', 'delete'))],
     },
     {
         key: 'favorite', isActive: true,
-        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip'), target('point'), target('image', enabledOperations('create', 'delete')), target('comment')],
+        targets: [target('tripGroup', enabledOperations('create', 'delete')), target('trip', enabledOperations('create', 'delete')), target('point', enabledOperations('create', 'delete')), target('image', enabledOperations('create', 'delete')), target('comment', enabledOperations('create', 'delete'))],
     },
     {
         key: 'report', isActive: true,
@@ -78,7 +84,10 @@ export const SOCIAL_CONFIG: readonly SocialConfig[] = [
             target('tripGroup'), target('trip'), target('point'), target('image'),
             {
                 key: 'comment', operations: disabledOperations(),
-                contextRules: [{ key: 'point', operations: enabledOperations('create', 'edit', 'delete') }],
+                contextRules: SOCIAL_CONTEXT_CAPABILITIES.replyComment.comment.map((key) => ({
+                    key,
+                    operations: enabledOperations('create', 'edit', 'delete'),
+                })),
             },
         ],
     },
