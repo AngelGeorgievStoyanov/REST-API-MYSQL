@@ -47,6 +47,9 @@ const MAX_PASSWORD_INPUT_LENGTH = 200;
 /** Days in one trip. `trips.dayNumber` is a plain INT, so this is a policy cap. */
 const MAX_TRIP_DAYS = 500;
 
+/** Maximum number of people allowed on one trip, enforced by the API contract. */
+const MAX_TRIP_PEOPLE = 1000;
+
 /** Ids in one reorder request: the complete child list of one trip or day. */
 const MAX_REORDER_ITEMS = 500;
 
@@ -82,6 +85,7 @@ export const VALIDATION_LIMITS = {
         selectValue: { min: 1, max: MAX_SELECT_VALUE_LENGTH },
         search: { min: 1, max: MAX_SEARCH_LENGTH },
         dayNumber: { min: 1, max: MAX_TRIP_DAYS },
+        countPeoples: { min: 1, max: MAX_TRIP_PEOPLE },
     },
     point: {
         name: { min: 1, max: MAX_POINT_NAME_LENGTH },
