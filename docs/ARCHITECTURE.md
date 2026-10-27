@@ -1206,7 +1206,7 @@ Loading and refresh behavior:
 
 ### CREATE TRIP select validation
 
-`POST /api/v1/trips` validates the `transport`, `group` (stored as `typeOfPeople`, select type `group_type`), and `currency` fields against the Dynamic Config cache. Validation is performed in `src/utils/trip.ts` (`resolveSelectKey()`), invoked from `parseTripBody()` during `tripService.createTrip()`.
+`POST /api/v1/trips` validates the request fields `transport`, `typeOfPeople` (select type `group_type`), and `currency` against the Dynamic Config cache. The input field is `typeOfPeople`; `group` is the corresponding field name in the read response DTO. Validation is performed in `src/utils/trip.ts` (`resolveSelectKey()`), invoked from `parseTripBody()` during `tripService.createTrip()`.
 
 * Both the stable select key and the stored display value are accepted as input (case-insensitive match).
 * Only active options are present in the cache, so inactive options are unavailable and are rejected.
