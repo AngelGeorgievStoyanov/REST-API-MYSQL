@@ -978,10 +978,27 @@ The controller must not contain GCS access logic, random-selection logic, file-l
 
 ### 8.7 POST `/trips`
 
-* Auth: `requireAuthentication`.
-* Body (strict): `{ dayNumber, title, description, group, transport }`.
-* `dayNumber` is REQUIRED: the user-selected ordinal of the initial day row (true JSON integer, 1..500). A missing, null, boolean, string, zero, negative, fractional or out-of-range value -> `400 VALIDATION_ERROR`. The server never defaults it.
-* Response `201`: `TripGroupResponse` (same complete trip-group response structure as the GET endpoints).
+Creates a trip group and its first day row. All trip/day metadata in this request is stored on that initial `trips` row; the `trip_groups` row is the grouping container.
+
+* Auth: `requireAuthentication`. The owner is derived from the authenticated actor; do not send `ownerId`.
+* Body: strict JSON object. Unknown fields are rejected with `400 VALIDATION_ERROR`.
+* Required fields: `dayNumber`, `title`, `price`, `transport`, `countPeoples`, `typeOfPeople`, `currency`.
+* Optional fields: `description`, `destination`, `lat`, `lng`.
+* `dayNumber`: required true JSON integer in the range 1..500. Missing, null, string, boolean, fractional, zero, negative, or out-of-range values -> `400 VALIDATION_ERROR`. The server never chooses a default or `max + 1`.
+* `title`: required non-empty string; surrounding whitespace is trimmed.
+* `description`: string or `null`; omitted, blank, or `null` is stored as `null`.
+* `price`: required JSON number in the range 0..1,000,000.
+* `transport`: required string resolving to a configured transport select option.
+* `countPeoples`: required positive JSON integer.
+* `typeOfPeople`: required string resolving to a configured group/type-of-people select option. The request field is `typeOfPeople`; the read response exposes the corresponding value under `group`.
+* `currency`: required string (1..3 characters) resolving to a configured currency select option.
+* `destination`: optional non-empty string; omitted means `null`. If supplied, surrounding whitespace is trimmed.
+* `lat`: optional JSON number in -90..90 or `null`; omitted means `null`.
+* `lng`: optional JSON number in -180..180 or `null`; omitted means `null`.
+* Select inputs are checked against the runtime Dynamic Config options; the configured option key is stored. Unknown values -> `400 VALIDATION_ERROR`.
+* The group and initial day are created together in one nested Prisma create; the write is atomic.
+* Image upload is separate and is not part of this body. Use `POST /trips/:tripGroupId/days/:tripId/images` after creation when uploading a day image.
+* Response `201`: `TripGroupResponse` (the complete trip group, including `days[]`), with the initial day in that array.
 
 ### 8.8 DELETE `/trips/:tripGroupId`
 
@@ -1018,10 +1035,31 @@ Comment and reply DTOs include `parentCommentId` (`null` for a regular comment) 
 
 ### 8.11 PUT `/trips/:tripGroupId/days/:tripId`
 
-* Auth: `requireAuthentication` + owner/moderator.
-* Path params (strict): `{ tripGroupId, tripId }` (`tripId` = the day row's `Trip.id`).
-* Body (strict): `{ title?, description? }` (at least one required).
-* Response `200`: `TripGroupResponse` (same complete trip-group response structure as `GET /trips/:tripGroupId`).
+This is the full edit operation for one specific day row, not a partial patch.
+
+* Auth: `requireAuthentication` + owner/moderator authorization for the trip group.
+* Path params (strict): `{ tripGroupId, tripId }`.
+  * `tripGroupId` is the `trip_groups.id` of the parent group.
+  * `tripId` is the primary key `trips.id` of the exact day row being edited. It is not `dayNumber`.
+  * The day row must belong to the supplied group; otherwise the request returns `404 NOT_FOUND`.
+* Body: strict JSON object. **All 11 fields below are required**, including fields whose values may be `null`. Unknown fields are rejected with `400 VALIDATION_ERROR`.
+* `dayNumber`: true JSON integer in the range 1..500; must be unique among other day rows in this same group.
+* `title`: required non-empty string; surrounding whitespace is trimmed.
+* `description`: required string or `null`; an empty string is normalized to `null`.
+* `price`: required JSON number in the range 0..1,000,000.
+* `transport`: required string resolving to a configured transport select option.
+* `countPeoples`: required positive JSON integer.
+* `typeOfPeople`: required string resolving to a configured group/type-of-people select option. The request field is `typeOfPeople`; the read response exposes the corresponding value under `group`.
+* `currency`: required string (1..3 characters) resolving to a configured currency select option.
+* `destination`: required string or `null`; an empty string is normalized to `null`.
+* `lat`: required JSON number in -90..90 or `null`.
+* `lng`: required JSON number in -180..180 or `null`.
+* Select inputs are checked against the runtime Dynamic Config options; the configured option key is stored. Unknown values -> `400 VALIDATION_ERROR`.
+* A `dayNumber` already used by a different day in the same group -> `409 CONFLICT`. The row identified by `tripId` is excluded from this check, so keeping its existing number is valid.
+* The update applies all 11 fields to the exact `trips.id = tripId` row. It does not update a different or “canonical” day row.
+* `countEdited` is incremented by the server as part of the same database transaction. It is not accepted in the request body.
+* Response `200`: `TripGroupResponse` (the complete updated parent group, including all `days[]`).
+* Other errors: validation failure -> `400 VALIDATION_ERROR`; ownership/role denial -> `403 FORBIDDEN`; unexpected failures -> `500 INTERNAL_SERVER_ERROR`.
 
 ### 8.12 DELETE `/trips/:tripGroupId/days/:tripId`
 
