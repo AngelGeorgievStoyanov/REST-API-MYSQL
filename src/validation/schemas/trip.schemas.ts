@@ -33,13 +33,13 @@ export const tripEditSchema = z.object({
      */
     dayNumber: requiredInt(LIMITS.trip.dayNumber),
     title: trimmedString(LIMITS.trip.title),
-    description: z.union([trimmedString(LIMITS.trip.description), z.null()]),
+    description: z.union([trimmedString(LIMITS.trip.description), z.literal(''), z.null()]).transform((value) => value === '' ? null : value),
     price: requiredNumber({ min: 0, max: 1000000 }),
     transport: trimmedString(LIMITS.trip.selectValue),
     countPeoples: requiredInt({ min: 1, max: VALIDATION_LIMITS.id.max }),
     typeOfPeople: trimmedString(LIMITS.trip.selectValue),
     currency: trimmedString({ min: 1, max: 3 }),
-    destination: z.union([trimmedString({ min: 1, max: LIMITS.trip.title.max }), z.null()]),
+    destination: z.union([trimmedString({ min: 1, max: LIMITS.trip.title.max }), z.literal(''), z.null()]).transform((value) => value === '' ? null : value),
     lat: z.union([z.number().min(-90).max(90), z.null()]),
     lng: z.union([z.number().min(-180).max(180), z.null()]),
 }).strict();
