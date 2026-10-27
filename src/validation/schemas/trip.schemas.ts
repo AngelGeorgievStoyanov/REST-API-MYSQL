@@ -18,11 +18,30 @@ export const tripWriteSchema = z.object({
     price: requiredNumber({ min: 0, max: 1000000 }),
     transport: trimmedString(LIMITS.trip.selectValue),
     countPeoples: requiredInt({ min: 1, max: VALIDATION_LIMITS.id.max }),
-    group: trimmedString(LIMITS.trip.selectValue),
+    typeOfPeople: trimmedString(LIMITS.trip.selectValue),
     destination: trimmedString({ min: 1, max: VALIDATION_LIMITS.trip.title.max }).optional(),
     lat: z.union([z.number().min(-90).max(90), z.null()]).optional(),
     lng: z.union([z.number().min(-180).max(180), z.null()]).optional(),
     currency: trimmedString({ min: 1, max: 3 }),
+}).strict();
+
+/** Full Edit Trip contract: every field is required; nullable columns must be sent explicitly as null. */
+export const tripEditSchema = z.object({
+    /**
+     * Required day ordinal within this trip group. It must be unique among the
+     * group's day rows; the current row is excluded from the conflict check.
+     */
+    dayNumber: requiredInt(LIMITS.trip.dayNumber),
+    title: trimmedString(LIMITS.trip.title),
+    description: z.union([trimmedString(LIMITS.trip.description), z.null()]),
+    price: requiredNumber({ min: 0, max: 1000000 }),
+    transport: trimmedString(LIMITS.trip.selectValue),
+    countPeoples: requiredInt({ min: 1, max: VALIDATION_LIMITS.id.max }),
+    typeOfPeople: trimmedString(LIMITS.trip.selectValue),
+    currency: trimmedString({ min: 1, max: 3 }),
+    destination: z.union([trimmedString({ min: 1, max: LIMITS.trip.title.max }), z.null()]),
+    lat: z.union([z.number().min(-90).max(90), z.null()]),
+    lng: z.union([z.number().min(-180).max(180), z.null()]),
 }).strict();
 
 /**
