@@ -202,11 +202,26 @@ export interface TripWriteRequest {
     price: number | null;
     transport: string;
     countPeoples: number;
-    group: string;
+    typeOfPeople: string;
     destination: string | null;
     lat: number | null;
     lng: number | null;
     currency: string;
+}
+
+export interface TripEditRequest {
+    /** Required day ordinal; unique within the same trip group except for this row. */
+    dayNumber: number;
+    title: string;
+    description: string | null;
+    price: number;
+    transport: string;
+    countPeoples: number;
+    typeOfPeople: string;
+    currency: string;
+    destination: string | null;
+    lat: number | null;
+    lng: number | null;
 }
 
 export interface PointCreateRequest {
