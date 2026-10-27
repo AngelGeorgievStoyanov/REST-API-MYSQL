@@ -50,7 +50,7 @@ export function toTripMetadataInput(ownerId: string, request: TripWriteRequest):
         price: request.price,
         transport: request.transport,
         countPeoples: request.countPeoples,
-        group: request.group,
+        group: request.typeOfPeople,
         destination: request.destination,
         lat: request.lat,
         lng: request.lng,
