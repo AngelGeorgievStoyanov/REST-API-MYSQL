@@ -19,6 +19,7 @@ import {
     type TripListQuery,
     type TripSort,
     type TripWriteRequest,
+    type TripEditRequest,
 } from '../model/trip';
 import { ApiError } from './apiError';
 import { firstValue } from './utils';
@@ -133,11 +134,53 @@ export function parseTripBody(body: unknown): TripWriteRequest {
         price: record['price'] !== undefined ? record['price'] as number : null,
         transport: resolveSelectKey(TRANSPORT_SELECT_TYPE, record['transport'], 'transport'),
         countPeoples: requirePositiveInt(record['countPeoples'], 'countPeoples', VALIDATION_LIMITS.id.max),
-        group: resolveSelectKey(GROUP_SELECT_TYPE, record['group'], 'group'),
+        typeOfPeople: resolveSelectKey(GROUP_SELECT_TYPE, record['typeOfPeople'], 'typeOfPeople'),
         destination: record['destination'] !== undefined ? requireTrimmedString(record['destination'], 'destination', MAX_TITLE_LENGTH) : null,
         lat: record['lat'] !== undefined ? record['lat'] as number : null,
         lng: record['lng'] !== undefined ? record['lng'] as number : null,
         currency: resolveSelectKey(CURRENCY_SELECT_TYPE, record['currency'], 'currency'),
+    };
+}
+
+/** Parse the complete Edit Trip body. The request schema requires every field before this parser runs. */
+export function parseTripEditBody(body: unknown): TripEditRequest {
+    const record = asRecord(body, 'Request body');
+    rejectClientControlledFields(record, ['id', 'ownerId', 'tripGroupId', 'countEdited', 'days', 'points'], 'Trip');
+
+    const description = record['description'];
+    const destination = record['destination'];
+    const lat = record['lat'];
+    const lng = record['lng'];
+    const price = record['price'];
+
+    if (description !== null && typeof description !== 'string') {
+        throw ApiError.validation('"description" must be a string or null.');
+    }
+    if (destination !== null && typeof destination !== 'string') {
+        throw ApiError.validation('"destination" must be a string or null.');
+    }
+    if (typeof price !== 'number' || !Number.isFinite(price)) {
+        throw ApiError.validation('"price" must be a number.');
+    }
+    if (lat !== null && (typeof lat !== 'number' || !Number.isFinite(lat))) {
+        throw ApiError.validation('"lat" must be a number or null.');
+    }
+    if (lng !== null && (typeof lng !== 'number' || !Number.isFinite(lng))) {
+        throw ApiError.validation('"lng" must be a number or null.');
+    }
+
+    return {
+        dayNumber: requirePositiveInt(record['dayNumber'], 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
+        title: requireTrimmedString(record['title'], 'title', MAX_TITLE_LENGTH),
+        description: description === null ? null : optionalString(description, 'description', MAX_DESCRIPTION_LENGTH),
+        price,
+        transport: resolveSelectKey(TRANSPORT_SELECT_TYPE, record['transport'], 'transport'),
+        countPeoples: requirePositiveInt(record['countPeoples'], 'countPeoples', VALIDATION_LIMITS.id.max),
+        typeOfPeople: resolveSelectKey(GROUP_SELECT_TYPE, record['typeOfPeople'], 'typeOfPeople'),
+        currency: resolveSelectKey(CURRENCY_SELECT_TYPE, record['currency'], 'currency'),
+        destination: destination === null ? null : requireTrimmedString(destination, 'destination', MAX_TITLE_LENGTH),
+        lat: lat as number | null,
+        lng: lng as number | null,
     };
 }
 
