@@ -8,7 +8,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
 import { tripGroupIdParams, tripDayParams } from '../validation/schemas/common.schemas';
-import { dayCreateSchema, dayReorderSchema, dayUpdateSchema, tripListQuerySchema, tripWriteSchema } from '../validation/schemas/trip.schemas';
+import { dayCreateSchema, dayReorderSchema, tripEditSchema, tripListQuerySchema, tripWriteSchema } from '../validation/schemas/trip.schemas';
 
 const tripController = express.Router();
 
@@ -68,7 +68,7 @@ tripController.put(
 
 tripController.put(
     '/:tripGroupId/days/:tripId',
-    validateRequest({ params: tripDayParams, body: dayUpdateSchema }),
+    validateRequest({ params: tripDayParams, body: tripEditSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
         const day = await tripService.updateDay(
