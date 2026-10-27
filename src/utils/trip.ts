@@ -178,7 +178,7 @@ export function parseTripEditBody(body: unknown): TripEditRequest {
         countPeoples: requirePositiveInt(record['countPeoples'], 'countPeoples', VALIDATION_LIMITS.id.max),
         typeOfPeople: resolveSelectKey(GROUP_SELECT_TYPE, record['typeOfPeople'], 'typeOfPeople'),
         currency: resolveSelectKey(CURRENCY_SELECT_TYPE, record['currency'], 'currency'),
-        destination: destination === null ? null : requireTrimmedString(destination, 'destination', MAX_TITLE_LENGTH),
+        destination: destination === null || destination === '' ? null : requireTrimmedString(destination, 'destination', MAX_TITLE_LENGTH),
         lat: lat as number | null,
         lng: lng as number | null,
     };
