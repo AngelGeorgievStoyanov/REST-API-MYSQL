@@ -891,7 +891,7 @@ Numeric typing rules of the Zod layer:
 * Query schemas (`page`, `limit`, `pageSize`, and the DELETE target ids) parse their string values into numbers.
 * Route parameters are validated as digit strings (positive integer ids) or UUID strings (`userId`).
 
-The second layer is the service boundary: domain parsers under `src/utils/` (`trip.ts`, `point.ts`, `social.ts`, `validation.ts`) re-read the validated request parts, resolve dynamic-config select values, and reject client-controlled ownership, parent, and sequence fields.
+The second layer is the service boundary: domain parsers under `src/utils/` (`trip.ts`, `point.ts`, `social.ts`, `validation.ts`) re-read the validated request parts, resolve dynamic-config select values, and reject client-controlled ownership, parent, and sequence fields. Trip domain parsers reuse the centralized limits in `src/constants/validation/limits.ts`; `countPeoples` must be a true JSON integer from `1` through `1000` for both trip creation and full day editing.
 
 Validation covers request bodies, query parameters, route parameters, identifiers, pagination, request size, and image payloads. Generic parsing remains separate from domain/business validation, and business rules remain in services rather than in validation schemas or mappers.
 
