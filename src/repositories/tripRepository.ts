@@ -1,13 +1,13 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import {
-    type DayUpdateInput,
     type DayWriteInput,
     type TripDayRecord,
     type TripGroupDetailsRecord,
     type TripGroupListRecord,
     type TripListDayRecord,
     type TripMetadataInput,
+    type TripEditRequest,
 } from '../model/trip';
 import { sortPointsByNumber } from '../utils/point';
 import { toPointRecord } from '../mappers/pointPersistenceMapper';
@@ -403,14 +403,49 @@ export class TripRepository {
         }
     }
 
-    async updateDay(tripId: number, fields: DayUpdateInput): Promise<void> {
-        await this.prisma.trip.update({
-            where: { id: tripId },
-            data: {
-                ...(fields.title !== undefined ? { title: fields.title } : {}),
-                ...(fields.description !== undefined ? { description: fields.description } : {}),
-            },
-        });
+    /**
+     * Full Edit Trip write. Day-number uniqueness is checked within the same
+     * group while excluding the row being edited. countEdited increments in the
+     * same database transaction as the field update.
+     */
+    async updateDay(tripId: number, groupId: number, fields: TripEditRequest): Promise<boolean> {
+        try {
+            return await this.prisma.$transaction(async (tx) => {
+                const conflictingDay = await tx.trip.findFirst({
+                    where: {
+                        tripGroupId: groupId,
+                        dayNumber: fields.dayNumber,
+                        id: { not: tripId },
+                    },
+                    select: { id: true },
+                });
+                if (conflictingDay) return false;
+
+                await tx.trip.update({
+                    where: { id: tripId, tripGroupId: groupId },
+                    data: {
+                        dayNumber: fields.dayNumber,
+                        title: fields.title,
+                        description: fields.description,
+                        price: fields.price,
+                        transport: fields.transport,
+                        countPeoples: fields.countPeoples,
+                        typeOfPeople: fields.typeOfPeople,
+                        currency: fields.currency,
+                        destination: fields.destination,
+                        lat: fields.lat,
+                        lng: fields.lng,
+                        countEdited: { increment: 1 },
+                    },
+                });
+                return true;
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+                return false;
+            }
+            throw error;
+        }
     }
 
     /**
