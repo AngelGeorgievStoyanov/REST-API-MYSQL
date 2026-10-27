@@ -17,9 +17,9 @@ import {
 } from '../mappers/tripMapper';
 import {
     parseDayCreateBody,
-    parseDayUpdateBody,
     parseListQuery,
     parseTripBody,
+    parseTripEditBody,
     parseTripGroupId,
     resolveSelectFilterValues,
 } from '../utils/trip';
@@ -224,8 +224,9 @@ export class TripService {
         const tripId = parsePositiveId(rawTripId, 'Trip id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
 
-        const request = parseDayUpdateBody(body);
-        await this.repository.updateDay(tripId, request);
+        const request = parseTripEditBody(body);
+        const updated = await this.repository.updateDay(tripId, tripGroupId, request);
+        if (!updated) throw ApiError.conflict('The requested day number is already used in this trip.');
 
         const row = await this.repository.findById(tripGroupId);
         if (!row) throw ApiError.tripNotFound();
