@@ -32,7 +32,7 @@ export function imageUpload(req: Request, res: Response, next: NextFunction): vo
                 event: error ? 'upload.middleware.failed' : 'upload.middleware.completed',
                 durationMs: Math.round(performance.now() - startedAt),
                 inputBytes: req.file?.size,
-                errorName: error instanceof Error ? error.name : undefined,
+                ...imageUploadErrorDetails(error),
             })}`);
             if (error instanceof MulterError) {
                 next(ApiError.validation(`Image upload failed: ${error.message}.`));
@@ -51,6 +51,26 @@ export function imageUpload(req: Request, res: Response, next: NextFunction): vo
 
             next(error ?? undefined);
         });
+}
+
+function imageUploadErrorDetails(error: unknown): Record<string, unknown> {
+    if (typeof error !== 'object' || error === null) {
+        return { errorName: 'UnknownError', errorMessage: String(error).slice(0, 300) };
+    }
+
+    const readString = (key: string): string | undefined => {
+        const value = Reflect.get(error, key);
+        return typeof value === 'string' || typeof value === 'number'
+            ? String(value).slice(0, 300)
+            : undefined;
+    };
+
+    return {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message.slice(0, 300) : readString('message'),
+        errorCode: readString('code'),
+        errorStatus: readString('status') ?? readString('statusCode'),
+    };
 }
 
 /** The storage engine reports the stored object name as `destination`. */
