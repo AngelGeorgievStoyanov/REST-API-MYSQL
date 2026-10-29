@@ -54,7 +54,10 @@ export function imageUpload(req: Request, res: Response, next: NextFunction): vo
 }
 
 function imageUploadErrorDetails(error: unknown): Record<string, unknown> {
-    if (typeof error !== 'object' || error === null) {
+    // Successful middleware completion has no error; do not log it as UnknownError.
+    if (error === undefined || error === null) return {};
+
+    if (typeof error !== 'object') {
         return { errorName: 'UnknownError', errorMessage: String(error).slice(0, 300) };
     }
 
