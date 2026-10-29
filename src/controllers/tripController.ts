@@ -9,7 +9,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
 import { tripGroupIdParams, tripDayParams } from '../validation/schemas/common.schemas';
-import { dayCreateSchema, dayReorderSchema, tripEditSchema, tripListQuerySchema, tripWriteSchema } from '../validation/schemas/trip.schemas';
+import { dayReorderSchema, tripEditSchema, tripListQuerySchema, tripWriteSchema } from '../validation/schemas/trip.schemas';
 
 function imageErrorLogDetails(error: unknown): Record<string, unknown> {
     if (typeof error !== 'object' || error === null) {
@@ -69,7 +69,7 @@ tripController.delete('/:tripGroupId', validateRequest({ params: tripGroupIdPara
 
 tripController.post(
     '/:tripGroupId/days',
-    validateRequest({ params: tripGroupIdParams, body: dayCreateSchema }),
+    validateRequest({ params: tripGroupIdParams, body: tripWriteSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
         const day = await tripService.createDay(actorFrom(req), routeParam(req.params['tripGroupId']), req.body);
