@@ -3,6 +3,7 @@ import { type NextFunction, type Request, type RequestHandler, type Response } f
 import { IMAGE_UPLOAD_LIMITS, UPLOAD_FIELD_NAME } from '../constants/imageStorage';
 import { ImageObjectAlreadyExistsError, UnsupportedImageError } from './imageValidation';
 import { ApiError } from '../utils/apiError';
+import { performance } from 'node:perf_hooks';
 
 let uploadSingleFile: RequestHandler | null = null;
 
@@ -25,7 +26,14 @@ function getUploadMiddleware(): RequestHandler {
  * validation error instead of an unmapped 500.
  */
 export function imageUpload(req: Request, res: Response, next: NextFunction): void {
+    const startedAt = performance.now();
     getUploadMiddleware()(req, res, (error: unknown) => {
+            console.info(`[images] ${JSON.stringify({
+                event: error ? 'upload.middleware.failed' : 'upload.middleware.completed',
+                durationMs: Math.round(performance.now() - startedAt),
+                inputBytes: req.file?.size,
+                errorName: error instanceof Error ? error.name : undefined,
+            })}`);
             if (error instanceof MulterError) {
                 next(ApiError.validation(`Image upload failed: ${error.message}.`));
                 return;
