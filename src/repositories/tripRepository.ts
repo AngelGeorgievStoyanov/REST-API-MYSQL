@@ -1,7 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import {
-    type DayWriteInput,
     type TripDayRecord,
     type TripGroupDetailsRecord,
     type TripGroupListRecord,
@@ -290,7 +289,7 @@ export class TripRepository {
             data: {
                 ownerId: input.ownerId,
                 createdAt: new Date(),
-                trips: { create: [this.dayCreateData(input.ownerId, input.dayNumber, input.title, input.description, input.group, input.transport, input.price, input.countPeoples, input.destination, input.lat, input.lng, input.currency)] },
+                trips: { create: [this.dayCreateData(input)] },
             },
             select: { id: true },
         });
@@ -383,17 +382,10 @@ export class TripRepository {
     }
 
     /** `null` means the trip already has a day with that number. */
-    async createDay(
-        groupId: number,
-        dayNumber: number,
-        fields: DayWriteInput,
-        ownerId: string,
-        group: string | null,
-        transport: string | null,
-    ): Promise<number | null> {
+    async createDay(groupId: number, input: TripMetadataInput): Promise<number | null> {
         try {
             const day = await this.prisma.trip.create({
-                data: { ...this.dayCreateData(ownerId, dayNumber, fields.title, fields.description, group, transport), tripGroupId: groupId },
+                data: { ...this.dayCreateData(input), tripGroupId: groupId },
                 select: { id: true },
             });
             return day.id;
@@ -574,38 +566,25 @@ export class TripRepository {
         });
     }
 
-    private dayCreateData(
-        ownerId: string,
-        dayNumber: number,
-        title: string | null,
-        description: string | null,
-        group: string | null,
-        transport: string | null,
-        price: number | null = null,
-        countPeoples: number = 1,
-        destination: string | null = null,
-        lat: number | null = null,
-        lng: number | null = null,
-        currency?: string | null,
-    ): Prisma.TripUncheckedCreateWithoutTripGroupInput {
-        // `tripGroupId` is intentionally omitted: `createTrip` writes this row as
-        // a nested child of the group (the relation supplies the FK), while
-        // `createDay` adds the required `tripGroupId` explicitly on a standalone
-        // `trip.create`. The column is NOT NULL in the target schema.
+    private dayCreateData(input: TripMetadataInput): Prisma.TripUncheckedCreateWithoutTripGroupInput {
+        // `tripGroupId` is intentionally omitted: createTrip writes this row as
+        // a nested child of the group, while createDay supplies the existing
+        // group id explicitly. All Trip metadata is copied from the validated
+        // request; there are no day-creation defaults or inherited select values.
         return {
-            title: title ?? '',
-            description,
-            transport,
-            typeOfPeople: group,
-            dayNumber,
-            countPeoples,
-            ownerId,
+            title: input.title,
+            description: input.description,
+            transport: input.transport,
+            typeOfPeople: input.group,
+            dayNumber: input.dayNumber,
+            countPeoples: input.countPeoples,
+            ownerId: input.ownerId,
             createdAt: new Date(),
-            price,
-            destination,
-            lat,
-            lng,
-            ...(currency !== undefined ? { currency } : {}),
+            price: input.price,
+            destination: input.destination,
+            lat: input.lat,
+            lng: input.lng,
+            ...(input.currency !== undefined ? { currency: input.currency } : {}),
         };
     }
 
