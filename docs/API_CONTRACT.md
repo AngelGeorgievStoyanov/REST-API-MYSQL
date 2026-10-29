@@ -1019,10 +1019,15 @@ Comment and reply DTOs include `parentCommentId` (`null` for a regular comment) 
 
 ### 8.9 POST `/trips/:tripGroupId/days`
 
-* Auth: `requireAuthentication` + owner/moderator.
+Adds a complete day row to an existing trip group. The body uses the same full Trip write contract as `POST /trips`; only the group-creation behavior differs.
+
+* Auth: `requireAuthentication` + owner/moderator authorization for the existing trip group.
 * Path params (strict): `{ tripGroupId }` — the `trip_groups.id` of the trip the day is added to.
-* Body (strict): `{ dayNumber, title?, description? }`.
-* `dayNumber` is REQUIRED: the user-selected ordinal of the new day row (true JSON integer, 1..500). A missing, null, boolean, string, zero, negative, fractional or out-of-range value -> `400 VALIDATION_ERROR`. The server never assigns `max(dayNumber)+1` or any other default.
+* Body: the same strict JSON object and field rules as `POST /trips`: required `dayNumber`, `title`, `price`, `transport`, `countPeoples`, `typeOfPeople`, `currency`; optional `description`, `destination`, `lat`, `lng`. All validation limits, nullable/omitted-field behavior, and Dynamic Config select validation are identical to section 8.7.
+* `dayNumber` is the user-selected ordinal of the new day row (true JSON integer, 1..500). The server never assigns `max(dayNumber)+1` or any other default.
+* `tripGroupId` comes from the URL and the new row's `ownerId` comes from the authenticated actor; neither is accepted from the body.
+* The full Trip metadata is saved on the new day row. `transport`, `typeOfPeople`, price, people count, currency, destination, and coordinates are taken from this request and are not inherited from another day.
+* Image upload is separate; use `POST /trips/:tripGroupId/days/:tripId/images` after creation when uploading day images.
 * Response `201`: `TripGroupResponse` (same complete trip-group response structure as `GET /trips/:tripGroupId`).
 * Duplicate `dayNumber` within the same trip group -> `409 CONFLICT` ("Day N already exists in this trip."); the same number in a different trip group is allowed.
 
