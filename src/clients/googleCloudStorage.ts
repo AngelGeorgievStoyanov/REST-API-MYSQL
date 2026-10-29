@@ -220,7 +220,7 @@ async function sanitizeImage(
 
     switch (format) {
         case 'jpeg':
-            return image.jpeg({ quality: 100, chromaSubsampling: '4:4:4' }).toBuffer();
+            return image.jpeg({ quality: 88, chromaSubsampling: '4:2:0' }).toBuffer();
         case 'png':
             return image.png().toBuffer();
         case 'webp':
