@@ -2,6 +2,7 @@ import { Storage } from '@google-cloud/storage';
 import { type StorageEngine } from 'multer';
 import { randomUUID } from 'crypto';
 import sharp from 'sharp';
+import { performance } from 'node:perf_hooks';
 
 import {
     IMAGE_THUMBNAIL,
@@ -64,34 +65,60 @@ export class GoogleCloudStorage implements StorageEngine {
             callback(error, info);
         };
 
+        const startedAt = performance.now();
         void (async () => {
             try {
                 const info = await this.processFile(file);
+                logImageTiming('upload.completed', startedAt, {
+                    inputBytes: file.size,
+                    storedBytes: info.size,
+                    outcome: 'success',
+                });
                 handleResult(null, info);
             } catch (error: unknown) {
+                logImageTiming('upload.failed', startedAt, {
+                    inputBytes: file.size,
+                    outcome: 'failure',
+                    errorName: error instanceof Error ? error.name : 'UnknownError',
+                });
                 handleResult(toError(error));
             }
         })();
     }
 
     private async processFile(file: UploadedFile): Promise<Partial<UploadedFile>> {
+        let stageStartedAt = performance.now();
         const chunks: Buffer[] = [];
         for await (const chunk of file.stream as unknown as AsyncIterable<Buffer>) {
             chunks.push(toBuffer(chunk));
         }
 
         const uploadedBuffer = Buffer.concat(chunks);
+        logImageTiming('stream.read', stageStartedAt, { inputBytes: uploadedBuffer.length });
+
+        stageStartedAt = performance.now();
         const format = await assertAcceptedImage(uploadedBuffer, file);
+        logImageTiming('image.validation', stageStartedAt, { inputBytes: uploadedBuffer.length, format });
+
+        stageStartedAt = performance.now();
         const sanitizedBuffer = await sanitizeImage(uploadedBuffer, format);
+        logImageTiming('image.sanitize', stageStartedAt, {
+            format,
+            inputBytes: uploadedBuffer.length,
+            outputBytes: sanitizedBuffer.length,
+        });
         const extension = format === 'jpeg' ? 'jpg' : format;
         const destination = `images/${randomUUID()}.${extension}`;
         const createdObjects: string[] = [];
 
         try {
+            stageStartedAt = performance.now();
             await this.saveCreateOnly(destination, sanitizedBuffer, `image/${format}`);
+            logImageTiming('gcs.original.upload', stageStartedAt, { bytes: sanitizedBuffer.length, format });
             createdObjects.push(destination);
 
             if (this.generateThumbnail) {
+                stageStartedAt = performance.now();
                 const thumbnailBuffer = await sharp(sanitizedBuffer)
                     .resize({
                         width: IMAGE_THUMBNAIL.width,
@@ -101,8 +128,15 @@ export class GoogleCloudStorage implements StorageEngine {
                     })
                     .webp({ quality: IMAGE_THUMBNAIL.quality })
                     .toBuffer();
+                logImageTiming('thumbnail.generate', stageStartedAt, {
+                    bytes: thumbnailBuffer.length,
+                    width: IMAGE_THUMBNAIL.width,
+                    height: IMAGE_THUMBNAIL.height,
+                });
                 const thumbnailDestination = thumbnailFileName(destination);
+                stageStartedAt = performance.now();
                 await this.saveCreateOnly(thumbnailDestination, thumbnailBuffer, 'image/webp');
+                logImageTiming('gcs.thumbnail.upload', stageStartedAt, { bytes: thumbnailBuffer.length });
                 createdObjects.push(thumbnailDestination);
             }
         } catch (error) {
@@ -202,4 +236,8 @@ function toError(error: unknown): Error {
 
 function toBuffer(chunk: Buffer): Buffer {
     return Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+}
+/** Emits stage durations without logging filenames, image contents or credentials. */
+function logImageTiming(stage: string, startedAt: number, details: Record<string, unknown> = {}): void {
+    console.info(`[images] ${JSON.stringify({ event: stage, durationMs: Math.round(performance.now() - startedAt), ...details })}`);
 }
