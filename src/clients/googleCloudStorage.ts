@@ -107,10 +107,19 @@ export class GoogleCloudStorage implements StorageEngine {
 
         stageStartedAt = performance.now();
         const sanitizedBuffer = await sanitizeImage(uploadedBuffer, format);
+        const inputBytes = uploadedBuffer.length;
+        const outputBytes = sanitizedBuffer.length;
+        const sizeChangeBytes = outputBytes - inputBytes;
+        const sizeChangePercent = inputBytes === 0
+            ? null
+            : Number(((sizeChangeBytes / inputBytes) * 100).toFixed(2));
         logImageTiming('image.sanitize', stageStartedAt, {
             format,
-            inputBytes: uploadedBuffer.length,
-            outputBytes: sanitizedBuffer.length,
+            inputBytes,
+            outputBytes,
+            sizeChangeBytes,
+            sizeChangePercent,
+            sizeResult: sizeChangeBytes < 0 ? 'smaller' : sizeChangeBytes > 0 ? 'larger' : 'unchanged',
         });
         const extension = format === 'jpeg' ? 'jpg' : format;
         const destination = `images/${randomUUID()}.${extension}`;
