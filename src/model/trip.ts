@@ -117,11 +117,6 @@ export interface TripMetadataInput {
     currency?: string | null;
 }
 
-export interface DayWriteInput {
-    title: string | null;
-    description: string | null;
-}
-
 export interface DayUpdateInput {
     title?: string;
     description?: string | null;
@@ -242,13 +237,6 @@ export interface PointUpdateRequest {
     description?: string | null;
     lat?: number | null;
     lng?: number | null;
-}
-
-export interface DayCreateRequest {
-    /** Required user-selected ordinal of the new day row; persisted unchanged. */
-    dayNumber: number;
-    title: string | null;
-    description: string | null;
 }
 
 export interface DayUpdateRequest {
