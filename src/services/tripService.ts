@@ -10,13 +10,11 @@ import { canModifyTrip, toResourcePermissions } from '../utils/authorization';
 import { getImageBaseUrl } from '../utils/image';
 import { toImageDto } from '../mappers/imageMapper';
 import {
-    toDayWriteInput,
     toTripDayDtoList,
     toTripGroupResponse,
     toTripMetadataInput,
 } from '../mappers/tripMapper';
 import {
-    parseDayCreateBody,
     parseListQuery,
     parseTripBody,
     parseTripEditBody,
@@ -196,22 +194,14 @@ export class TripService {
         const tripGroupId = parseTripGroupId(rawTripGroupId);
         await this.assertCanModify(actor, tripGroupId);
 
-        const request = parseDayCreateBody(body);
-        // `dayNumber` is required and user-selected; there is no `max + 1` fallback.
-        const dayNumber = request.dayNumber;
-
-        const canonicalDay = await this.repository.findCanonicalDay(tripGroupId);
-        // A day IS a `trips` row, so the id it is created with is the `tripId`
-        // every image of that day is attached through.
+        const request = parseTripBody(body);
+        // Reuse the same complete Trip write mapping as POST /trips. The group
+        // id comes from the URL and the owner id comes from the authenticated actor.
         const tripId = await this.repository.createDay(
             tripGroupId,
-            dayNumber,
-            toDayWriteInput(request),
-            actor.id,
-            canonicalDay?.typeOfPeople ?? null,
-            canonicalDay?.transport ?? null,
+            toTripMetadataInput(actor.id, request),
         );
-        if (tripId === null) throw ApiError.conflict(`Day ${dayNumber} already exists in this trip.`);
+        if (tripId === null) throw ApiError.conflict(`Day ${request.dayNumber} already exists in this trip.`);
 
         const row = await this.repository.findById(tripGroupId);
         if (!row) throw ApiError.tripNotFound();
