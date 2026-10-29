@@ -11,6 +11,26 @@ import { validateRequest } from '../validation/validateRequest';
 import { tripGroupIdParams, tripDayParams } from '../validation/schemas/common.schemas';
 import { dayCreateSchema, dayReorderSchema, tripEditSchema, tripListQuerySchema, tripWriteSchema } from '../validation/schemas/trip.schemas';
 
+function imageErrorLogDetails(error: unknown): Record<string, unknown> {
+    if (typeof error !== 'object' || error === null) {
+        return { errorName: 'UnknownError', errorMessage: String(error).slice(0, 300) };
+    }
+
+    const readString = (key: string): string | undefined => {
+        const value = Reflect.get(error, key);
+        return typeof value === 'string' || typeof value === 'number'
+            ? String(value).slice(0, 300)
+            : undefined;
+    };
+
+    return {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message.slice(0, 300) : readString('message'),
+        errorCode: readString('code'),
+        errorStatus: readString('status') ?? readString('statusCode'),
+    };
+}
+
 const tripController = express.Router();
 
 tripController.get('/', validateRequest({ query: tripListQuerySchema }), optionalAuthentication, asyncHandler(async (req, res) => {
@@ -128,7 +148,7 @@ tripController.post(
                 durationMs: Math.round(performance.now() - startedAt),
                 tripGroupId: req.params['tripGroupId'],
                 tripId: req.params['tripId'],
-                errorName: error instanceof Error ? error.name : 'UnknownError',
+                ...imageErrorLogDetails(error),
             })}`);
             throw error;
         }
