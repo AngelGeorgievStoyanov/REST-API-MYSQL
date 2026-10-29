@@ -72,8 +72,8 @@ export const THUMBNAIL_SUFFIX = '_thumb.webp';
  * kept exactly as uploaded; only the sidecar is resized and re-encoded.
  */
 export const IMAGE_THUMBNAIL = {
-    width: 800,
-    height: 600,
+    width: 400,
+    height: 300,
     quality: 80,
     /** `sharp` fit mode: the image is scaled down inside the box, never cropped. */
     fit: 'inside',
