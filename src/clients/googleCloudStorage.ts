@@ -84,7 +84,7 @@ export class GoogleCloudStorage implements StorageEngine {
                 logImageTiming('upload.failed', startedAt, {
                     inputBytes: file.size,
                     outcome: 'failure',
-                    errorName: error instanceof Error ? error.name : 'UnknownError',
+                    ...errorLogDetails(error),
                 });
                 handleResult(toError(error));
             }
@@ -117,13 +117,8 @@ export class GoogleCloudStorage implements StorageEngine {
         const createdObjects: string[] = [];
 
         try {
-            stageStartedAt = performance.now();
-            await this.saveCreateOnly(destination, sanitizedBuffer, `image/${format}`);
-            logImageTiming('gcs.original.upload', stageStartedAt, { bytes: sanitizedBuffer.length, format });
-            createdObjects.push(destination);
-
             if (this.generateThumbnail) {
-                stageStartedAt = performance.now();
+                const thumbnailStartedAt = performance.now();
                 const thumbnailBuffer = await sharp(sanitizedBuffer)
                     .resize({
                         width: IMAGE_THUMBNAIL.width,
@@ -133,20 +128,44 @@ export class GoogleCloudStorage implements StorageEngine {
                     })
                     .webp({ quality: IMAGE_THUMBNAIL.quality })
                     .toBuffer();
-                logImageTiming('thumbnail.generate', stageStartedAt, {
+                logImageTiming('thumbnail.generate', thumbnailStartedAt, {
                     bytes: thumbnailBuffer.length,
                     width: IMAGE_THUMBNAIL.width,
                     height: IMAGE_THUMBNAIL.height,
                 });
+
                 const thumbnailDestination = thumbnailFileName(destination);
+                const originalStartedAt = performance.now();
+                const thumbnailUploadStartedAt = performance.now();
+                const uploadResults = await Promise.allSettled([
+                    this.saveCreateOnly(destination, sanitizedBuffer, `image/${format}`),
+                    this.saveCreateOnly(thumbnailDestination, thumbnailBuffer, 'image/webp'),
+                ]);
+
+                if (uploadResults[0].status === 'fulfilled') {
+                    createdObjects.push(destination);
+                    logImageTiming('gcs.original.upload', originalStartedAt, { bytes: sanitizedBuffer.length, format });
+                }
+                if (uploadResults[1].status === 'fulfilled') {
+                    createdObjects.push(thumbnailDestination);
+                    logImageTiming('gcs.thumbnail.upload', thumbnailUploadStartedAt, { bytes: thumbnailBuffer.length });
+                }
+
+                const failedUpload = uploadResults.find((result) => result.status === 'rejected');
+                if (failedUpload?.status === 'rejected') throw failedUpload.reason;
+            } else {
                 stageStartedAt = performance.now();
-                await this.saveCreateOnly(thumbnailDestination, thumbnailBuffer, 'image/webp');
-                logImageTiming('gcs.thumbnail.upload', stageStartedAt, { bytes: thumbnailBuffer.length });
-                createdObjects.push(thumbnailDestination);
+                await this.saveCreateOnly(destination, sanitizedBuffer, `image/${format}`);
+                logImageTiming('gcs.original.upload', stageStartedAt, { bytes: sanitizedBuffer.length, format });
+                createdObjects.push(destination);
             }
         } catch (error) {
             await Promise.all(createdObjects.map((objectName) => this.removeObject(objectName).catch((cleanupError: unknown) => {
-                console.log(`[images] could not remove failed upload object "${objectName}": ${toError(cleanupError).message}`);
+                console.error(`[images] ${JSON.stringify({
+                    event: 'upload.cleanup.failed',
+                    objectName,
+                    ...errorLogDetails(cleanupError),
+                })}`);
             })));
             throw error;
         }
@@ -210,6 +229,26 @@ export class GoogleCloudStorage implements StorageEngine {
 
         if (exists) await bucketFile.delete();
     }
+}
+
+function errorLogDetails(error: unknown): Record<string, unknown> {
+    if (typeof error !== 'object' || error === null) {
+        return { errorName: 'UnknownError', errorMessage: String(error).slice(0, 300) };
+    }
+
+    const readString = (key: string): string | undefined => {
+        const value = Reflect.get(error, key);
+        return typeof value === 'string' || typeof value === 'number'
+            ? String(value).slice(0, 300)
+            : undefined;
+    };
+
+    return {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message.slice(0, 300) : readString('message'),
+        errorCode: readString('code'),
+        errorStatus: readString('status') ?? readString('statusCode'),
+    };
 }
 
 async function sanitizeImage(
