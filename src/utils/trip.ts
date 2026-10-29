@@ -14,7 +14,6 @@ import {
     TRIP_SORTS,
 } from '../constants/trip';
 import {
-    type DayCreateRequest,
     type DayUpdateRequest,
     type TripListQuery,
     type TripSort,
@@ -181,18 +180,6 @@ export function parseTripEditBody(body: unknown): TripEditRequest {
         destination: destination === null || destination === '' ? null : requireTrimmedString(destination, 'destination', MAX_TITLE_LENGTH),
         lat: lat as number | null,
         lng: lng as number | null,
-    };
-}
-
-export function parseDayCreateBody(body: unknown): DayCreateRequest {
-    const record = asRecord(body ?? {}, 'Request body');
-    rejectOwnershipAndParentFields(record, 'Day');
-
-    return {
-        // Required, user-selected ordinal — no automatic `max + 1` fallback.
-        dayNumber: requirePositiveInt(record['dayNumber'], 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
-        title: optionalString(record['title'], 'title', MAX_TITLE_LENGTH),
-        description: optionalString(record['description'], 'description', MAX_DESCRIPTION_LENGTH),
     };
 }
 
