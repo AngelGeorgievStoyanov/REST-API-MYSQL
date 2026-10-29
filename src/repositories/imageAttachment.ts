@@ -34,6 +34,13 @@ export async function attachImageWithinLimit(
                 throw error;
             }
 
+            console.warn(`[images] ${JSON.stringify({
+                event: 'image.database.attach.retry',
+                attempt,
+                maxAttempts: MAX_SERIALIZATION_ATTEMPTS,
+                errorCode: 'P2034',
+            })}`);
+
             // Brief backoff lets the competing transaction finish before retrying.
             await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
         }
