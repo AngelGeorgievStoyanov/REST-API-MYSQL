@@ -1,4 +1,5 @@
 ﻿import express from 'express';
+import { performance } from 'node:perf_hooks';
 import { backgroundImageService, tripService } from '../container';
 import { actorFrom, optionalActor, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
@@ -106,13 +107,31 @@ tripController.post(
     }),
     imageUpload,
     asyncHandler(async (req, res) => {
-        const image = await tripService.addDayImage(
-            actorFrom(req),
-            routeParam(req.params['tripGroupId']),
-            routeParam(req.params['tripId']),
-            uploadedFileName(req),
-        );
-        res.status(201).json(image);
+        const startedAt = performance.now();
+        try {
+            const image = await tripService.addDayImage(
+                actorFrom(req),
+                routeParam(req.params['tripGroupId']),
+                routeParam(req.params['tripId']),
+                uploadedFileName(req),
+            );
+            console.info(`[images] ${JSON.stringify({
+                event: 'image.database.attach.completed',
+                durationMs: Math.round(performance.now() - startedAt),
+                tripGroupId: req.params['tripGroupId'],
+                tripId: req.params['tripId'],
+            })}`);
+            res.status(201).json(image);
+        } catch (error: unknown) {
+            console.error(`[images] ${JSON.stringify({
+                event: 'image.database.attach.failed',
+                durationMs: Math.round(performance.now() - startedAt),
+                tripGroupId: req.params['tripGroupId'],
+                tripId: req.params['tripId'],
+                errorName: error instanceof Error ? error.name : 'UnknownError',
+            })}`);
+            throw error;
+        }
     }),
 );
 
