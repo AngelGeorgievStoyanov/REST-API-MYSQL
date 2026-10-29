@@ -3,6 +3,8 @@ import { type StorageEngine } from 'multer';
 import { randomUUID } from 'crypto';
 import sharp from 'sharp';
 import { performance } from 'node:perf_hooks';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import {
     IMAGE_THUMBNAIL,
@@ -14,13 +16,16 @@ import { thumbnailFileName } from '../storage/imageFileStorage';
 import { assertAcceptedImage, ImageObjectAlreadyExistsError } from '../storage/imageValidation';
 
 /**
- * Credentials come from the Google Application Default Credentials chain, never
- * from a path in the source tree: `GOOGLE_APPLICATION_CREDENTIALS` may point at
- * a service-account key file anywhere on the deployment machine, a `gcloud` login
- * or the deployment's own identity. The key file's location is therefore machine
- * configuration only, and no credential path or filename exists in the source.
+ * Prefer an explicitly configured service-account file. For local development,
+ * fall back to the ignored key file in src/utils when it exists. On deployments
+ * without that local file, the Google client uses Application Default Credentials.
  */
+const localCredentialsPath = resolve(process.cwd(), 'src/utils/hack-trip-414441f1b5d4.json');
+const credentialsPath = process.env['GOOGLE_APPLICATION_CREDENTIALS']?.trim()
+    || (existsSync(localCredentialsPath) ? localCredentialsPath : undefined);
+
 export const gcsClient = new Storage({
+    ...(credentialsPath ? { keyFilename: credentialsPath } : {}),
     retryOptions: {
         autoRetry: true,
         maxRetries: STORAGE_MAX_RETRIES,
