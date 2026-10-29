@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import { performance } from 'node:perf_hooks';
 import { backgroundImageService, tripService } from '../container';
 import { actorFrom, optionalActor, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
@@ -125,8 +125,21 @@ tripController.post(
         );
         next();
     }),
+    (req, res, next) => {
+        res.locals.imageUploadRequestStartedAt = performance.now();
+        res.locals.imageUploadRequestStartedAtIso = new Date().toISOString();
+        console.info(`[images] ${JSON.stringify({
+            event: 'image.request.started',
+            timestamp: res.locals.imageUploadRequestStartedAtIso,
+            tripGroupId: req.params['tripGroupId'],
+            tripId: req.params['tripId'],
+        })}`);
+        next();
+    },
     imageUpload,
     asyncHandler(async (req, res) => {
+        const requestStartedAt = res.locals.imageUploadRequestStartedAt as number | undefined;
+        const requestStartedAtIso = res.locals.imageUploadRequestStartedAtIso as string | undefined;
         const startedAt = performance.now();
         try {
             const image = await tripService.addDayImage(
@@ -141,6 +154,17 @@ tripController.post(
                 tripGroupId: req.params['tripGroupId'],
                 tripId: req.params['tripId'],
             })}`);
+            console.info(`[images] ${JSON.stringify({
+                event: 'image.request.completed',
+                timestamp: new Date().toISOString(),
+                startedAt: requestStartedAtIso,
+                durationMs: typeof requestStartedAt === 'number'
+                    ? Math.round(performance.now() - requestStartedAt)
+                    : undefined,
+                tripGroupId: req.params['tripGroupId'],
+                tripId: req.params['tripId'],
+                outcome: 'success',
+            })}`);
             res.status(201).json(image);
         } catch (error: unknown) {
             console.error(`[images] ${JSON.stringify({
@@ -149,6 +173,17 @@ tripController.post(
                 tripGroupId: req.params['tripGroupId'],
                 tripId: req.params['tripId'],
                 ...imageErrorLogDetails(error),
+            })}`);
+            console.error(`[images] ${JSON.stringify({
+                event: 'image.request.completed',
+                timestamp: new Date().toISOString(),
+                startedAt: requestStartedAtIso,
+                durationMs: typeof requestStartedAt === 'number'
+                    ? Math.round(performance.now() - requestStartedAt)
+                    : undefined,
+                tripGroupId: req.params['tripGroupId'],
+                tripId: req.params['tripId'],
+                outcome: 'failure',
             })}`);
             throw error;
         }
