@@ -2,8 +2,6 @@ import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { type SocialStates } from '../model/social';
 import {
     type CurrencyDto,
-    type DayCreateRequest,
-    type DayWriteInput,
     type ResourcePermissions,
     type TripDay,
     type TripGroupDay,
@@ -56,10 +54,6 @@ export function toTripMetadataInput(ownerId: string, request: TripWriteRequest):
         lng: request.lng,
         currency: request.currency,
     };
-}
-
-export function toDayWriteInput(request: DayCreateRequest): DayWriteInput {
-    return { title: request.title, description: request.description };
 }
 
 export function toTripDayDto(
