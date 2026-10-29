@@ -57,16 +57,6 @@ export const tripListQuerySchema = z.object({
     sort: z.enum(TRIP_SORTS).optional(),
 }).strict();
 
-export const dayCreateSchema = z.object({
-    /**
-     * `dayNumber` is required and user-selected: the ordinal of the new day row
-     * within its trip group. The server never defaults it or assigns `max + 1`.
-     */
-    dayNumber: requiredInt(LIMITS.trip.dayNumber),
-    title: optionalText(LIMITS.trip.title),
-    description: optionalText(LIMITS.trip.description),
-}).strict();
-
 export const dayUpdateSchema = z.object({
     title: patchText(LIMITS.trip.title),
     description: patchText(LIMITS.trip.description),
