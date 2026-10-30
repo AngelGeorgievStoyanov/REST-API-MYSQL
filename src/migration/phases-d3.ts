@@ -110,6 +110,19 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
   inputs.push(pointsNull === null
     ? { stmt: 'FK points.tripId -> trips.id', pending: 'points.tripId column missing (ddl phase not applied yet)' }
     : { stmt: 'FK points.tripId -> trips.id (NULL blocks)', n: pointsNull });
+  for (const [column, min, max] of [
+    ['lat', -90, 90],
+    ['lng', -180, 180],
+  ] as Array<[string, number, number]>) {
+    const nulls = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'points')} WHERE ${qi(column)} IS NULL`);
+    inputs.push(nulls === null
+      ? { stmt: `points.${column} NOT NULL ready`, pending: `points.${column} column missing (ddl phase not applied yet)` }
+      : { stmt: `points.${column} NOT NULL ready`, n: nulls });
+    const outOfRange = await safeCount(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'points')} WHERE ${qi(column)} IS NOT NULL AND (${qi(column)} < ${min} OR ${qi(column)} > ${max})`,
+    );
+    if (outOfRange !== null) inputs.push({ stmt: `points.${column} within [${min}, ${max}]`, n: outOfRange });
+  }
   const pointsOrphans = await orphanInt('points', 'tripId', 'trips');
   if (pointsOrphans !== null) inputs.push({ stmt: 'FK points.tripId -> trips.id (orphan refs)', n: pointsOrphans });
 
