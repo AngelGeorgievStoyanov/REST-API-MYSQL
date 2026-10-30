@@ -108,8 +108,8 @@ export class PointRepository {
                 data: {
                     name: fields.name,
                     description: fields.description,
-                    lat: fields.lat === null ? null : String(fields.lat),
-                    lng: fields.lng === null ? null : String(fields.lng),
+                    lat: fields.lat,
+                    lng: fields.lng,
                     pointNumber,
                     ownerId,
                     tripId,
@@ -128,8 +128,8 @@ export class PointRepository {
             data: {
                 ...(fields.name !== undefined ? { name: fields.name } : {}),
                 ...(fields.description !== undefined ? { description: fields.description } : {}),
-                ...(fields.lat !== undefined ? { lat: fields.lat === null ? null : String(fields.lat) } : {}),
-                ...(fields.lng !== undefined ? { lng: fields.lng === null ? null : String(fields.lng) } : {}),
+                ...(fields.lat !== undefined ? { lat: fields.lat } : {}),
+                ...(fields.lng !== undefined ? { lng: fields.lng } : {}),
             },
         });
     }
