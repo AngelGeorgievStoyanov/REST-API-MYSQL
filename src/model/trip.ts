@@ -233,10 +233,10 @@ export interface PointCreateRequest {
 }
 
 export interface PointUpdateRequest {
-    name?: string;
-    description?: string | null;
-    lat?: number;
-    lng?: number;
+    name: string;
+    description: string | null;
+    lat: number;
+    lng: number;
 }
 
 export interface DayUpdateRequest {
