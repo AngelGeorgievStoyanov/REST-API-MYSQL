@@ -5,7 +5,6 @@ import { ApiError } from './apiError';
 import {
     CLIENT_OWNERSHIP_FIELDS,
     asRecord,
-    optionalNumberInRange,
     optionalString,
     parsePositiveId,
     rejectClientControlledFields,
@@ -46,10 +45,10 @@ export function parsePointUpdateBody(body: unknown): PointUpdateRequest {
         request.description = optionalString(record['description'], 'description', MAX_POINT_DESCRIPTION_LENGTH);
     }
     if (record['lat'] !== undefined) {
-        request.lat = optionalNumberInRange(record['lat'], 'lat', LATITUDE.min, LATITUDE.max);
+        request.lat = requireNumberInRange(record['lat'], 'lat', LATITUDE.min, LATITUDE.max);
     }
     if (record['lng'] !== undefined) {
-        request.lng = optionalNumberInRange(record['lng'], 'lng', LONGITUDE.min, LONGITUDE.max);
+        request.lng = requireNumberInRange(record['lng'], 'lng', LONGITUDE.min, LONGITUDE.max);
     }
 
     if (EDITABLE_POINT_FIELDS.every((field) => record[field] === undefined)) {
