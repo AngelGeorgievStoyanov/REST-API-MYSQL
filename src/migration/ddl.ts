@@ -80,6 +80,23 @@ export interface PointNumberRow {
   pointNumber: unknown;
 }
 
+/** Geographic coordinate limits used by points.lat/lng. */
+const LATITUDE_MIN = -90;
+const LATITUDE_MAX = 90;
+const LONGITUDE_MIN = -180;
+const LONGITUDE_MAX = 180;
+const COORDINATE_PATTERN = /^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$/;
+
+function coordinateConversionError(value: unknown, min: number, max: number): string | null {
+  if (value === null || value === undefined) return 'NULL value';
+  if (typeof value !== 'string' && typeof value !== 'number') return 'not a numeric value';
+  const raw = String(value);
+  if (!COORDINATE_PATTERN.test(raw)) return 'not a valid decimal number';
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return `outside valid range [${min}, ${max}]`;
+  return null;
+}
+
 export interface PointNumberRejection {
   id: string;
   value: string;
@@ -265,6 +282,45 @@ export async function runDdlPhase(prisma: PrismaClient, db: string, dryRun: bool
       );
     }
     report.alteredColumns.push('points.pointNumber');
+  }
+  // Legacy point coordinates are VARCHARs. Validate every value before
+  // converting to DOUBLE; NULL is preserved here and blocks final activation.
+  // Invalid strings/ranges abort instead of being silently coerced by MySQL.
+  for (const [column, min, max] of [
+    ['lat', LATITUDE_MIN, LATITUDE_MAX],
+    ['lng', LONGITUDE_MIN, LONGITUDE_MAX],
+  ] as Array<[string, number, number]>) {
+    const rawType = await columnType(prisma, db, 'points', column);
+    const normalizedType = rawType.trim().toLowerCase();
+    if (normalizedType === '') {
+      report.skipped.push(`column points.${column} does not exist`);
+      continue;
+    }
+    if (normalizedType.startsWith('double')) {
+      report.skipped.push(`points.${column} is already DOUBLE`);
+      continue;
+    }
+    if (!normalizedType.startsWith('varchar') && normalizedType !== 'char' && !normalizedType.startsWith('char(')) {
+      throw new Error(`points.${column} has unexpected column type "${rawType}"; refusing an unverified conversion.`);
+    }
+    const idColumn = (await columnExists(prisma, db, 'points', '_id')) ? '_id' : 'id';
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT ${qi(idColumn)} AS id, ${qi(column)} AS coordinate FROM ${qtable(db, 'points')}`,
+    )) as Array<{ id: unknown; coordinate: unknown }>;
+    const invalid = rows.flatMap((row) => {
+      const reason = coordinateConversionError(row.coordinate, min, max);
+      return reason === null ? [] : [{ id: String(row.id), value: row.coordinate === null ? 'NULL' : String(row.coordinate), reason }];
+    });
+    if (invalid.length > 0) {
+      const shown = invalid.slice(0, 10).map((row) => `point ${row.id} value ${JSON.stringify(row.value)} (${row.reason})`).join('; ');
+      throw new Error(`points.${column} cannot be converted to DOUBLE: ${invalid.length} invalid value(s) [${shown}]${invalid.length > 10 ? ' ...' : ''}`);
+    }
+    if (!dryRun) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, 'points')} MODIFY COLUMN ${qi(column)} DOUBLE NULL DEFAULT NULL`,
+      );
+    }
+    report.alteredColumns.push(`points.${column}`);
   }
   if (!dryRun) await ensureControlTables(prisma, db);
   else report.skipped.push('control tables (dry-run: not created)');
