@@ -46,8 +46,8 @@ export interface PointRecord {
     id: number;
     name: string;
     description: string | null;
-    lat: number | null;
-    lng: number | null;
+    lat: number;
+    lng: number;
     pointNumber: number;
     /** Required: the day row (`trips.id`) this point belongs to. */
     tripId: number;
@@ -97,8 +97,8 @@ export interface TripGroupDetailsRecord {
 export interface PointWriteInput {
     name: string;
     description: string | null;
-    lat: number | null;
-    lng: number | null;
+    lat: number;
+    lng: number;
 }
 
 export interface TripMetadataInput {
@@ -235,8 +235,8 @@ export interface PointCreateRequest {
 export interface PointUpdateRequest {
     name?: string;
     description?: string | null;
-    lat?: number | null;
-    lng?: number | null;
+    lat?: number;
+    lng?: number;
 }
 
 export interface DayUpdateRequest {
