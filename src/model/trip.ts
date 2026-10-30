@@ -126,8 +126,8 @@ export interface TripPoint {
     id: number;
     name: string;
     description: string | null;
-    lat: number | null;
-    lng: number | null;
+    lat: number;
+    lng: number;
     pointNumber: number;
     /** Required: the parent day row (`points.tripId` = `trips.id`). */
     tripId: number;
