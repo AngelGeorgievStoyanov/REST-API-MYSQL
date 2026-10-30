@@ -63,7 +63,7 @@ export function pointNumberNormalization(rawType: string): PointNumberNormalizat
 
 /** Returns the rejection reason for one legacy `pointNumber` value, or null when convertible. */
 export function pointNumberConversionError(value: unknown): string | null {
-  if (value === null || value === undefined) return 'NULL value';
+  if (value === null || value === undefined) return null;
   if (typeof value !== 'string') return `non-string value of type ${typeof value}`;
   if (!POINT_NUMBER_INTEGER_PATTERN.test(value)) {
     return 'not a canonical integer (decimal, blank or malformed)';
