@@ -236,7 +236,18 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     }
   }
 
-  // 4c. Trip column constraints to match prisma/schema.prisma. The legacy trips
+  // 4c. Point coordinates are converted to required DOUBLE values only after
+  //     the readiness report confirms there are no NULL or out-of-range rows.
+  for (const column of ['lat', 'lng']) {
+    if (await columnExists(prisma, db, 'points', column)) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, 'points')} MODIFY ${qi(column)} DOUBLE NOT NULL`,
+      );
+      c.migrated++;
+    }
+  }
+
+  // 4d. Trip column constraints to match prisma/schema.prisma. The legacy trips
   //     table carries wrong NULL/default constraints on these columns; the
   //     activate phase is the single place they are corrected to the final
   //     shape. Idempotent: MODIFY is a no-op when the column already matches.
