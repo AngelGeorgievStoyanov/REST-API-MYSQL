@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { VALIDATION_LIMITS } from '../../constants/validation/limits';
-import { optionalText, patchText, positiveId, requiredNumber, trimmedString } from './common.schemas';
+import { optionalText, positiveId, requiredNumber, trimmedString } from './common.schemas';
 
 const LIMITS = VALIDATION_LIMITS;
 
@@ -19,15 +19,9 @@ export const pointCreateSchema = z.object({
 }).strict();
 
 export const pointUpdateSchema = z.object({
-    name: trimmedString(LIMITS.point.name).optional(),
-    description: patchText(LIMITS.point.description),
-    lat: requiredNumber(LIMITS.point.lat).optional(),
-    lng: requiredNumber(LIMITS.point.lng).optional(),
-}).strict()
-    .refine(
-        (body) => body.name !== undefined
-            || body.description !== undefined
-            || body.lat !== undefined
-            || body.lng !== undefined,
-        { message: 'Provide at least one of "name", "description", "lat" or "lng".' },
-    );
+    name: trimmedString(LIMITS.point.name),
+    description: z.union([trimmedString(LIMITS.point.description), z.null()])
+        .transform((value) => value === '' ? null : value),
+    lat: requiredNumber(LIMITS.point.lat),
+    lng: requiredNumber(LIMITS.point.lng),
+}).strict();
