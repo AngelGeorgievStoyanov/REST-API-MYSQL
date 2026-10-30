@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { VALIDATION_LIMITS } from '../../constants/validation/limits';
-import { optionalText, patchNumber, patchText, positiveId, requiredNumber, trimmedString } from './common.schemas';
+import { optionalText, patchText, positiveId, requiredNumber, trimmedString } from './common.schemas';
 
 const LIMITS = VALIDATION_LIMITS;
 
@@ -21,8 +21,8 @@ export const pointCreateSchema = z.object({
 export const pointUpdateSchema = z.object({
     name: trimmedString(LIMITS.point.name).optional(),
     description: patchText(LIMITS.point.description),
-    lat: patchNumber(LIMITS.point.lat),
-    lng: patchNumber(LIMITS.point.lng),
+    lat: requiredNumber(LIMITS.point.lat).optional(),
+    lng: requiredNumber(LIMITS.point.lng).optional(),
 }).strict()
     .refine(
         (body) => body.name !== undefined
