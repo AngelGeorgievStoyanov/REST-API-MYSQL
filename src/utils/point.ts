@@ -14,7 +14,6 @@ import {
 } from './validation';
 
 const POINT_SEQUENCE_FIELDS = ['pointNumber', 'numberPoint'];
-const EDITABLE_POINT_FIELDS = ['name', 'description', 'lat', 'lng'];
 /** Geographic bounds of `points.lat` / `points.lng`, canonical in the validation limits. */
 const LATITUDE = VALIDATION_LIMITS.point.lat;
 const LONGITUDE = VALIDATION_LIMITS.point.lng;
@@ -39,22 +38,16 @@ export function parsePointUpdateBody(body: unknown): PointUpdateRequest {
     rejectOwnershipAndParentFields(record, 'Point');
     rejectClientControlledFields(record, POINT_SEQUENCE_FIELDS, 'Point');
 
-    const request: PointUpdateRequest = {};
-    if (record['name'] !== undefined) request.name = requireTrimmedString(record['name'], 'name', MAX_POINT_NAME_LENGTH);
-    if (record['description'] !== undefined) {
-        request.description = optionalString(record['description'], 'description', MAX_POINT_DESCRIPTION_LENGTH);
-    }
-    if (record['lat'] !== undefined) {
-        request.lat = requireNumberInRange(record['lat'], 'lat', LATITUDE.min, LATITUDE.max);
-    }
-    if (record['lng'] !== undefined) {
-        request.lng = requireNumberInRange(record['lng'], 'lng', LONGITUDE.min, LONGITUDE.max);
+    if (!Object.prototype.hasOwnProperty.call(record, 'description')) {
+        throw ApiError.validation('Field "description" is required.');
     }
 
-    if (EDITABLE_POINT_FIELDS.every((field) => record[field] === undefined)) {
-        throw ApiError.validation(`Provide at least one of: ${EDITABLE_POINT_FIELDS.join(', ')}.`);
-    }
-    return request;
+    return {
+        name: requireTrimmedString(record['name'], 'name', MAX_POINT_NAME_LENGTH),
+        description: optionalString(record['description'], 'description', MAX_POINT_DESCRIPTION_LENGTH),
+        lat: requireNumberInRange(record['lat'], 'lat', LATITUDE.min, LATITUDE.max),
+        lng: requireNumberInRange(record['lng'], 'lng', LONGITUDE.min, LONGITUDE.max),
+    };
 }
 
 /** `pointNumber` is a signed INT column; the comparison is plain numeric. */
