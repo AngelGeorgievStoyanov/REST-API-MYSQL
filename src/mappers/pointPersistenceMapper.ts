@@ -1,12 +1,10 @@
 import { type PointRecord } from '../model/trip';
-import { toNumberOrNull } from '../utils/utils';
-
 interface PointPersistenceInput {
     id: number;
     name: string;
     description: string | null;
-    lat: string | null;
-    lng: string | null;
+    lat: number;
+    lng: number;
     pointNumber: number;
     tripId: number;
     createdAt: Date | null;
@@ -20,8 +18,8 @@ export function toPointRecord(row: PointPersistenceInput): PointRecord {
         id: row.id,
         name: row.name,
         description: row.description,
-        lat: toNumberOrNull(row.lat),
-        lng: toNumberOrNull(row.lng),
+        lat: row.lat,
+        lng: row.lng,
         pointNumber: row.pointNumber,
         tripId: row.tripId,
         createdAt: row.createdAt,
