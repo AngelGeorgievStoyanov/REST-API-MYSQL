@@ -63,7 +63,7 @@ export function pointNumberNormalization(rawType: string): PointNumberNormalizat
 
 /** Returns the rejection reason for one legacy `pointNumber` value, or null when convertible. */
 export function pointNumberConversionError(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
+  if (value === null || value === undefined) return 'NULL value';
   if (typeof value !== 'string') return `non-string value of type ${typeof value}`;
   if (!POINT_NUMBER_INTEGER_PATTERN.test(value)) {
     return 'not a canonical integer (decimal, blank or malformed)';
@@ -85,10 +85,10 @@ const LATITUDE_MIN = -90;
 const LATITUDE_MAX = 90;
 const LONGITUDE_MIN = -180;
 const LONGITUDE_MAX = 180;
-const COORDINATE_PATTERN = /^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)$/;
+const COORDINATE_PATTERN = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 function coordinateConversionError(value: unknown, min: number, max: number): string | null {
-  if (value === null || value === undefined) return 'NULL value';
+  if (value === null || value === undefined) return null;
   if (typeof value !== 'string' && typeof value !== 'number') return 'not a numeric value';
   const raw = String(value);
   if (!COORDINATE_PATTERN.test(raw)) return 'not a valid decimal number';
