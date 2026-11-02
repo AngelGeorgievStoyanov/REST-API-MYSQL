@@ -7,6 +7,7 @@ import {
     type TripListDayRecord,
     type TripMetadataInput,
     type TripEditRequest,
+    type TripDayReorderRequest,
 } from '../model/trip';
 import { sortPointsByNumber } from '../utils/point';
 import { toPointRecord } from '../mappers/pointPersistenceMapper';
@@ -441,26 +442,54 @@ export class TripRepository {
     }
 
     /**
-     * Renumbers every day of the group to its position in `tripIds`. The UNIQUE
-     * (tripGroupId, dayNumber) constraint makes a direct write fail mid-swap, so
-     * every day is parked on a temporary negative number first.
+     * Applies the requested day numbers without compacting gaps. The complete
+     * child set is checked inside the transaction before any row is changed.
      */
-    async reorderDays(groupId: number, tripIds: number[]): Promise<void> {
-        await this.prisma.$transaction(async (tx) => {
-            for (const [index, tripId] of tripIds.entries()) {
-                // eslint-disable-next-line no-await-in-loop -- sequential negative markers prevent collisions
+    async reorderDays(groupId: number, days: TripDayReorderRequest['days']): Promise<boolean> {
+        return this.prisma.$transaction(async (tx) => {
+            const existingDays = await tx.trip.findMany({
+                where: { tripGroupId: groupId },
+                select: { id: true, dayNumber: true },
+            });
+
+            const existingIds = new Set(existingDays.map((day) => day.id));
+            if (
+                existingDays.length !== days.length
+                || days.some((day) => !existingIds.has(day.tripId))
+            ) {
+                return false;
+            }
+
+            // Temporary values must be unique and must not collide with any
+            // existing value, including invalid legacy values outside 1..500.
+            const usedDayNumbers = new Set(existingDays.map((day) => day.dayNumber));
+            let temporaryDayNumber = -1;
+            const temporaryNumbers = new Map<number, number>();
+
+            for (const day of days) {
+                while (usedDayNumbers.has(temporaryDayNumber)) temporaryDayNumber -= 1;
+                temporaryNumbers.set(day.tripId, temporaryDayNumber);
+                usedDayNumbers.add(temporaryDayNumber);
+                temporaryDayNumber -= 1;
+            }
+
+            for (const day of days) {
+                // eslint-disable-next-line no-await-in-loop -- each temporary value must be unique before final assignments
                 await tx.trip.update({
-                    where: { id: tripId, tripGroupId: groupId },
-                    data: { dayNumber: -(index + 1) },
+                    where: { id: day.tripId, tripGroupId: groupId },
+                    data: { dayNumber: temporaryNumbers.get(day.tripId) as number },
                 });
             }
-            for (const [index, tripId] of tripIds.entries()) {
-                // eslint-disable-next-line no-await-in-loop -- sequential positive assignment required
+
+            for (const day of days) {
+                // eslint-disable-next-line no-await-in-loop -- sequential writes avoid unique day-number collisions during swaps
                 await tx.trip.update({
-                    where: { id: tripId, tripGroupId: groupId },
-                    data: { dayNumber: index + 1 },
+                    where: { id: day.tripId, tripGroupId: groupId },
+                    data: { dayNumber: day.dayNumber },
                 });
             }
+
+            return true;
         });
     }
 
