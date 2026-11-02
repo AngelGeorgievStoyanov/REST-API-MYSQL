@@ -1,7 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import {
-    type TripDayRecord,
     type TripGroupDetailsRecord,
     type TripGroupListRecord,
     type TripListDayRecord,
@@ -105,13 +104,6 @@ const detailsWithPriceInclude = {
 } satisfies Prisma.TripGroupInclude;
 
 type TripGroupDetailsWithPriceRow = Prisma.TripGroupGetPayload<{ include: typeof detailsWithPriceInclude }>;
-
-const dayInclude = {
-    images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
-    points: { include: pointInclude },
-} satisfies Prisma.TripInclude;
-
-type DayRow = Prisma.TripGetPayload<{ include: typeof dayInclude }>;
 
 function toTripListRecord(row: TripGroupListRow): TripGroupListRecord {
     return {
@@ -491,15 +483,6 @@ export class TripRepository {
 
             return true;
         });
-    }
-
-    async listDayRows(groupId: number): Promise<TripDayRecord[]> {
-        const days = await this.prisma.trip.findMany({
-            where: { tripGroupId: groupId },
-            orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
-            include: dayInclude,
-        });
-        return days.map((day) => toTripDayRecord(day));
     }
 
     /**
