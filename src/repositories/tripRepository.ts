@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import {
+    type TripDayRecord,
     type TripGroupDetailsRecord,
     type TripGroupListRecord,
     type TripListDayRecord,
