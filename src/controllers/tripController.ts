@@ -107,8 +107,12 @@ tripController.delete(
     validateRequest({ params: tripDayParams }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        await tripService.deleteDay(actorFrom(req), routeParam(req.params['tripGroupId']), routeParam(req.params['tripId']));
-        res.status(204).send();
+        const trip = await tripService.deleteDay(
+            actorFrom(req),
+            routeParam(req.params['tripGroupId']),
+            routeParam(req.params['tripId']),
+        );
+        res.status(200).json(trip);
     }),
 );
 
