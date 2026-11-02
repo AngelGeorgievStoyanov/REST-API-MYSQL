@@ -243,7 +243,7 @@ export class TripService {
         return toTripDayDtoList(days, states, getImageBaseUrl(), toResourcePermissions(actor, ownerId));
     }
 
-    async deleteDay(actor: TripActor, rawTripGroupId: string, rawTripId: string): Promise<void> {
+    async deleteDay(actor: TripActor, rawTripGroupId: string, rawTripId: string): Promise<TripGroupResponse> {
         const tripGroupId = parseTripGroupId(rawTripGroupId);
         const tripId = parsePositiveId(rawTripId, 'Trip id');
         await this.assertDayAccess(actor, tripGroupId, tripId);
@@ -262,6 +262,11 @@ export class TripService {
         await this.imageStorage.removeMany(filePaths);
 
         await this.repository.deleteDay(tripId);
+
+        const row = await this.repository.findById(tripGroupId);
+        if (!row) throw ApiError.tripNotFound();
+
+        return this.toDetails(row, actor);
     }
 
     /**
