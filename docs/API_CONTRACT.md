@@ -1198,24 +1198,7 @@ Non-negotiable point field rules:
 * `permissions` is the server-computed edit/delete right of the requesting actor; anonymous callers receive `canEdit: false` and `canDelete: false`.
 * `images` and `social` remain API-level nested fields.
 
-### 10.8 `TripDay` (day response DTO)
-
-```text
-{
-  "id": 0,
-  "dayNumber": 1,
-  "title": null | "<string>",
-  "images": [ SocialImageDto ],
-  "points": [ TripPoint ],
-  "permissions": {
-    "canEdit": true,
-    "canDelete": true
-  },
-  "social": SocialState
-}
-```
-
-### 10.9 `SocialState`
+### 10.8 `SocialState`
 
 ```json
 {
@@ -1230,7 +1213,7 @@ Non-negotiable point field rules:
 
 All six fields are returned wherever a `SocialState` is exposed. `likedByMe`, `favoritedByMe`, and `reportedByMe` reflect the authenticated viewer and are `false` for anonymous callers. Comment and Reply DTOs expose the same viewer-aware state, with the Comment/Reply resource ID as the target ID.
 
-### 10.10 `ImageDto` / `SocialImageDto`
+### 10.9 `ImageDto` / `SocialImageDto`
 
 ```text
 // ImageDto
