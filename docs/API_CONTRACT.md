@@ -1033,10 +1033,22 @@ Adds a complete day row to an existing trip group. The body uses the same full T
 
 ### 8.10 PUT `/trips/:tripGroupId/days/reorder`
 
-* Auth: `requireAuthentication` + owner/moderator.
-* Path params (strict): `{ tripGroupId }`. Body (strict): `{ tripIds: number[] }` — every entry must be a true JSON number (integer id).
-* Response `200`: `TripDay[]` (re-ordered).
-* Each `tripIds` entry is the primary key `trips.id` of one day row of the trip group — never a `dayNumber` and never a `trip_groups.id`. The list must contain exactly all day ids of the trip group; otherwise `400 VALIDATION_ERROR`. Days are renumbered to their position in the submitted order.
+Reassigns the day numbers of every day in one trip group. This operation preserves gaps and does not compact or otherwise generate day numbers.
+
+* Auth: `requireAuthentication` + the existing trip-group modify authorization. The same owner/admin/manager authorization rules used by other trip-group write operations apply; this endpoint does not introduce a narrower owner-only rule.
+* Path params (strict): `{ tripGroupId }`. The value is the parent `trip_groups.id`.
+* Query: none.
+* Body: strict JSON object with exactly one property, `days`. The array must contain 1..500 entries:
+  * `tripId`: positive integer primary key `trips.id` of a day row; it is not a day number or a trip-group id.
+  * `dayNumber`: integer from 1 through 500, representing the exact day number to assign to that row.
+  * Duplicate `tripId` values are rejected.
+  * Duplicate `dayNumber` values are rejected.
+  * Unknown properties and missing/invalid values are rejected with `400 VALIDATION_ERROR`.
+* The submitted `tripId` values must match exactly all day rows currently belonging to the URL's `tripGroupId`. Missing days, additional ids, ids from another group, and nonexistent ids are rejected with `400 VALIDATION_ERROR`.
+* The complete-set check and all number updates are performed in one database transaction. Temporary unique values are used to avoid collisions with the unique `(tripGroupId, dayNumber)` constraint while numbers are exchanged.
+* The backend assigns the exact submitted `dayNumber` to each matching `tripId`. Existing gaps remain unchanged unless the request explicitly changes them. The server does not sort the submitted array to derive numbers and does not renumber days to `1..N`.
+* Response `200`: the complete updated `TripGroupResponse` for the URL's `tripGroupId`, using the same response mapper and shape as `GET /trips/:tripGroupId` and the other trip/day write endpoints. It includes all days, points, images, permissions, and social state for the current actor. The response root `id` is the trip-group id.
+* Errors: `400 VALIDATION_ERROR` for invalid body or a list that is not the exact set of group days; `401 UNAUTHORIZED` for missing/invalid user authentication; `403 FORBIDDEN` when the actor cannot modify the group; `404 TRIP_NOT_FOUND` when the group does not exist; `500` for an unexpected persistence failure.
 
 ### 8.11 PUT `/trips/:tripGroupId/days/:tripId`
 
@@ -1718,7 +1730,7 @@ All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use
 | `tripListQuerySchema` | `page?`, `limit?`, `search?`, `group?`, `transport?`, `sort?`                                  | `page` 1..10000; `limit` 1..100; `search` 1..200; `group`/`transport` 1..45; `sort` enum `newest`/`oldest` |
 | Day creation (`POST /trips/:tripGroupId/days`) | `tripWriteSchema` | Uses the same strict full-create body and field rules as `POST /trips`; no separate `dayCreateSchema` exists. |
 | `dayUpdateSchema`     | `title?`, `description?` (at least one)                                                        | patch semantics; `dayNumber` is rejected (use the reorder endpoint)                                        |
-| `dayReorderSchema`    | `tripIds`                                                                                      | array 1..500 of `trips.id` day-row ids (true JSON numbers), no duplicates                                                      |
+| `dayReorderSchema`    | `days`                                                                                         | strict non-empty array (1..500); each entry has positive integer `tripId` and integer `dayNumber` 1..500; no duplicate trip ids or day numbers |
 | `pointReorderSchema`  | `pointIds`                                                                                     | array 0..500 (true JSON numbers), no duplicates                                                                                |
 
 The new trip-data endpoints do not accept query parameters unless explicitly documented in their endpoint sections. In particular:
@@ -1798,8 +1810,7 @@ The API returns DTOs, not database models. The following are the API response sh
 | `ImageDto`                            | image create endpoints, profile image GET/POST              |
 | `SocialImageDto`                      | trip/point image lists                                      |
 | `SocialState`                         | trip detail, day, point, image, like/favorite responses     |
-| `TripGroupResponse`                    | POST /trips, POST /trips/:tripGroupId/days, PUT /trips/:tripGroupId/days/:tripId, DELETE /trips/:tripGroupId/days/:tripId, GET /trips, GET /trips/top, GET /trips/:tripGroupId, GET /me/trips, GET /me/favorites |
-| `TripDay`                             | PUT /trips/:tripGroupId/days/reorder                         |
+| `TripGroupResponse`                    | POST /trips, POST /trips/:tripGroupId/days, PUT /trips/:tripGroupId/days/reorder, PUT /trips/:tripGroupId/days/:tripId, DELETE /trips/:tripGroupId/days/:tripId, GET /trips, GET /trips/top, GET /trips/:tripGroupId, GET /me/trips, GET /me/favorites |
 | `TripPoint`                           | point GET/POST/PUT, point reorder                           |
 | `CommentDto`                          | comment list/create/update                                  |
 | `CommentListResponse`                 | comment list                                                |
@@ -1883,7 +1894,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | POST   | `/trips`                              | Auth             | full body: `dayNumber,title,price,transport,countPeoples,typeOfPeople,currency`; optional `description,destination,lat,lng` | 201 `TripGroupResponse` | 400, 401, 403, 500 |
 | DELETE | `/trips/:tripGroupId`                 | Owner/Mod        | param `tripGroupId`                                                     | 204                                  | 400, 401, 403, 404      |
 | POST   | `/trips/:tripGroupId/days`            | Owner/Mod        | param `tripGroupId`; body `{ dayNumber, title?, description? }`         | 201 `TripGroupResponse`              | 400, 401, 403, 404, 409 |
-| PUT    | `/trips/:tripGroupId/days/reorder`    | Owner/Mod        | param `tripGroupId`; body `{ tripIds }`                                 | 200 `TripDay[]`                      | 400, 401, 403, 404      |
+| PUT    | `/trips/:tripGroupId/days/reorder`    | Owner/Mod        | param `tripGroupId`; body `{ days: [{ tripId, dayNumber }] }`; exact complete group day set | 200 `TripGroupResponse` | 400, 401, 403, 404, 500 |
 | PUT    | `/trips/:tripGroupId/days/:tripId`    | Owner/Mod        | params `tripGroupId,tripId`; full 11-field body in §8.11                 | 200 `TripGroupResponse`              | 400, 401, 403, 404, 409, 500 |
 | DELETE | `/trips/:tripGroupId/days/:tripId`    | Owner/Mod        | params `tripGroupId,tripId`                                             | 200 `TripGroupResponse`              | 400, 401, 403, 404, 409 |
 | POST   | `/trips/:tripGroupId/days/:tripId/images` | Owner/Mod    | params `tripGroupId,tripId`; multipart `file`                           | 201 `ImageDto`                       | 400, 401, 403, 404, 409 |
