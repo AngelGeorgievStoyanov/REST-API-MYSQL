@@ -82,8 +82,8 @@ tripController.put(
     validateRequest({ params: tripGroupIdParams, body: dayReorderSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const days = await tripService.reorderDays(actorFrom(req), routeParam(req.params['tripGroupId']), req.body);
-        res.status(200).json(days);
+        const tripGroup = await tripService.reorderDays(actorFrom(req), routeParam(req.params['tripGroupId']), req.body);
+        res.status(200).json(tripGroup);
     }),
 );
 
