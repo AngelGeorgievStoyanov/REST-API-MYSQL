@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRIP_SORTS } from '../../constants/trip';
 import { VALIDATION_LIMITS } from '../../constants/validation/limits';
-import { idList, optionalInt, optionalText, patchText, requiredInt, requiredNumber, trimmedString } from './common.schemas';
+import { idList, optionalInt, optionalText, patchText, positiveId, requiredInt, requiredNumber, trimmedString } from './common.schemas';
 
 const LIMITS = VALIDATION_LIMITS;
 
@@ -66,10 +66,37 @@ export const dayUpdateSchema = z.object({
     });
 
 export const dayReorderSchema = z.object({
-    // Each entry is the primary key `trips.id` of one day row of the trip group —
-    // never a `dayNumber` and never a `trip_groups.id`.
-    tripIds: idList({ min: 1, max: LIMITS.arrays.reorder.max }),
-}).strict();
+    days: z.array(z.object({
+        // The primary key `trips.id` of one day row, never the trip-group id.
+        tripId: positiveId,
+        dayNumber: requiredInt(LIMITS.trip.dayNumber),
+    }).strict())
+        .min(1)
+        .max(LIMITS.arrays.reorder.max),
+}).strict().superRefine((body, context) => {
+    const tripIds = new Set<number>();
+    const dayNumbers = new Set<number>();
+
+    body.days.forEach((day, index) => {
+        if (tripIds.has(day.tripId)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['days', index, 'tripId'],
+                message: 'must not contain duplicate trip ids.',
+            });
+        }
+        tripIds.add(day.tripId);
+
+        if (dayNumbers.has(day.dayNumber)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['days', index, 'dayNumber'],
+                message: 'must not contain duplicate day numbers.',
+            });
+        }
+        dayNumbers.add(day.dayNumber);
+    });
+});
 
 export const pointReorderSchema = z.object({
     pointIds: idList({ min: 0, max: LIMITS.arrays.reorder.max }),
