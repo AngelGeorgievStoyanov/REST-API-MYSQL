@@ -3,14 +3,13 @@ import { GROUP_SELECT_TYPE, TOP_TRIPS_LIMIT, TRANSPORT_SELECT_TYPE, CURRENCY_SEL
 import { IMAGE_LIMIT_MESSAGE, MAX_IMAGES_PER_ENTITY } from '../constants/imageStorage';
 import { type ImageDto } from '../model/image';
 import { type SocialTargetRef } from '../model/social';
-import { type TripActor, type TripDay, type TripGroupDetailsRecord, type TripGroupResponse } from '../model/trip';
+import { type TripActor, type TripDayReorderRequest, type TripGroupDetailsRecord, type TripGroupResponse } from '../model/trip';
 import { type ImageFileStorage } from '../storage/imageFileStorage';
 import { ApiError } from '../utils/apiError';
 import { canModifyTrip, toResourcePermissions } from '../utils/authorization';
 import { getImageBaseUrl } from '../utils/image';
 import { toImageDto } from '../mappers/imageMapper';
 import {
-    toTripDayDtoList,
     toTripGroupResponse,
     toTripMetadataInput,
 } from '../mappers/tripMapper';
@@ -22,7 +21,7 @@ import {
     resolveSelectFilterValues,
 } from '../utils/trip';
 import { dynamicConfig } from './dynamicConfig';
-import { parseIdList, parsePositiveId } from '../utils/validation';
+import { parsePositiveId } from '../utils/validation';
 import { attachUploadedImage } from './imageAttachment';
 import { type SocialStateService } from './socialStateService';
 import { type DayContext, type TripListCriteria, type TripRepository } from '../repositories/tripRepository';
@@ -224,23 +223,23 @@ export class TripService {
         return this.toDetails(row, actor);
     }
 
-    async reorderDays(actor: TripActor, rawTripGroupId: string, body: unknown): Promise<TripDay[]> {
+    async reorderDays(
+        actor: TripActor,
+        rawTripGroupId: string,
+        request: TripDayReorderRequest,
+    ): Promise<TripGroupResponse> {
         const tripGroupId = parseTripGroupId(rawTripGroupId);
-        const ownerId = await this.assertCanModify(actor, tripGroupId);
+        await this.assertCanModify(actor, tripGroupId);
 
-        // Each ordered id is the primary key `trips.id` of one day row — never a
-        // `dayNumber` and never a `trip_groups.id`.
-        const tripIds = parseIdList(body, 'tripIds', 1);
-        const existing = await this.repository.listDayIds(tripGroupId);
-        if (existing.length !== tripIds.length || tripIds.some((tripId) => !existing.includes(tripId))) {
-            throw ApiError.validation('"tripIds" must contain exactly all days of this trip.');
+        const reordered = await this.repository.reorderDays(tripGroupId, request.days);
+        if (!reordered) {
+            throw ApiError.validation('"days" must contain exactly all days of this trip.');
         }
 
-        await this.repository.reorderDays(tripGroupId, tripIds);
+        const row = await this.repository.findById(tripGroupId);
+        if (!row) throw ApiError.tripNotFound();
 
-        const days = await this.repository.listDayRows(tripGroupId);
-        const states = await this.socialStates.statesFor(actor.id, days.flatMap((day) => toDayTargets(day)));
-        return toTripDayDtoList(days, states, getImageBaseUrl(), toResourcePermissions(actor, ownerId));
+        return this.toDetails(row, actor);
     }
 
     async deleteDay(actor: TripActor, rawTripGroupId: string, rawTripId: string): Promise<TripGroupResponse> {
