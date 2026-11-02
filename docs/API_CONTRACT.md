@@ -1070,7 +1070,8 @@ This is the full edit operation for one specific day row, not a partial patch.
 
 * Auth: `requireAuthentication` + owner/moderator.
 * Path params (strict): `{ tripGroupId, tripId }` (`tripId` = the day row's `Trip.id`).
-* Response `204` (empty).
+* Response `200`: the complete updated `TripGroupResponse` for the parent group, including its remaining `days[]`. The deleted day row is absent from the response.
+* The response uses the same structure and actor-specific `permissions`/social state as `GET /trips/:tripGroupId`.
 * Error: deleting the last remaining day -> `409 CONFLICT` ("The last day of a trip cannot be deleted.").
 
 ### 8.13 POST `/trips/:tripGroupId/days/:tripId/images`
@@ -1797,7 +1798,7 @@ The API returns DTOs, not database models. The following are the API response sh
 | `ImageDto`                            | image create endpoints, profile image GET/POST              |
 | `SocialImageDto`                      | trip/point image lists                                      |
 | `SocialState`                         | trip detail, day, point, image, like/favorite responses     |
-| `TripGroupResponse`                    | POST /trips, POST /trips/:tripGroupId/days, PUT /trips/:tripGroupId/days/:tripId, GET /trips, GET /trips/top, GET /trips/:tripGroupId, GET /me/trips, GET /me/favorites |
+| `TripGroupResponse`                    | POST /trips, POST /trips/:tripGroupId/days, PUT /trips/:tripGroupId/days/:tripId, DELETE /trips/:tripGroupId/days/:tripId, GET /trips, GET /trips/top, GET /trips/:tripGroupId, GET /me/trips, GET /me/favorites |
 | `TripDay`                             | PUT /trips/:tripGroupId/days/reorder                         |
 | `TripPoint`                           | point GET/POST/PUT, point reorder                           |
 | `CommentDto`                          | comment list/create/update                                  |
@@ -1884,7 +1885,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | POST   | `/trips/:tripGroupId/days`            | Owner/Mod        | param `tripGroupId`; body `{ dayNumber, title?, description? }`         | 201 `TripGroupResponse`              | 400, 401, 403, 404, 409 |
 | PUT    | `/trips/:tripGroupId/days/reorder`    | Owner/Mod        | param `tripGroupId`; body `{ tripIds }`                                 | 200 `TripDay[]`                      | 400, 401, 403, 404      |
 | PUT    | `/trips/:tripGroupId/days/:tripId`    | Owner/Mod        | params `tripGroupId,tripId`; full 11-field body in §8.11                 | 200 `TripGroupResponse`              | 400, 401, 403, 404, 409, 500 |
-| DELETE | `/trips/:tripGroupId/days/:tripId`    | Owner/Mod        | params `tripGroupId,tripId`                                             | 204                                  | 400, 401, 403, 404, 409 |
+| DELETE | `/trips/:tripGroupId/days/:tripId`    | Owner/Mod        | params `tripGroupId,tripId`                                             | 200 `TripGroupResponse`              | 400, 401, 403, 404, 409 |
 | POST   | `/trips/:tripGroupId/days/:tripId/images` | Owner/Mod    | params `tripGroupId,tripId`; multipart `file`                           | 201 `ImageDto`                       | 400, 401, 403, 404, 409 |
 | POST   | `/points`                             | Owner/Mod        | `{ tripId, name, description?, lat, lng }`                              | 201 `TripPoint[]`                    | 400, 401, 403, 404      |
 | GET    | `/trips/:tripId/points`               | Public           | param `tripId` (day row id)                                             | 200 `TripPoint[]`                    | 400, 401, 404           |
