@@ -219,6 +219,14 @@ export interface TripEditRequest {
     lng: number | null;
 }
 
+/** Complete day-number assignment for one trip group reorder operation. */
+export interface TripDayReorderRequest {
+    days: {
+        tripId: number;
+        dayNumber: number;
+    }[];
+}
+
 export interface PointCreateRequest {
     /**
      * The day the point is created in: the primary key `Trip.id` of that day
