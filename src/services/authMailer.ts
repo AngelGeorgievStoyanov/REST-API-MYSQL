@@ -55,7 +55,7 @@ export class AuthMailer {
             mkdirSync(directory, { recursive: true });
             const file = join(directory, `${Date.now()}-${subject.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.html`);
             // eslint-disable-next-line security/detect-non-literal-fs-filename -- generated filename in controlled temp directory
-            writeFileSync(file, `<!-- to: ${to} -->\\n${html}\\n`, 'utf8');
+            writeFileSync(file, `<!-- to: ${to} -->\n${html}\n`, 'utf8');
             console.info(`[auth] Email prepared locally (not sent): type="${action}", to="${to}", subject="${subject}", transport="file", file="${file}"`);
         } catch (error) {
             console.error(`[auth] Dev email could not be written: ${getErrorMessage(error)}`);
