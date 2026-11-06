@@ -23,6 +23,8 @@ export interface AuthConfig {
     accessTokenSecret: string;
     accessTokenTtlSeconds: number;
     refreshTokenTtlSeconds: number;
+    /** Google reCAPTCHA v2 secret key; server-side only. */
+    recaptchaV2SecretKey: string;
     /** Frontend base URL used to build the verification/reset links. */
     appUrl: string;
     /** Frontend routes the emailed links point at. */
@@ -85,6 +87,7 @@ export function loadAuthConfig(env: AuthEnvironmentSource = process.env): AuthCo
         accessTokenSecret: secret,
         accessTokenTtlSeconds: positiveSeconds(env, 'ACCESS_TOKEN_EXPIRES_IN', DEFAULT_ACCESS_TOKEN_TTL_SECONDS),
         refreshTokenTtlSeconds: positiveSeconds(env, 'REFRESH_TOKEN_EXPIRES_IN', DEFAULT_REFRESH_TOKEN_TTL_SECONDS),
+        recaptchaV2SecretKey: env['RECAPTCHA_V2_SECRET_KEY']?.trim() ?? '',
         appUrl: (env['AUTH_APP_URL']?.trim() ?? CONNECTIONURL).replace(/\/+$/, ''),
         verifyEmailPath: verifyEmailPath.startsWith('/') ? verifyEmailPath : `/${verifyEmailPath}`,
         passwordResetPath: passwordResetPath.startsWith('/') ? passwordResetPath : `/${passwordResetPath}`,
