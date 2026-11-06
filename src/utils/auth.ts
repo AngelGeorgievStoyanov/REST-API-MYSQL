@@ -89,6 +89,9 @@ export function normalizePassword(value: unknown): string {
     if (Buffer.byteLength(value, 'utf8') > MAX_PASSWORD_LENGTH) {
         throw ApiError.validation(`"password" must be at most ${MAX_PASSWORD_LENGTH} bytes long.`);
     }
+    if (!/^(?=(.*[a-zA-Z]){1,})(?=(.*[\\d]){1,})(?=(.*[\\W]){1,})(?!.*\\s).{8,}$/.test(value)) {
+        throw ApiError.validation('"password" must contain at least 8 characters, including a letter, a number and a special character, with no spaces.');
+    }
     return value;
 }
 
