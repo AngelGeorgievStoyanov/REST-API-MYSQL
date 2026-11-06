@@ -18,6 +18,7 @@ export const registerSchema = z.object({
     password: passwordString(LIMITS.auth.password),
     firstName: trimmedString(LIMITS.auth.name),
     lastName: trimmedString(LIMITS.auth.name),
+    captchaToken: z.string().trim().min(1).max(8192),
 }).strict();
 
 export const verifyEmailSchema = z.object({
