@@ -1,77 +1,37 @@
-import { Prisma, UserStatus } from '@prisma/client';
-import type { AuthConfig } from '../config/auth';
-import {
-    ABSENT_USER_PASSWORD_HASH,
-    EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
-    PASSWORD_RESET_TOKEN_TTL_SECONDS,
-} from '../constants/auth';
-import { VALIDATION_LIMITS } from '../constants/validation/limits';
-import type { AuthActor, AuthSessionDto, AuthUserRecord, AuthUserResponse, MessageResponse, SessionPresenceResponse } from '../model/auth';
-import { type ImageDto } from '../model/image';
-import { ApiError } from '../utils/apiError';
-import {
-    generateOpaqueToken,
-    generateUserId,
-    hashPassword,
-    hashToken,
-    normalizeEmail,
-    normalizeName,
-    normalizePassword,
-    requireTokenValue,
-    signAccessToken,
-    verifyPassword,
-} from '../utils/auth';
-import { getErrorMessage } from '../utils/error';
-import { getImageBaseUrl } from '../utils/image';
-import { toImageDto } from '../mappers/imageMapper';
-import {
-    toAuthActor,
-    toAuthSessionDto,
-    toAuthUserResponse,
-    toMessageResponse,
-    toPasswordCheckResponse,
-    toSessionPresenceResponse,
-} from '../mappers/userMapper';
-import { asRecord, requireTrimmedString } from '../utils/validation';
-import { type AuthUserRepository } from '../repositories/authUserRepository';
-import { type EmailVerificationTokenRepository } from '../repositories/emailVerificationTokenRepository';
-import { type FailedLogRepository } from '../repositories/failedLogRepository';
-import { type ImageRepository, type ImageRow } from '../repositories/imageRepository';
-import { type AuthMailer } from './authMailer';
-import { type PasswordResetTokenRepository } from '../repositories/passwordResetTokenRepository';
-import { type RefreshTokenRepository } from '../repositories/refreshTokenRepository';
-import { type ImageFileStorage } from '../storage/imageFileStorage';
-
-/** Session plus the raw refresh token the HTTP layer turns into a cookie. */
-export interface AuthSessionResult {
-    session: AuthSessionDto;
-    refreshToken: string;
-    refreshTokenExpiresAt: Date;
-}
-
-/**
- * HTTP facts of one login attempt. They are observability data for the
- * failed-log table only and are never part of the authentication decision.
- */
-export interface LoginContext {
-    ip: string;
-    userAgent: string;
-}
-
-export class AuthService {
-    constructor(
-        private readonly users: AuthUserRepository,
-        private readonly verificationTokens: EmailVerificationTokenRepository,
-        private readonly resetTokens: PasswordResetTokenRepository,
-        private readonly refreshTokens: RefreshTokenRepository,
-        private readonly mailer: AuthMailer,
-        private readonly failedLogs: FailedLogRepository,
-        private readonly images: ImageRepository,
-        private readonly imageStorage: ImageFileStorage,
-        private readonly config: AuthConfig,
-    ) { }
-
     async register(body: unknown): Promise<MessageResponse> {
+        const record = asRecord(body, 'Request body');
+        await this.verifyRegistrationCaptcha(record['captchaToken']);
+
+        const email = normalizeEmail(record['email']);
+        const password = normalizePassword(record['password']);
+        const firstName = normalizeName(record['firstName'], 'firstName');
+        const lastName = normalizeName(record['lastName'], 'lastName');
+        const hashedPassword = await hashPassword(password);
+
+        if (await this.users.findByEmail(email)) {
+            return registrationAccepted();
+        }
+
+        let user: AuthUserRecord;
+        try {
+            user = await this.users.create({
+                id: generateUserId(),
+                email,
+                firstName,
+                lastName,
+                hashedPassword,
+            });
+        } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+                return registrationAccepted();
+            }
+            throw error;
+        }
+
+        await this.issueVerificationToken(user, true);
+        return registrationAccepted();
+    }
+
     /** Verifies the browser's reCAPTCHA v2 response with Google before creating an account. */
     private async verifyRegistrationCaptcha(value: unknown): Promise<void> {
         const secret = this.config.recaptchaV2SecretKey;
@@ -109,39 +69,6 @@ export class AuthService {
         if (verification.success !== true) {
             throw ApiError.validation('CAPTCHA verification failed. Please complete the challenge again.');
         }
-    }
-
-        const record = asRecord(body, 'Request body');
-        await this.verifyRegistrationCaptcha(record['captchaToken']);
-
-        const email = normalizeEmail(record['email']);
-        const password = normalizePassword(record['password']);
-        const firstName = normalizeName(record['firstName'], 'firstName');
-        const lastName = normalizeName(record['lastName'], 'lastName');
-        const hashedPassword = await hashPassword(password);
-
-        if (await this.users.findByEmail(email)) {
-            return registrationAccepted();
-        }
-
-        let user: AuthUserRecord;
-        try {
-            user = await this.users.create({
-                id: generateUserId(),
-                email,
-                firstName,
-                lastName,
-                hashedPassword,
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                return registrationAccepted();
-            }
-            throw error;
-        }
-
-        await this.issueVerificationToken(user, true);
-        return registrationAccepted();
     }
 
     async verifyEmail(body: unknown): Promise<AuthUserResponse> {
