@@ -392,8 +392,9 @@ export class AuthService {
         });
         if (deliverInBackground) {
             // eslint-disable-next-line promise/prefer-await-to-then -- fire-and-forget background email delivery
-            void this.mailer.sendVerificationEmail(user.email, rawToken).catch((error: unknown) => {
-                console.log(`[auth] verification email delivery failed: ${getErrorMessage(error)}`);
+            void this.mailer.sendVerificationEmail(user.email, rawToken).catch(() => {
+                // AuthMailer already logs safe delivery metadata and a sanitized error code.
+                console.log('[auth] Background verification email delivery failed; see the mailer log above.');
             });
             return;
         }
