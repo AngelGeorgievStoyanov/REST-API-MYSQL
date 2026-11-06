@@ -72,7 +72,48 @@ export class AuthService {
     ) { }
 
     async register(body: unknown): Promise<MessageResponse> {
+    /** Verifies the browser's reCAPTCHA v2 response with Google before creating an account. */
+    private async verifyRegistrationCaptcha(value: unknown): Promise<void> {
+        const secret = this.config.recaptchaV2SecretKey;
+        if (secret === '') {
+            throw ApiError.internal('Registration verification is temporarily unavailable.');
+        }
+
+        if (typeof value !== 'string' || value.trim() === '') {
+            throw ApiError.validation('Please complete the CAPTCHA challenge.');
+        }
+
+        const parameters = new URLSearchParams({
+            secret,
+            response: value.trim(),
+        });
+
+        let verification: { success?: boolean };
+        try {
+            const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body: parameters,
+                signal: AbortSignal.timeout(5000),
+            });
+
+            if (!response.ok) {
+                throw new Error('Google CAPTCHA verification request failed.');
+            }
+
+            verification = await response.json() as { success?: boolean };
+        } catch {
+            throw ApiError.internal('CAPTCHA verification is temporarily unavailable. Please try again.');
+        }
+
+        if (verification.success !== true) {
+            throw ApiError.validation('CAPTCHA verification failed. Please complete the challenge again.');
+        }
+    }
+
         const record = asRecord(body, 'Request body');
+        await this.verifyRegistrationCaptcha(record['captchaToken']);
+
         const email = normalizeEmail(record['email']);
         const password = normalizePassword(record['password']);
         const firstName = normalizeName(record['firstName'], 'firstName');
