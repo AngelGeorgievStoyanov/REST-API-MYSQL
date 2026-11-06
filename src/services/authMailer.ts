@@ -29,14 +29,16 @@ export class AuthMailer {
             + '<p>If you did not request this, you can ignore this email.</p></body></html>';
 
         if (this.config.mailTransport === 'file') {
-            this.writeDevMail(to, subject, html);
+            this.writeDevMail(to, subject, action, html);
             return;
         }
 
         try {
             await sendMail(to, html, subject);
+            // Log only delivery metadata. Never log the HTML, link, or raw token.
+            console.info(`[auth] Email sent successfully: type="${action}", to="${to}", subject="${subject}", transport="smtp"`);
         } catch (error) {
-            console.log(`[auth] ${subject} delivery failed: ${getErrorMessage(error)}`);
+            console.error(`[auth] Email delivery failed: type="${action}", to="${to}", subject="${subject}", transport="smtp", errorCode="${getSafeMailErrorCode(error)}"`);
             throw ApiError.emailDeliveryFailed();
         }
     }
@@ -46,18 +48,26 @@ export class AuthMailer {
      * is written next to the OS temp directory, so a local run can complete the
      * flow without a real mailbox.
      */
-    private writeDevMail(to: string, subject: string, html: string): void {
+    private writeDevMail(to: string, subject: string, action: string, html: string): void {
         try {
             const directory = join(tmpdir(), 'hack-trip-auth-mail');
             // eslint-disable-next-line security/detect-non-literal-fs-filename -- controlled temp directory path
             mkdirSync(directory, { recursive: true });
             const file = join(directory, `${Date.now()}-${subject.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.html`);
             // eslint-disable-next-line security/detect-non-literal-fs-filename -- generated filename in controlled temp directory
-            writeFileSync(file, `<!-- to: ${to} -->\n${html}\n`, 'utf8');
-            console.log(`[auth] "${subject}" written to ${file}`);
+            writeFileSync(file, `<!-- to: ${to} -->\\n${html}\\n`, 'utf8');
+            console.info(`[auth] Email prepared locally (not sent): type="${action}", to="${to}", subject="${subject}", transport="file", file="${file}"`);
         } catch (error) {
-            console.log(`[auth] dev mail could not be written: ${getErrorMessage(error)}`);
+            console.error(`[auth] Dev email could not be written: ${getErrorMessage(error)}`);
             throw ApiError.emailDeliveryFailed();
         }
     }
+}
+
+/** Only allow a short error code in logs; SMTP messages/responses may contain sensitive data. */
+function getSafeMailErrorCode(error: unknown): string {
+    if (typeof error !== 'object' || error === null || !('code' in error)) return 'unknown';
+
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' && /^[a-zA-Z0-9_-]{1,32}$/.test(code) ? code : 'unknown';
 }
