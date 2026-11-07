@@ -1,5 +1,6 @@
 import { Prisma, UserStatus } from '@prisma/client';
 import type { AuthConfig } from '../config/auth';
+import { type CaptchaService } from './captchaService';
 import {
     ABSENT_USER_PASSWORD_HASH,
     EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
@@ -68,12 +69,13 @@ export class AuthService {
         private readonly failedLogs: FailedLogRepository,
         private readonly images: ImageRepository,
         private readonly imageStorage: ImageFileStorage,
+        private readonly captcha: CaptchaService,
         private readonly config: AuthConfig,
     ) { }
 
     async register(body: unknown): Promise<MessageResponse> {
         const record = asRecord(body, 'Request body');
-        await this.verifyRegistrationCaptcha(record['captchaToken']);
+        await this.captcha.verifyToken(record['captchaToken']);
 
         const email = normalizeEmail(record['email']);
         const password = normalizePassword(record['password']);
@@ -105,45 +107,6 @@ export class AuthService {
         return registrationAccepted();
     }
 
-    /** Verifies the browser's reCAPTCHA v2 response with Google before creating an account. */
-    private async verifyRegistrationCaptcha(value: unknown): Promise<void> {
-        const secret = this.config.recaptchaV2SecretKey;
-        if (secret === '') {
-            throw ApiError.internal('Registration verification is temporarily unavailable.');
-        }
-
-        if (typeof value !== 'string' || value.trim() === '') {
-            throw ApiError.validation('Please complete the CAPTCHA challenge.');
-        }
-
-        const parameters = new URLSearchParams({
-            secret,
-            response: value.trim(),
-        });
-
-        let verification: { success?: boolean };
-        try {
-            const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
-                method: 'POST',
-                headers: { 'content-type': 'application/x-www-form-urlencoded' },
-                body: parameters,
-                signal: AbortSignal.timeout(5000),
-            });
-
-            if (!response.ok) {
-                throw new Error('Google CAPTCHA verification request failed.');
-            }
-
-            verification = await response.json() as { success?: boolean };
-        } catch {
-            throw ApiError.internal('CAPTCHA verification is temporarily unavailable. Please try again.');
-        }
-
-        if (verification.success !== true) {
-            throw ApiError.validation('CAPTCHA verification failed. Please complete the challenge again.');
-        }
-    }
-
     async verifyEmail(body: unknown): Promise<AuthUserResponse> {
         const record = asRecord(body, 'Request body');
         const row = await this.verificationTokens.findActiveByHash(hashToken(requireTokenValue(record['token'])));
@@ -165,6 +128,7 @@ export class AuthService {
     /** Unknown and already verified accounts answer exactly like a real resend. */
     async resendVerification(body: unknown): Promise<MessageResponse> {
         const record = asRecord(body, 'Request body');
+        await this.captcha.verifyToken(record['captchaToken']);
         const email = normalizeEmail(record['email']);
         const user = await this.users.findByEmail(email);
         if (user?.emailVerifiedAt === null) await this.issueVerificationToken(user);
@@ -174,6 +138,7 @@ export class AuthService {
 
     async login(body: unknown, context: LoginContext): Promise<AuthSessionResult> {
         const record = asRecord(body, 'Request body');
+        await this.captcha.verifyToken(record['captchaToken']);
         const email = normalizeEmail(record['email']);
         const password = requireTrimmedString(record['password'], 'password', VALIDATION_LIMITS.auth.passwordInput.max);
 
@@ -297,6 +262,7 @@ export class AuthService {
 
     async forgotPassword(body: unknown): Promise<MessageResponse> {
         const record = asRecord(body, 'Request body');
+        await this.captcha.verifyToken(record['captchaToken']);
         const email = normalizeEmail(record['email']);
         const user = await this.users.findByEmail(email);
 

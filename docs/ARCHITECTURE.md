@@ -36,7 +36,15 @@ Prisma
 MySQL
 ```
 
-External storage and email integrations are reached through their application adapters/services.
+External storage and email integrations are reached through their application adapters/services. External HTTP integrations follow the same separation: a service owns application policy and error translation, while a client owns provider-specific transport.
+
+The reCAPTCHA request path is:
+
+```text
+AuthController -> AuthService -> CaptchaService -> RecaptchaHttpClient -> Google reCAPTCHA
+```
+
+The auth service does not issue provider HTTP requests. `CaptchaService` validates the supplied response token, reads the backend-only secret from `AuthConfig`, and maps provider outcomes to API errors. `RecaptchaHttpClient` owns the URL-encoded HTTP request and its timeout.
 
 `src/index.ts` configures the HTTP middleware stack, mounts `/api`, initializes runtime configuration before the server listens, and releases application resources during shutdown.
 
@@ -65,7 +73,7 @@ External storage and email integrations are reached through their application ad
 
 Controllers are thin HTTP adapters.
 
-Services own business rules, authorization, ownership checks, orchestration, and API boundary preparation.
+Services own business rules, authorization, ownership checks, orchestration, and API boundary preparation. Integration services also own provider policy and translate provider outcomes into application errors; they delegate network transport to clients.
 
 Repositories own Prisma persistence.
 
@@ -112,13 +120,13 @@ Persistence mappers are separate from API mappers and convert persistence repres
 * `src/index.ts`: Express application setup and server lifecycle.
 * `src/routes/`: `/api` and `/v1` router composition.
 * `src/controllers/`: HTTP route handlers and response delivery.
-* `src/services/`: business logic, authorization, ownership checks, orchestration, and API response preparation.
+* `src/services/`: business logic, authorization, ownership checks, orchestration, API response preparation, and external-integration policy services (including CAPTCHA).
 * `src/repositories/`: Prisma queries and persistence mapping.
 * `src/mappers/`: API/resource mappers and persistence-oriented mappers.
 * `src/model/`: application/domain contracts and API DTOs.
 * `src/validation/`: request validation middleware and Zod schemas.
 * `src/middlewares/`: client marker, authentication/authorization, rate limiting, error handling, and route diagnostics.
-* `src/clients/`: shared Prisma and external service clients.
+* `src/clients/`: shared Prisma and external HTTP/provider clients (including the reCAPTCHA transport client).
 * `src/config/`: environment reading and validation.
 * `src/constants/`: reusable application constants and policy defaults.
 * `src/storage/`: image validation and object-storage adapters.

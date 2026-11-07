@@ -13,24 +13,28 @@ const email = trimmedString({
     patternMessage: 'must be a valid email address.',
 });
 
+/** Google reCAPTCHA v2 response token; the secret key never comes from the client. */
+const captchaToken = z.string().trim().min(1).max(8192);
+
 export const registerSchema = z.object({
     email,
     password: passwordString(LIMITS.auth.password),
     firstName: trimmedString(LIMITS.auth.name),
     lastName: trimmedString(LIMITS.auth.name),
-    captchaToken: z.string().trim().min(1).max(8192),
+    captchaToken,
 }).strict();
 
 export const verifyEmailSchema = z.object({
     token: trimmedString(LIMITS.auth.token),
 }).strict();
 
-export const resendVerificationSchema = z.object({ email }).strict();
+export const resendVerificationSchema = z.object({ email, captchaToken }).strict();
 
 export const loginSchema = z.object({
     email,
     // Login only compares the value, so an older password outside the policy still works.
     password: passwordString(LIMITS.auth.passwordInput),
+    captchaToken,
 }).strict();
 
 export const updateProfileSchema = z.object({
@@ -47,7 +51,7 @@ export const changePasswordSchema = z.object({
     newPassword: passwordString(LIMITS.auth.password),
 }).strict();
 
-export const forgotPasswordSchema = z.object({ email }).strict();
+export const forgotPasswordSchema = z.object({ email, captchaToken }).strict();
 
 export const resetPasswordSchema = z.object({
     token: trimmedString(LIMITS.auth.token),

@@ -108,12 +108,12 @@ Administrative rate limit (applied to every admin endpoint):
 
 ## 2. Authentication Contract
 
-### 2.0 Registration security configuration
+### 2.0 CAPTCHA security configuration
 
-* `RECAPTCHA_V2_SECRET_KEY` is a required runtime secret for successful registration. It is backend-only and must never be exposed through a `NEXT_PUBLIC_*` variable, returned by configuration endpoints, committed to source control, or sent to the browser.
-* The Frontend uses the matching public reCAPTCHA v2 Site Key to render the challenge and sends only the resulting response token as `captchaToken` in `POST /auth/register`.
-* Registration fails closed when the secret is absent or Google's verification service cannot confirm the response; there is no CAPTCHA bypass or client-only trust path.
-* CAPTCHA verification is registration-specific; it does not change the request contract for login, email verification, or other auth endpoints.
+* `RECAPTCHA_V2_SECRET_KEY` is a required runtime secret for successful CAPTCHA-protected authentication actions. It is backend-only and must never be exposed through a `NEXT_PUBLIC_*` variable, returned by configuration endpoints, committed to source control, or sent to the browser.
+* The Frontend uses the matching public reCAPTCHA v2 Site Key to render the challenge and sends only the resulting response token as `captchaToken` in `POST /auth/register`, `POST /auth/login`, `POST /auth/resend-verification`, and `POST /auth/forgot-password`.
+* All four endpoints fail closed when the secret is absent or Google's verification service cannot confirm the response; there is no CAPTCHA bypass or client-only trust path.
+* CAPTCHA verification is not required for email verification, refresh, logout, reset-password, or authenticated profile/session endpoints.
 
 ### 2.1 Access token
 
@@ -367,10 +367,10 @@ All auth routes are mounted at `/api/v1/auth`.
   * `firstName`, `lastName`: trimmed strings within the configured auth-name limit.
   * `password`: 8–72 UTF-8 bytes; printable ASCII only (character codes 33–126), at least one Latin letter (`a-zA-Z`), one digit (`0-9`), and one printable ASCII symbol; spaces, Cyrillic and all other non-ASCII characters are rejected. The same policy is enforced by the shared FE/BE validation rule and rechecked by the backend domain normalizer before hashing.
   * `captchaToken`: required, trimmed non-empty string, maximum 8192 characters; this is the response token returned by the Google reCAPTCHA v2 widget, not the site key or secret key.
-* CAPTCHA verification: before checking/creating the account, the backend posts `secret` and `response` to Google's `https://www.google.com/recaptcha/api/siteverify` using URL-encoded form data. The secret is read only from `RECAPTCHA_V2_SECRET_KEY` on the backend. The request has a 5-second timeout and fails closed:
+* CAPTCHA verification: the backend verifies the token before any account lookup, credential check, or email-send side effect. A dedicated CAPTCHA service calls a dedicated Google reCAPTCHA HTTP client, which posts `secret` and `response` to `https://www.google.com/recaptcha/api/siteverify` as URL-encoded form data. The secret is read only from `RECAPTCHA_V2_SECRET_KEY` on the backend. The request has a 5-second timeout and fails closed:
   * missing/blank token or Google response with `success !== true` -> `400 VALIDATION_ERROR`;
   * missing backend secret or unavailable/failed Google verification -> `500 INTERNAL_SERVER_ERROR` with a generic temporary-unavailability message;
-  * no account is created unless Google confirms the CAPTCHA.
+  * the protected auth action does not proceed unless Google confirms the CAPTCHA.
 * Successful registration creates a pending-verification account, stores a bcrypt password hash (never the raw password), creates a one-time email-verification token (only its SHA-256 hash is stored; 24-hour TTL), and starts verification-email delivery in the background.
 * Response `201`: `{ "message": "..." }` (`MessageResponse`).
 * Anti-enumeration: an already-registered email and a successful registration return the same message ("If the address can be registered, verification instructions will be sent."). A unique-email race is handled the same way.
@@ -386,16 +386,18 @@ All auth routes are mounted at `/api/v1/auth`.
 ### 6.3 POST `/auth/resend-verification`
 
 * Auth: none. Rate-limited (email, `resend-verification` bucket).
-* Body (strict): `{ email }`.
+* Body (strict): `{ email, captchaToken }`.
+* `captchaToken`: required, trimmed non-empty Google reCAPTCHA v2 response token, maximum 8192 characters. CAPTCHA is verified before account lookup or email delivery.
 * Response `200`: `{ "message": "..." }`.
-* Anti-enumeration: unknown/verified accounts answer the same message.
+* Anti-enumeration: unknown/verified accounts answer the same message after successful CAPTCHA verification.
 
 ### 6.4 POST `/auth/login`
 
 * Auth: none. Rate-limited (`login` bucket).
-* Body (strict): `{ email, password }`.
+* Body (strict): `{ email, password, captchaToken }`.
+* `captchaToken`: required, trimmed non-empty Google reCAPTCHA v2 response token, maximum 8192 characters. CAPTCHA is verified before credential lookup.
 * Response `200`: `AuthSessionDto` and sets the refresh cookie.
-* Errors: invalid credentials -> `401 UNAUTHORIZED`; suspended -> `403 ACCOUNT_SUSPENDED`; deactivated -> `403 ACCOUNT_DEACTIVATED`; unverified -> `403 EMAIL_NOT_VERIFIED`.
+* Errors: CAPTCHA rejection -> `400 VALIDATION_ERROR`; CAPTCHA provider/configuration failure -> `500 INTERNAL_SERVER_ERROR`; invalid credentials -> `401 UNAUTHORIZED`; suspended -> `403 ACCOUNT_SUSPENDED`; deactivated -> `403 ACCOUNT_DEACTIVATED`; unverified -> `403 EMAIL_NOT_VERIFIED`.
 
 `AuthSessionDto`:
 
@@ -456,8 +458,10 @@ All auth routes are mounted at `/api/v1/auth`.
 ### 6.14 POST `/auth/forgot-password`
 
 * Auth: none. Rate-limited (email, `forgot-password` bucket).
-* Body (strict): `{ email }`.
-* Response `200`: `{ "message": "..." }` (anti-enumeration: "If the account exists, a password reset email was sent.").
+* Body (strict): `{ email, captchaToken }`.
+* `captchaToken`: required, trimmed non-empty Google reCAPTCHA v2 response token, maximum 8192 characters. CAPTCHA is verified before account lookup or email delivery.
+* Response `200`: `{ "message": "..." }` (anti-enumeration: "If the account exists, a password reset email was sent.") after successful CAPTCHA verification.
+* Errors: CAPTCHA rejection -> `400 VALIDATION_ERROR`; CAPTCHA provider/configuration failure -> `500 INTERNAL_SERVER_ERROR`.
 
 ### 6.15 POST `/auth/reset-password`
 

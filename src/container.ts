@@ -1,4 +1,5 @@
 import { prisma } from './clients/prisma';
+import { RecaptchaHttpClient } from './clients/recaptchaHttpClient';
 import { authConfig } from './config/auth';
 import { AuthUserRepository } from './repositories/authUserRepository';
 import { CommentRepository } from './repositories/commentRepository';
@@ -16,6 +17,7 @@ import { SocialTargetRepository } from './repositories/socialTargetRepository';
 import { TargetTypeRepository } from './repositories/targetTypeRepository';
 import { TripRepository } from './repositories/tripRepository';
 import { AuthMailer } from './services/authMailer';
+import { CaptchaService } from './services/captchaService';
 import { AdminUserService } from './services/adminUserService';
 import { AuthService } from './services/authService';
 import { BackgroundImageService } from './services/backgroundImageService';
@@ -65,6 +67,8 @@ const refreshTokenRepository = new RefreshTokenRepository(prisma);
 const failedLogRepository = new FailedLogRepository(prisma);
 const imageRepository = new ImageRepository(prisma);
 const authMailer = new AuthMailer(authConfig);
+const recaptchaHttpClient = new RecaptchaHttpClient();
+const captchaService = new CaptchaService(authConfig, recaptchaHttpClient);
 
 const authService = new AuthService(
     authUserRepository,
@@ -75,6 +79,7 @@ const authService = new AuthService(
     failedLogRepository,
     imageRepository,
     gcsImageFileStorage,
+    captchaService,
     authConfig,
 );
 
