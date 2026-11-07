@@ -31,6 +31,36 @@ export function trimmedString(bounds: StringBounds): z.ZodType<string> {
     return z.string().transform((value) => value.trim()).pipe(bounded);
 }
 
+/**
+ * Password policy shared verbatim by the frontend and backend.
+ * Only ASCII Latin letters, digits and printable ASCII punctuation count
+ * toward the required character classes. Any Unicode whitespace is rejected.
+ */
+export function isValidPassword(value: string, minLength = 8): boolean {
+    if (value.length < minLength) return false;
+
+    let hasLatinLetter = false;
+    let hasNumber = false;
+    let hasSpecialCharacter = false;
+
+    for (const character of value) {
+        if (character.trim().length === 0) return false;
+
+        const code = character.charCodeAt(0);
+        const isLatinLetter =
+            (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+        const isNumber = code >= 48 && code <= 57;
+        const isPrintableAsciiSymbol =
+            code >= 33 && code <= 126 && !isLatinLetter && !isNumber;
+
+        if (isLatinLetter) hasLatinLetter = true;
+        if (isNumber) hasNumber = true;
+        if (isPrintableAsciiSymbol) hasSpecialCharacter = true;
+    }
+
+    return hasLatinLetter && hasNumber && hasSpecialCharacter;
+}
+
 /** Password policy shared by registration, reset and password changes. */
 export function passwordString(bounds: NumberBounds): z.ZodType<string> {
     return z.string().min(bounds.min).max(bounds.max)
@@ -39,8 +69,8 @@ export function passwordString(bounds: NumberBounds): z.ZodType<string> {
             { message: `must be at most ${bounds.max} bytes long.` },
         )
         .refine(
-            (value) => /^(?=(.*[a-zA-Z]){1,})(?=(.*[\\d]){1,})(?=(.*[\\W]){1,})(?!.*\\s).{8,}$/.test(value),
-            { message: 'must contain at least 8 characters, including a letter, a number and a special character, with no spaces.' },
+            (value) => isValidPassword(value, bounds.min),
+            { message: 'must contain at least 8 characters, including a Latin letter, a number and a special character, with no spaces.' },
         );
 }
 
