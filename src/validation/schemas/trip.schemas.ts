@@ -89,7 +89,7 @@ export const dayReorderSchema = z.object({
 
         if (dayNumbers.has(day.dayNumber)) {
             context.addIssue({
-                code: z.ZodIssueCode.custom,
+                code: 'custom',
                 path: ['days', index, 'dayNumber'],
                 message: 'must not contain duplicate day numbers.',
             });
