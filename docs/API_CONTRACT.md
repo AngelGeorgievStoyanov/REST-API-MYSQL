@@ -108,6 +108,13 @@ Administrative rate limit (applied to every admin endpoint):
 
 ## 2. Authentication Contract
 
+### 2.0 Registration security configuration
+
+* `RECAPTCHA_V2_SECRET_KEY` is a required runtime secret for successful registration. It is backend-only and must never be exposed through a `NEXT_PUBLIC_*` variable, returned by configuration endpoints, committed to source control, or sent to the browser.
+* The Frontend uses the matching public reCAPTCHA v2 Site Key to render the challenge and sends only the resulting response token as `captchaToken` in `POST /auth/register`.
+* Registration fails closed when the secret is absent or Google's verification service cannot confirm the response; there is no CAPTCHA bypass or client-only trust path.
+* CAPTCHA verification is registration-specific; it does not change the request contract for login, email verification, or other auth endpoints.
+
 ### 2.1 Access token
 
 * Type: JWT (HS256).
@@ -353,10 +360,21 @@ All auth routes are mounted at `/api/v1/auth`.
 
 ### 6.1 POST `/auth/register`
 
-* Auth: none. Rate-limited (`register` bucket).
-* Body (strict): `{ email, password, firstName, lastName }`.
+* Auth: none. Rate-limited by client IP in the `register` bucket.
+* Required headers: `x-hacktrip-client: web`; no user/public bearer is required for this unauthenticated write endpoint.
+* Body (strict): `{ email, password, firstName, lastName, captchaToken }`.
+  * `email`: trimmed, validated, normalized to lowercase before lookup/storage.
+  * `firstName`, `lastName`: trimmed strings within the configured auth-name limit.
+  * `password`: 8–72 UTF-8 bytes; printable ASCII only (character codes 33–126), at least one Latin letter (`a-zA-Z`), one digit (`0-9`), and one printable ASCII symbol; spaces, Cyrillic and all other non-ASCII characters are rejected. The same policy is enforced by the shared FE/BE validation rule and rechecked by the backend domain normalizer before hashing.
+  * `captchaToken`: required, trimmed non-empty string, maximum 8192 characters; this is the response token returned by the Google reCAPTCHA v2 widget, not the site key or secret key.
+* CAPTCHA verification: before checking/creating the account, the backend posts `secret` and `response` to Google's `https://www.google.com/recaptcha/api/siteverify` using URL-encoded form data. The secret is read only from `RECAPTCHA_V2_SECRET_KEY` on the backend. The request has a 5-second timeout and fails closed:
+  * missing/blank token or Google response with `success !== true` -> `400 VALIDATION_ERROR`;
+  * missing backend secret or unavailable/failed Google verification -> `500 INTERNAL_SERVER_ERROR` with a generic temporary-unavailability message;
+  * no account is created unless Google confirms the CAPTCHA.
+* Successful registration creates a pending-verification account, stores a bcrypt password hash (never the raw password), creates a one-time email-verification token (only its SHA-256 hash is stored; 24-hour TTL), and starts verification-email delivery in the background.
 * Response `201`: `{ "message": "..." }` (`MessageResponse`).
-* Anti-enumeration: an already-registered email and a successful registration return the same message ("If the address can be registered, verification instructions will be sent.").
+* Anti-enumeration: an already-registered email and a successful registration return the same message ("If the address can be registered, verification instructions will be sent."). A unique-email race is handled the same way.
+* The raw CAPTCHA token, password, verification token and reCAPTCHA secret are never returned in the response.
 
 ### 6.2 POST `/auth/verify-email`
 
