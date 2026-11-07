@@ -32,8 +32,11 @@ export const resendVerificationSchema = z.object({ email, captchaToken }).strict
 
 export const loginSchema = z.object({
     email,
-    // Login only compares the value, so an older password outside the policy still works.
-    password: passwordString(LIMITS.auth.passwordInput),
+    // Login only checks that a password was supplied and is within the input limit.
+    // Complexity rules apply when creating or changing a password, not when logging in.
+    password: z.string()
+        .min(LIMITS.auth.passwordInput.min)
+        .max(LIMITS.auth.passwordInput.max),
     captchaToken,
 }).strict();
 
