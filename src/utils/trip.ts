@@ -28,6 +28,7 @@ import {
     rejectClientControlledFields,
     rejectOwnershipAndParentFields,
     requirePositiveInt,
+    requireNumberInRange,
     requireTrimmedString,
 } from './validation';
 
@@ -130,7 +131,7 @@ export function parseTripBody(body: unknown): TripWriteRequest {
         dayNumber: requirePositiveInt(record['dayNumber'], 'dayNumber', VALIDATION_LIMITS.trip.dayNumber.max),
         title: requireTrimmedString(record['title'], 'title', MAX_TITLE_LENGTH),
         description: optionalString(record['description'], 'description', MAX_DESCRIPTION_LENGTH),
-        price: record['price'] !== undefined ? record['price'] as number : null,
+        price: requireNumberInRange(record['price'], 'price', 0, 1000000),
         transport: resolveSelectKey(TRANSPORT_SELECT_TYPE, record['transport'], 'transport'),
         countPeoples: requirePositiveInt(record['countPeoples'], 'countPeoples', VALIDATION_LIMITS.trip.countPeoples.max),
         typeOfPeople: resolveSelectKey(GROUP_SELECT_TYPE, record['typeOfPeople'], 'typeOfPeople'),
@@ -178,8 +179,8 @@ export function parseTripEditBody(body: unknown): TripEditRequest {
         typeOfPeople: resolveSelectKey(GROUP_SELECT_TYPE, record['typeOfPeople'], 'typeOfPeople'),
         currency: resolveSelectKey(CURRENCY_SELECT_TYPE, record['currency'], 'currency'),
         destination: destination === null || destination === '' ? null : requireTrimmedString(destination, 'destination', MAX_TITLE_LENGTH),
-        lat: lat as number | null,
-        lng: lng as number | null,
+        lat,
+        lng,
     };
 }
 

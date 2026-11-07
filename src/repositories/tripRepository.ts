@@ -105,6 +105,7 @@ const detailsWithPriceInclude = {
 } satisfies Prisma.TripGroupInclude;
 
 type TripGroupDetailsWithPriceRow = Prisma.TripGroupGetPayload<{ include: typeof detailsWithPriceInclude }>;
+type TripDayDetailsRow = TripGroupDetailsRow['trips'][number];
 
 function toTripListRecord(row: TripGroupListRow): TripGroupListRecord {
     return {
@@ -123,7 +124,7 @@ function toTripListRecord(row: TripGroupListRow): TripGroupListRecord {
     };
 }
 
-function toTripDayRecord(row: DayRow | TripGroupDetailsRow['trips'][number]): TripDayRecord {
+function toTripDayRecord(row: TripDayDetailsRow): TripDayRecord {
     return {
         id: row.id,
         title: row.title,
@@ -597,7 +598,7 @@ export class TripRepository {
             destination: input.destination,
             lat: input.lat,
             lng: input.lng,
-            ...(input.currency !== undefined ? { currency: input.currency } : {}),
+            currency: input.currency,
         };
     }
 

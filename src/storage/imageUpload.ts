@@ -58,11 +58,15 @@ function imageUploadErrorDetails(error: unknown): Record<string, unknown> {
     if (error === undefined || error === null) return {};
 
     if (typeof error !== 'object') {
-        return { errorName: 'UnknownError', errorMessage: String(error).slice(0, 300) };
+        const message = typeof error === 'string' || typeof error === 'number'
+            || typeof error === 'boolean' || typeof error === 'bigint' || typeof error === 'symbol'
+            ? String(error).slice(0, 300)
+            : 'Unknown error';
+        return { errorName: 'UnknownError', errorMessage: message };
     }
 
     const readString = (key: string): string | undefined => {
-        const value = Reflect.get(error, key);
+        const value: unknown = Reflect.get(error, key) as unknown;
         return typeof value === 'string' || typeof value === 'number'
             ? String(value).slice(0, 300)
             : undefined;

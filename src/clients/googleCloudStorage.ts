@@ -21,8 +21,10 @@ import { assertAcceptedImage, ImageObjectAlreadyExistsError } from '../storage/i
  * without that local file, the Google client uses Application Default Credentials.
  */
 const localCredentialsPath = resolve(process.cwd(), 'src/utils/hack-trip-414441f1b5d4.json');
-const credentialsPath = process.env['GOOGLE_APPLICATION_CREDENTIALS']?.trim()
-    || (existsSync(localCredentialsPath) ? localCredentialsPath : undefined);
+const configuredCredentialsPath = process.env['GOOGLE_APPLICATION_CREDENTIALS']?.trim();
+const credentialsPath = configuredCredentialsPath
+    ? configuredCredentialsPath
+    : existsSync(localCredentialsPath) ? localCredentialsPath : undefined;
 
 export const gcsClient = new Storage({
     ...(credentialsPath ? { keyFilename: credentialsPath } : {}),
@@ -246,7 +248,7 @@ function errorLogDetails(error: unknown): Record<string, unknown> {
     }
 
     const readString = (key: string): string | undefined => {
-        const value = Reflect.get(error, key);
+        const value: unknown = Reflect.get(error, key) as unknown;
         return typeof value === 'string' || typeof value === 'number'
             ? String(value).slice(0, 300)
             : undefined;

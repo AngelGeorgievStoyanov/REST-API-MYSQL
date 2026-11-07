@@ -15,13 +15,13 @@ export class CaptchaService {
         }
 
         const secret = this.config.recaptchaV2SecretKey;
-        if (secret === '') {
+        if (secret.length === 0) {
             throw ApiError.internal('CAPTCHA verification is temporarily unavailable. Please try again.');
         }
 
         try {
             const verification = await this.client.verify(secret, value.trim());
-            if (verification.success !== true) {
+            if (!verification.success) {
                 throw ApiError.validation('CAPTCHA verification failed. Please complete the challenge again.');
             }
         } catch (error) {

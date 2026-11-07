@@ -107,14 +107,14 @@ export interface TripMetadataInput {
     dayNumber: number;
     title: string;
     description: string | null;
-    price: number | null;
-    transport: string | null;
+    price: number;
+    transport: string;
     countPeoples: number;
-    group: string | null;
+    group: string;
     destination: string | null;
     lat: number | null;
     lng: number | null;
-    currency?: string | null;
+    currency: string;
 }
 
 export interface DayUpdateInput {
@@ -194,7 +194,7 @@ export interface TripWriteRequest {
     dayNumber: number;
     title: string;
     description: string | null;
-    price: number | null;
+    price: number;
     transport: string;
     countPeoples: number;
     typeOfPeople: string;

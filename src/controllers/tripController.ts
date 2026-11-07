@@ -17,7 +17,7 @@ function imageErrorLogDetails(error: unknown): Record<string, unknown> {
     }
 
     const readString = (key: string): string | undefined => {
-        const value = Reflect.get(error, key);
+        const value: unknown = Reflect.get(error, key) as unknown;
         return typeof value === 'string' || typeof value === 'number'
             ? String(value).slice(0, 300)
             : undefined;
@@ -82,7 +82,8 @@ tripController.put(
     validateRequest({ params: tripGroupIdParams, body: dayReorderSchema }),
     requireAuthentication,
     asyncHandler(async (req, res) => {
-        const tripGroup = await tripService.reorderDays(actorFrom(req), routeParam(req.params['tripGroupId']), req.body);
+        const request = dayReorderSchema.parse(req.body);
+        const tripGroup = await tripService.reorderDays(actorFrom(req), routeParam(req.params['tripGroupId']), request);
         res.status(200).json(tripGroup);
     }),
 );
@@ -130,11 +131,11 @@ tripController.post(
         next();
     }),
     (req, res, next) => {
-        res.locals.imageUploadRequestStartedAt = performance.now();
-        res.locals.imageUploadRequestStartedAtIso = new Date().toISOString();
+        res.locals['imageUploadRequestStartedAt'] = performance.now();
+        res.locals['imageUploadRequestStartedAtIso'] = new Date().toISOString();
         console.info(`[images] ${JSON.stringify({
             event: 'image.request.started',
-            timestamp: res.locals.imageUploadRequestStartedAtIso,
+            timestamp: res.locals['imageUploadRequestStartedAtIso'],
             tripGroupId: req.params['tripGroupId'],
             tripId: req.params['tripId'],
         })}`);
@@ -142,8 +143,8 @@ tripController.post(
     },
     imageUpload,
     asyncHandler(async (req, res) => {
-        const requestStartedAt = res.locals.imageUploadRequestStartedAt as number | undefined;
-        const requestStartedAtIso = res.locals.imageUploadRequestStartedAtIso as string | undefined;
+        const requestStartedAt = res.locals['imageUploadRequestStartedAt'] as number | undefined;
+        const requestStartedAtIso = res.locals['imageUploadRequestStartedAtIso'] as string | undefined;
         const startedAt = performance.now();
         try {
             const image = await tripService.addDayImage(

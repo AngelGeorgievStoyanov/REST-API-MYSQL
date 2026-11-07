@@ -35,6 +35,7 @@ export async function attachImageWithinLimit(
         })}`);
 
         try {
+            // eslint-disable-next-line no-await-in-loop -- retries must be sequential; each observes the prior transaction result
             const result = await prisma.$transaction(async (tx) => {
                 const countStartedAt = performance.now();
                 const attached = await tx.image.count({ where: owner });
@@ -102,7 +103,10 @@ export async function attachImageWithinLimit(
                 ...errorDetails,
             })}`);
 
-            await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
+            // eslint-disable-next-line no-await-in-loop -- backoff belongs between sequential retry attempts
+            await new Promise<void>((resolve) => {
+                setTimeout(resolve, 20 * attempt);
+            });
         }
     }
 

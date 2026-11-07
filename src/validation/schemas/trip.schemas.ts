@@ -80,7 +80,7 @@ export const dayReorderSchema = z.object({
     body.days.forEach((day, index) => {
         if (tripIds.has(day.tripId)) {
             context.addIssue({
-                code: z.ZodIssueCode.custom,
+                code: 'custom',
                 path: ['days', index, 'tripId'],
                 message: 'must not contain duplicate trip ids.',
             });

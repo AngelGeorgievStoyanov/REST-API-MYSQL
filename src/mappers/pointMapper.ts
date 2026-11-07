@@ -44,17 +44,12 @@ export function toPointWriteInput(request: PointCreateRequest): PointWriteInput 
     };
 }
 
-export function toPointUpdateInput(request: PointUpdateRequest): Partial<PointWriteInput> {
-    const patch: Partial<PointWriteInput> = {};
-
-    if (request.name !== undefined) patch.name = request.name;
-    if (request.description !== undefined) patch.description = request.description;
-    if (request.lat !== undefined) {
-        patch.lat = request.lat;
-    }
-    if (request.lng !== undefined) {
-        patch.lng = request.lng;
-    }
-    return patch;
+export function toPointUpdateInput(request: PointUpdateRequest): PointWriteInput {
+    return {
+        name: request.name,
+        description: request.description,
+        lat: request.lat,
+        lng: request.lng,
+    };
 }
 
