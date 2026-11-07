@@ -22,9 +22,9 @@ import { assertAcceptedImage, ImageObjectAlreadyExistsError } from '../storage/i
  */
 const localCredentialsPath = resolve(process.cwd(), 'src/utils/hack-trip-414441f1b5d4.json');
 const configuredCredentialsPath = process.env['GOOGLE_APPLICATION_CREDENTIALS']?.trim();
-const credentialsPath = configuredCredentialsPath
-    ? configuredCredentialsPath
-    : existsSync(localCredentialsPath) ? localCredentialsPath : undefined;
+const nonEmptyCredentialsPath = configuredCredentialsPath?.length ? configuredCredentialsPath : undefined;
+const credentialsPath = nonEmptyCredentialsPath
+    ?? (existsSync(localCredentialsPath) ? localCredentialsPath : undefined);
 
 export const gcsClient = new Storage({
     ...(credentialsPath ? { keyFilename: credentialsPath } : {}),
