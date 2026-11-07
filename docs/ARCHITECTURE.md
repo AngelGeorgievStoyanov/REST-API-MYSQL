@@ -684,8 +684,8 @@ Browser / FE
   -> AuthService.register()
   -> Google reCAPTCHA siteverify (server-to-server, 5s timeout)
   -> normalize input + validate password policy
-  -> lookup/create pending-verification user
   -> hash password with bcrypt
+  -> lookup/create pending-verification user
   -> create hashed, expiring email-verification token
   -> AuthMailer sends verification email asynchronously
   -> generic registration-accepted response
