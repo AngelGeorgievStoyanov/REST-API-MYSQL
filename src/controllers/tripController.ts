@@ -131,11 +131,13 @@ tripController.post(
         next();
     }),
     (req, res, next) => {
-        res.locals['imageUploadRequestStartedAt'] = performance.now();
-        res.locals['imageUploadRequestStartedAtIso'] = new Date().toISOString();
+        const requestStartedAt = performance.now();
+        const requestStartedAtIso = new Date().toISOString();
+        res.locals['imageUploadRequestStartedAt'] = requestStartedAt;
+        res.locals['imageUploadRequestStartedAtIso'] = requestStartedAtIso;
         console.info(`[images] ${JSON.stringify({
             event: 'image.request.started',
-            timestamp: res.locals['imageUploadRequestStartedAtIso'],
+            timestamp: requestStartedAtIso,
             tripGroupId: req.params['tripGroupId'],
             tripId: req.params['tripId'],
         })}`);
