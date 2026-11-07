@@ -44,14 +44,16 @@ export function isValidPassword(value: string, minLength = 8): boolean {
     let hasSpecialCharacter = false;
 
     for (const character of value) {
-        if (character.trim().length === 0) return false;
-
         const code = character.charCodeAt(0);
+        // Accept printable ASCII only: Latin letters, digits and standard symbols.
+        // This also rejects spaces, Cyrillic and other Unicode characters.
+        if (code < 33 || code > 126) return false;
+
         const isLatinLetter =
             (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
         const isNumber = code >= 48 && code <= 57;
         const isPrintableAsciiSymbol =
-            code >= 33 && code <= 126 && !isLatinLetter && !isNumber;
+            !isLatinLetter && !isNumber;
 
         if (isLatinLetter) hasLatinLetter = true;
         if (isNumber) hasNumber = true;
