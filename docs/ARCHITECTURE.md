@@ -671,6 +671,41 @@ The session-presence endpoint does not replace the refresh endpoint. It only pro
 
 ## Authentication and authorization
 
+### Registration flow and CAPTCHA boundary
+
+Registration is deliberately implemented as a backend-verified workflow rather than trusting the browser's CAPTCHA state:
+
+```text
+Browser / FE
+  -> reCAPTCHA v2 widget completes
+  -> POST /api/v1/auth/register { email, password, firstName, lastName, captchaToken }
+  -> authController: register rate limiter
+  -> strict Zod registerSchema
+  -> AuthService.register()
+  -> Google reCAPTCHA siteverify (server-to-server, 5s timeout)
+  -> normalize input + validate password policy
+  -> lookup/create pending-verification user
+  -> hash password with bcrypt
+  -> create hashed, expiring email-verification token
+  -> AuthMailer sends verification email asynchronously
+  -> generic registration-accepted response
+```
+
+Responsibilities and invariants:
+
+* The controller remains a thin HTTP adapter. It applies the IP-based `register` attempt limiter, validates the strict request body, and delegates to `AuthService.register()`.
+* `registerSchema` requires `captchaToken` (trimmed, non-empty, max 8192 characters). Unknown body fields are rejected.
+* `AuthService` verifies the response token with Google's `siteverify` endpoint before account lookup/creation. It sends the backend-only `RECAPTCHA_V2_SECRET_KEY` and the submitted response token as URL-encoded form data.
+* The external verification call has a 5-second timeout and is fail-closed: absent configuration or Google/network failure prevents registration; an unsuccessful verification is a validation failure. The browser's own success state is never sufficient evidence.
+* The browser receives only the public reCAPTCHA v2 Site Key. The secret is loaded by `src/config/auth.ts` from `RECAPTCHA_V2_SECRET_KEY`; it must not use a `NEXT_PUBLIC_*` variable or be exposed by an API response.
+* Password validation is shared between FE and BE and is repeated at the backend domain boundary: minimum 8 characters, maximum 72 UTF-8 bytes, printable ASCII only (33–126), at least one Latin letter, one digit and one symbol. Spaces, Cyrillic and other Unicode characters are rejected. The backend hashes the accepted password with bcrypt; plaintext is not persisted.
+* A new account is pending email verification. The verification token is cryptographically random, only its SHA-256 hash is stored, and it expires after 24 hours. The raw token is sent only through the verification email.
+* Verification-email delivery for initial registration is started asynchronously after the token record is created. Delivery failure is logged by the mailer and does not turn the already-accepted registration response into a different account-existence signal.
+* Existing-email and unique-constraint race outcomes return the same generic registration-accepted message as a new registration, preventing account enumeration.
+* CAPTCHA verification is scoped to registration. Email verification remains a separate one-time-token endpoint and is not performed by the CAPTCHA integration.
+
+The relevant implementation is split across `src/controllers/authController.ts`, `src/validation/schemas/auth.schemas.ts`, `src/services/authService.ts`, `src/config/auth.ts`, `src/middlewares/authRateLimit.ts`, and the shared auth/password utilities.
+
 Protected API requests carry:
 
 ```http
