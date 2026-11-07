@@ -62,16 +62,23 @@ export function isValidPassword(value: string, minLength = 8): boolean {
 }
 
 /** Password policy shared by registration, reset and password changes. */
-export function passwordString(bounds: NumberBounds): z.ZodType<string> {
-    return z.string().min(bounds.min).max(bounds.max)
-        .refine(
-            (value) => Buffer.byteLength(value, 'utf8') <= bounds.max,
-            { message: `must be at most ${bounds.max} bytes long.` },
-        )
-        .refine(
-            (value) => isValidPassword(value, bounds.min),
-            { message: 'must contain at least 8 characters, including a Latin letter, a number and a special character, with no spaces.' },
-        );
+export function passwordString(
+  { min, max }: { min: number; max: number },
+  messages?: { min?: string; max?: string; pattern?: string },
+) {
+  return z
+    .string()
+    .min(min, messages?.min ?? `Password must contain at least ${min} characters.`)
+    .max(max, messages?.max ?? `Password must not exceed ${max} characters.`)
+    .refine(
+      (value) => new TextEncoder().encode(value).length <= max,
+      messages?.max ?? `Password must be at most ${max} bytes.`,
+    )
+    .refine(
+      (value) => isValidPassword(value, min),
+      messages?.pattern ??
+        'Use at least 8 characters with a Latin letter, a number and a special character. Do not include spaces.',
+    );
 }
 
 /** Text that is part of a full write: absent or blank becomes `null`. */
