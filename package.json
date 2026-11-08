@@ -19,7 +19,9 @@
     "db:clone-test:dry-run": "ts-node src/db/cloneTestDatabase.ts --dry-run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "check": "npm run typecheck && npm run lint"
+    "check": "npm run typecheck && npm run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "author": "Angel Stoyanov",
   "license": "ISC",
@@ -41,7 +43,8 @@
     "pino-pretty": "^13.2.0",
     "ts-node": "10.9.2",
     "typescript": "6.0.3",
-    "typescript-eslint": "^8.71.1"
+    "typescript-eslint": "^8.71.1",
+    "prettier": "^3.9.10"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.2.0",
