@@ -96,6 +96,9 @@ Administrative rate limit (applied to every admin endpoint):
 * A rejected request is `400` with code `VALIDATION_ERROR` and a message naming the offending field. At most 3 issues are reported per validation failure.
 * Numeric fields in a JSON body must use actual JSON numbers; numeric strings and booleans are rejected. Integer fields reject fractional values. `null` is rejected unless that specific schema explicitly allows it (for example, `lat` and `lng` in `PUT /points/:pointId`, where `null` clears the coordinate).
 * Numeric query parameters arrive as strings and are parsed to numbers by their query schemas; route parameters are validated as digit strings (positive integer ids) or UUID strings (`userId`).
+* Before route validation, the global request-body normalization middleware recursively trims string values in parsed JSON and URL-encoded bodies. It applies to ordinary text fields, including passwords, and does not mutate non-string values.
+* Field names containing `token` or `captcha` are opaque exceptions: their values are preserved byte-for-byte and are validated without trimming. Opaque tokens and CAPTCHA response tokens containing whitespace are rejected.
+* Multipart image requests are parsed by route-specific Multer middleware. After Multer has parsed the request, the upload middleware applies the same text normalization to `req.body`; uploaded file data is never trimmed or modified by this step. Current image-upload endpoints accept only the `file` binary part and reject additional text fields.
 * Validated request parts are handed to the service layer, which re-reads them through its own domain parsers (dynamic-config select resolution, rejection of client-controlled ownership/parent/sequence fields) before persistence.
 
 ### 1.8 Strictness summary
@@ -366,7 +369,7 @@ All auth routes are mounted at `/api/v1/auth`.
   * `email`: trimmed, validated, normalized to lowercase before lookup/storage.
   * `firstName`, `lastName`: trimmed strings within the configured auth-name limit.
   * `password`: 8–72 UTF-8 bytes; printable ASCII only (character codes 33–126), at least one Latin letter (`a-zA-Z`), one digit (`0-9`), and one printable ASCII symbol; spaces, Cyrillic and all other non-ASCII characters are rejected. The same policy is enforced by the shared FE/BE validation rule and rechecked by the backend domain normalizer before hashing.
-  * `captchaToken`: required, trimmed non-empty string, maximum 8192 characters; this is the response token returned by the Google reCAPTCHA v2 widget, not the site key or secret key.
+  * `captchaToken`: required non-empty opaque string, maximum 8192 characters; preserved unchanged and rejected if it contains whitespace; this is the response token returned by the Google reCAPTCHA v2 widget, not the site key or secret key.
 * CAPTCHA verification: the backend verifies the token before any account lookup, credential check, or email-send side effect. A dedicated CAPTCHA service calls a dedicated Google reCAPTCHA HTTP client, which posts `secret` and `response` to `https://www.google.com/recaptcha/api/siteverify` as URL-encoded form data. The secret is read only from `RECAPTCHA_V2_SECRET_KEY` on the backend. The request has a 5-second timeout and fails closed:
   * missing/blank token or Google response with `success !== true` -> `400 VALIDATION_ERROR`;
   * missing backend secret or unavailable/failed Google verification -> `500 INTERNAL_SERVER_ERROR` with a generic temporary-unavailability message;
@@ -387,7 +390,7 @@ All auth routes are mounted at `/api/v1/auth`.
 
 * Auth: none. Rate-limited (email, `resend-verification` bucket).
 * Body (strict): `{ email, captchaToken }`.
-* `captchaToken`: required, trimmed non-empty Google reCAPTCHA v2 response token, maximum 8192 characters. CAPTCHA is verified before account lookup or email delivery.
+* `captchaToken`: required non-empty Google reCAPTCHA v2 response token, maximum 8192 characters; preserved unchanged and rejected if it contains whitespace. CAPTCHA is verified before account lookup or email delivery.
 * Response `200`: `{ "message": "..." }`.
 * Anti-enumeration: unknown/verified accounts answer the same message after successful CAPTCHA verification.
 
@@ -1698,7 +1701,7 @@ All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use
 ### 18.1 Shared helpers
 
 * `trimmedString({max, min?, pattern?, patternMessage?})`: `z.string() -> trim() -> pipe(min/max/regex)`. Surrounding whitespace is removed before validation.
-* `passwordString({min,max})`: `z.string().min(min).max(max).refine(byteLength <= max)`. Never trimmed.
+* `passwordString({min,max})`: `z.string().trim().min(min).max(max).refine(UTF-8 byteLength <= max)`. Surrounding whitespace is removed before validation; any whitespace remaining inside the normalized password is rejected by the password policy. Login uses a simpler 1..200 character schema, but the global body middleware still trims its surrounding whitespace before validation.
 * `optionalText({max,min?})`: `union(trimmedString, null).optional()` then transforms `undefined`/`null`/`''` -> `null`. Output `string | null`.
 * `patchText({max,min?})`: same as optionalText but keeps `undefined` as `undefined` (partial update; blank clears to null).
 * `requiredNumber({min,max})`: `number().min.max` — a true JSON number only; strings, booleans and `null` are rejected.
@@ -1716,15 +1719,15 @@ All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use
 
 | Schema                     | Fields (all required unless marked)          | Notes                                                                                                             |
 | -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `registerSchema`           | `email`, `password`, `firstName`, `lastName`, `captchaToken` | `captchaToken`: required, trimmed non-empty, max 8192; other fields follow their field validators |
-| `verifyEmailSchema`        | `token`                                      | trimmed 1..200                                                                                                    |
+| `registerSchema`           | `email`, `password`, `firstName`, `lastName`, `captchaToken` | `captchaToken`: required non-empty opaque value, max 8192; whitespace rejected; other fields follow their field validators |
+| `verifyEmailSchema`        | `token`                                      | opaque 1..200; preserved unchanged; whitespace rejected                                                           |
 | `resendVerificationSchema` | `email`, `captchaToken`                      | email pattern; `captchaToken`: required, trimmed non-empty, max 8192                                            |
 | `loginSchema`              | `email`, `password`, `captchaToken`           | `password`: 1..200 (comparison only); `captchaToken`: required, trimmed non-empty, max 8192                     |
 | `updateProfileSchema`      | `firstName`, `lastName`                      | trimmed 1..45                                                                                                     |
 | `confirmPasswordSchema`    | `password`                                   | 1..200                                                                                                            |
 | `changePasswordSchema`     | `currentPassword`, `newPassword`             | `currentPassword`: 1..200; `newPassword`: 8..72                                                                   |
 | `forgotPasswordSchema`     | `email`, `captchaToken`                      | email pattern; `captchaToken`: required, trimmed non-empty, max 8192                                            |
-| `resetPasswordSchema`      | `token`, `password`                          | `token`: 1..200; `password`: 8..72                                                                                |
+| `resetPasswordSchema`      | `token`, `password`                          | `token`: opaque 1..200; whitespace rejected; `password`: 8..72                                                                                |
 
 ### 18.3 Trip schemas
 
