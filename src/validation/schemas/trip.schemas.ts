@@ -5,7 +5,6 @@ import {
   idList,
   optionalInt,
   optionalText,
-  patchText,
   positiveId,
   requiredInt,
   requiredNumber,
