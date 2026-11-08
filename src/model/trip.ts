@@ -242,7 +242,3 @@ export interface PointUpdateRequest {
   lng: number;
 }
 
-export interface DayUpdateRequest {
-  title?: string;
-  description?: string | null;
-}
