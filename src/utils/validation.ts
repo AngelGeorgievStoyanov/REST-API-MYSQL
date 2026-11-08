@@ -46,7 +46,7 @@ export function requirePositiveInt(value: unknown, field: string, max?: number):
   return parsed;
 }
 
-export function optionalNumberInRange(
+function optionalNumberInRange(
   value: unknown,
   field: string,
   min: number,
