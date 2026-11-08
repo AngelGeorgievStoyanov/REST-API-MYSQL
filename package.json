@@ -23,7 +23,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "duplicates": "npx --yes jscpd@5.4.3 src",
-    "knip": "npx --yes knip@6.44.2"
+    "knip": "npx --yes knip@6.44.2",
+    "code:audit": "npm run duplicates && npm run knip"
   },
   "author": "Angel Stoyanov",
   "license": "ISC",
