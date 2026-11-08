@@ -59,7 +59,7 @@ export class SocialTargetRepository {
             trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
           },
         });
-        if (point === null) return null;
+        if (!point) return null;
 
         const tripGroupId = point.trip.tripGroupId;
         if (tripGroupId === null) return null;
@@ -93,7 +93,7 @@ export class SocialTargetRepository {
         return {
           ...target,
           tripGroupId: day.tripGroupId,
-          tripGroupOwnerId: day.tripGroup?.ownerId ?? null,
+          tripGroupOwnerId: day.tripGroup.ownerId,
         };
       }
       case SOCIAL_TARGET_TYPE.COMMENT: {
