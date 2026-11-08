@@ -114,14 +114,14 @@ export function readCookie(cookieHeader: string | undefined, name: string): stri
         const separator = part.indexOf('=');
         if (separator < 0) continue;
         if (part.slice(0, separator).trim() === name) {
-            const raw = part.slice(separator + 1).trim();
+            const raw = part.slice(separator + 1);
             if (raw === '') return null;
 
-            // A malformed percent-encoding is a broken credential, not a server
-            // fault: it is treated like a missing cookie and answered through the
-            // controlled authentication failure path instead of a URIError 500.
+            // Cookie values are opaque credentials: preserve them exactly and reject
+            // whitespace instead of silently changing the token before verification.
             try {
-                return decodeURIComponent(raw);
+                const decoded = decodeURIComponent(raw);
+                return /\\s/.test(decoded) ? null : decoded;
             } catch (error) {
                 if (error instanceof URIError) return null;
                 throw error;
