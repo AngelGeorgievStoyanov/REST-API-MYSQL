@@ -7,8 +7,8 @@ import {
   DEFAULT_REFRESH_TOKEN_TTL_SECONDS,
 } from '../constants/auth';
 
-export type CookieSameSite = 'lax' | 'strict' | 'none';
-export type AuthMailTransport = 'smtp' | 'file';
+type CookieSameSite = 'lax' | 'strict' | 'none';
+type AuthMailTransport = 'smtp' | 'file';
 
 export interface AuthRateLimitConfig {
   windowSeconds: number;
@@ -38,7 +38,7 @@ export interface AuthConfig {
   rateLimit: AuthRateLimitConfig;
 }
 
-export type AuthEnvironmentSource = Record<string, string | undefined>;
+type AuthEnvironmentSource = Record<string, string | undefined>;
 
 function isProduction(env: AuthEnvironmentSource): boolean {
   return env['NODE_ENV'] === 'production';
@@ -60,7 +60,7 @@ function positiveSeconds(env: AuthEnvironmentSource, name: string, fallback: num
  * without it the application refuses to start instead of signing tokens with a
  * value that ships with the source.
  */
-export function loadAuthConfig(env: AuthEnvironmentSource = process.env): AuthConfig {
+function loadAuthConfig(env: AuthEnvironmentSource = process.env): AuthConfig {
   const production = isProduction(env);
   const secret = env['JWT_ACCESS_SECRET']?.trim() ?? '';
   // eslint-disable-next-line security/detect-possible-timing-attacks -- Checks whether the configured secret is empty; it does not compare secret values.
