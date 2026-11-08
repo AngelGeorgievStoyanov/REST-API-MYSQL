@@ -3,7 +3,6 @@ import { type SocialStates } from '../model/social';
 import {
   type CurrencyDto,
   type ResourcePermissions,
-  type TripDay,
   type TripGroupDay,
   type TripGroupResponse,
   type TripSelectValue,
