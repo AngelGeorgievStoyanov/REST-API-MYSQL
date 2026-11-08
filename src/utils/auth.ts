@@ -102,7 +102,7 @@ export function requireTokenValue(value: unknown): string {
     if (value.length > VALIDATION_LIMITS.auth.token.max) {
         throw ApiError.validation(`"token" must be at most ${VALIDATION_LIMITS.auth.token.max} characters.`);
     }
-    if (/\\s/.test(value)) throw ApiError.validation('"token" must not contain whitespace.');
+    if (/\s/.test(value)) throw ApiError.validation('"token" must not contain whitespace.');
     return value;
 }
 
