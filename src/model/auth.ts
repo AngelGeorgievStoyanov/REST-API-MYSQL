@@ -65,27 +65,3 @@ export interface SessionPresenceResponse {
   hasSession: boolean;
 }
 
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface VerifyEmailRequest {
-  token: string;
-}
-
-export interface EmailRequest {
-  email: string;
-}
-
-export interface ResetPasswordRequest {
-  token: string;
-  password: string;
-}
