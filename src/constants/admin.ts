@@ -1,8 +1,5 @@
 import { MODERATOR_ROLES } from './trip';
 
-/** User administration only a full administrator may perform. */
-export const ADMIN_ROLES = ['admin'];
-
 /**
  * Administrative reads and log maintenance. The legacy handlers allowed
  * `admin` and `manager` here, so the restriction is preserved.
