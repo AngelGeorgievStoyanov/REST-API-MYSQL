@@ -39,15 +39,6 @@ export const SOCIAL_TARGET_TYPE_INPUT: Record<
 
 export const COMMENT_TARGET_TYPE = 'comment' as const;
 
-/** `targetType` values as reports and the admin report queue expose them. */
-export const REPORT_TARGET_TYPE_VALUES = [
-  'tripGroup',
-  'trip',
-  'point',
-  'image',
-  COMMENT_TARGET_TYPE,
-] as const;
-
 /** Longer than `comments.comment` VARCHAR(1000). */
 export const MAX_COMMENT_LENGTH = 1000;
 
