@@ -26,9 +26,6 @@ export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 72;
 export const PASSWORD_HASH_ROUNDS = 10;
 
-/** Legacy `users.lastTimeLogin` is VARCHAR(24) holding an ISO string. */
-export const MAX_LAST_LOGIN_LENGTH = 24;
-
 /**
  * Fixed bcrypt hash compared against when the email of a login is unknown, so a
  * failed login costs the same as a real one and cannot be used to probe accounts.
