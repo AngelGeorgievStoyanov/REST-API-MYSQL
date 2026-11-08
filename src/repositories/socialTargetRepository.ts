@@ -59,7 +59,9 @@ export class SocialTargetRepository {
             trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
           },
         });
-        const tripGroupId = point?.trip?.tripGroupId ?? null;
+        if (point === null) return null;
+
+        const tripGroupId = point.trip.tripGroupId;
         if (tripGroupId === null) return null;
 
         return {
@@ -91,7 +93,6 @@ export class SocialTargetRepository {
         return {
           ...target,
           tripGroupId: day.tripGroupId,
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
           tripGroupOwnerId: day.tripGroup?.ownerId ?? null,
         };
       }
