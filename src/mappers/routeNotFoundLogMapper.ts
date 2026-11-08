@@ -1,6 +1,6 @@
 import { type RouteNotFoundLogDto, type RouteNotFoundLogSummary } from '../model/admin';
 
-export function toRouteNotFoundLogDto(row: RouteNotFoundLogSummary): RouteNotFoundLogDto {
+function toRouteNotFoundLogDto(row: RouteNotFoundLogSummary): RouteNotFoundLogDto {
   return {
     ...row,
     reqUrl: null,
