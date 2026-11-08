@@ -1914,23 +1914,23 @@ The new trip-data endpoints do not accept query parameters unless explicitly doc
 
 ### 18.4 Point schemas
 
-| Schema              | Fields                                                                                                              | Notes                                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `pointCreateSchema` | `tripId` (positive int), `name` (1..100), `description` (optional/null, <=1050), `lat` (-90..90), `lng` (-180..180) | `tripId` is the day row's `trips.id`; `tripId`/`lat`/`lng` must be true JSON numbers; `pointNumber` MUST NOT be sent                 |
-| `pointUpdateSchema` | `name` (1..100), `description` (nullable, <=1050), `lat` (-90..90), `lng` (-180..180) | all four fields required; coordinates are true JSON numbers and cannot be `null`; `pointNumber`/`numberPoint`/`tripId`/`dayId` rejected |
+| Schema              | Fields                                                                                                              | Notes                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `pointCreateSchema` | `tripId` (positive int), `name` (1..100), `description` (optional/null, <=1050), `lat` (-90..90), `lng` (-180..180) | `tripId` is the day row's `trips.id`; `tripId`/`lat`/`lng` must be true JSON numbers; `pointNumber` MUST NOT be sent                    |
+| `pointUpdateSchema` | `name` (1..100), `description` (nullable, <=1050), `lat` (-90..90), `lng` (-180..180)                               | all four fields required; coordinates are true JSON numbers and cannot be `null`; `pointNumber`/`numberPoint`/`tripId`/`dayId` rejected |
 
 ### 18.5 Social schemas
 
-| Schema                    | Fields                                                      | Notes                                                                                   |
-| ------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `socialTargetBodySchema`  | `targetType`, `targetId`                                    | `targetType` = `targetTypeInput`; `targetId` = positive id (true JSON number)           |
-| `socialTargetQuerySchema` | `targetType`, `targetId`                                    | same, but `targetId` uses the query-string id schema (numeric string)                   |
-| `favoriteBodySchema`      | either `tripGroupId` or (`targetType`, `targetId`)           | positive id; polymorphic target uses `targetTypeInput` and a true JSON number `targetId` |
-| `favoriteQuerySchema`     | either `tripGroupId` or (`targetType`, `targetId`)           | positive id; polymorphic target uses `targetTypeInput` and numeric-string `targetId`     |
-| `commentBodySchema`       | `comment` (1..1000)                                         | trimmed; the request field and DTO field are `comment` (never `text`)                   |
-| `reportBodySchema`        | `targetType`, `targetId`, `reason?` (optional/null, <=1000) | Report target type additionally allows `comment`                                        |
-| `reportTargetTypeInput`   | `tripgroup`, `day`, `trip`, `point`, `image`, `comment`     | Case-insensitive, trimmed and lowercased; `day` and `trip` resolve to a trip/day target |
-| `commentPageQuerySchema`  | `page?`, `limit?`                                           | `page` 1..10000; `limit` 1..100                                                         |
+| Schema                    | Fields                                                      | Notes                                                                                    |
+| ------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `socialTargetBodySchema`  | `targetType`, `targetId`                                    | `targetType` = `targetTypeInput`; `targetId` = positive id (true JSON number)            |
+| `socialTargetQuerySchema` | `targetType`, `targetId`                                    | same, but `targetId` uses the query-string id schema (numeric string)                    |
+| `favoriteBodySchema`      | either `tripGroupId` or (`targetType`, `targetId`)          | positive id; polymorphic target uses `targetTypeInput` and a true JSON number `targetId` |
+| `favoriteQuerySchema`     | either `tripGroupId` or (`targetType`, `targetId`)          | positive id; polymorphic target uses `targetTypeInput` and numeric-string `targetId`     |
+| `commentBodySchema`       | `comment` (1..1000)                                         | trimmed; the request field and DTO field are `comment` (never `text`)                    |
+| `reportBodySchema`        | `targetType`, `targetId`, `reason?` (optional/null, <=1000) | Report target type additionally allows `comment`                                         |
+| `reportTargetTypeInput`   | `tripgroup`, `day`, `trip`, `point`, `image`, `comment`     | Case-insensitive, trimmed and lowercased; `day` and `trip` resolve to a trip/day target  |
+| `commentPageQuerySchema`  | `page?`, `limit?`                                           | `page` 1..10000; `limit` 1..100                                                          |
 
 ### 18.6 Admin schemas
 
@@ -2065,7 +2065,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | GET    | `/trips/background`                         | Public              | none                                                                                                                           | 200 `{ current: { url }, next: { url } }` | 401, 404                     |
 | POST   | `/trips`                                    | Auth                | full body: `dayNumber,title,price,transport,countPeoples,typeOfPeople,currency`; optional `description,destination,lat,lng`    | 201 `TripGroupResponse`                   | 400, 401, 403, 500           |
 | DELETE | `/trips/:tripGroupId`                       | Owner/Mod           | param `tripGroupId`                                                                                                            | 204                                       | 400, 401, 403, 404           |
-| POST   | `/trips/:tripGroupId/days`                  | Owner/Mod           | param `tripGroupId`; full create body in §8.9 (same `tripWriteSchema` as `POST /trips`)                                          | 201 `TripGroupResponse`                   | 400, 401, 403, 404, 409      |
+| POST   | `/trips/:tripGroupId/days`                  | Owner/Mod           | param `tripGroupId`; full create body in §8.9 (same `tripWriteSchema` as `POST /trips`)                                        | 201 `TripGroupResponse`                   | 400, 401, 403, 404, 409      |
 | PUT    | `/trips/:tripGroupId/days/reorder`          | Owner/Mod           | param `tripGroupId`; body `{ days: [{ tripId, dayNumber }] }`; exact complete group day set                                    | 200 `TripGroupResponse`                   | 400, 401, 403, 404, 500      |
 | PUT    | `/trips/:tripGroupId/days/:tripId`          | Owner/Mod           | params `tripGroupId,tripId`; full 11-field body in §8.11                                                                       | 200 `TripGroupResponse`                   | 400, 401, 403, 404, 409, 500 |
 | DELETE | `/trips/:tripGroupId/days/:tripId`          | Owner/Mod           | params `tripGroupId,tripId`                                                                                                    | 200 `TripGroupResponse`                   | 400, 401, 403, 404, 409      |
@@ -2248,7 +2248,7 @@ src/validations/
 | Module      | Backend schemas                                                                                                                                                                                         |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auth/`     | `registerSchema`, `loginSchema`, `verifyEmailSchema`, `resendVerificationSchema`, `updateProfileSchema`, `confirmPasswordSchema`, `changePasswordSchema`, `forgotPasswordSchema`, `resetPasswordSchema` |
-| `trips/`    | `tripWriteSchema` (used by `POST /trips` and `POST /trips/:tripGroupId/days`), `tripListQuerySchema`, `tripEditSchema`, `dayReorderSchema`, `pointReorderSchema`                                       |
+| `trips/`    | `tripWriteSchema` (used by `POST /trips` and `POST /trips/:tripGroupId/days`), `tripListQuerySchema`, `tripEditSchema`, `dayReorderSchema`, `pointReorderSchema`                                        |
 | `points/`   | `pointCreateSchema`, `pointUpdateSchema`                                                                                                                                                                |
 | `comments/` | `commentBodySchema`, `commentPageQuerySchema`                                                                                                                                                           |
 | `social/`   | `socialTargetBodySchema`, `socialTargetQuerySchema`, `favoriteBodySchema`, `favoriteQuerySchema`, `reportBodySchema`, `reportTargetQuerySchema`, `reportTargetTypeInput`                                |

@@ -48,10 +48,7 @@ export const loginSchema = z
     email,
     // Login only checks that a password was supplied and is within the input limit.
     // Complexity rules apply when creating or changing a password, not when logging in.
-    password: z
-      .string()
-      .min(LIMITS.auth.passwordInput.min)
-      .max(LIMITS.auth.passwordInput.max),
+    password: z.string().min(LIMITS.auth.passwordInput.min).max(LIMITS.auth.passwordInput.max),
     captchaToken,
   })
   .strict();
