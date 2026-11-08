@@ -8,6 +8,9 @@ export const SOCIAL_TARGET_TYPE = {
   COMMENT: 'comment',
 } as const;
 
+/** Canonical target type for comments. */
+export const COMMENT_TARGET_TYPE = SOCIAL_TARGET_TYPE.COMMENT;
+
 /**
  * Lower-case `targetType` values accepted from a client, including the two
  * spellings of a day (`day` in the API wording, `trip` in the database).
