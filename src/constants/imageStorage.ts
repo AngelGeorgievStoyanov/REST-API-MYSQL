@@ -1,7 +1,7 @@
 export const UPLOAD_FIELD_NAME = 'file';
 
 /** Per-file upload cap; the frontend compresses to a few MB and rejects above 25 MB. */
-export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /**
  * Images one owner entity may carry: 9 per Trip (a Day row) and 9 per Point,
