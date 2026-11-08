@@ -34,7 +34,7 @@ export interface ServiceConfig {
   configs: ServiceConfigEntry[];
 }
 
-export interface PublicServiceConfigEntry {
+interface PublicServiceConfigEntry {
   id: number;
   serviceTypeId: number;
   key: string;
@@ -57,18 +57,18 @@ export interface SocialConfig {
   targets: SocialConfigTarget[];
 }
 
-export interface SocialConfigTarget {
+interface SocialConfigTarget {
   key: string;
   operations: Record<string, boolean>;
   contextRules?: SocialConfigContextRule[];
 }
 
-export interface SocialConfigContextRule {
+interface SocialConfigContextRule {
   key: string;
   operations: Record<string, boolean>;
 }
 
-export interface SocialConfigResponseTarget extends SocialConfigTarget {
+interface SocialConfigResponseTarget extends SocialConfigTarget {
   create: boolean;
   edit: boolean;
   delete: boolean;
