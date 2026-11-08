@@ -45,11 +45,10 @@ export class PointRepository {
     });
     if (!day) return null;
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
     return {
       tripId: day.id,
       tripGroupId: day.tripGroupId,
-      groupOwnerId: day.tripGroup?.ownerId ?? null,
+      groupOwnerId: day.tripGroup.ownerId,
     };
   }
 
