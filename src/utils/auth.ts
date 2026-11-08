@@ -97,7 +97,13 @@ export function normalizePassword(value: unknown): string {
 }
 
 export function requireTokenValue(value: unknown): string {
-    return requireTrimmedString(value, 'token', VALIDATION_LIMITS.auth.token.max);
+    if (typeof value !== 'string') throw ApiError.validation('"token" must be a string.');
+    if (value.length === 0) throw ApiError.validation('"token" must not be empty.');
+    if (value.length > VALIDATION_LIMITS.auth.token.max) {
+        throw ApiError.validation(`"token" must be at most ${VALIDATION_LIMITS.auth.token.max} characters.`);
+    }
+    if (/\\s/.test(value)) throw ApiError.validation('"token" must not contain whitespace.');
+    return value;
 }
 
 /** Reads one cookie without pulling in another request-parsing dependency. */
