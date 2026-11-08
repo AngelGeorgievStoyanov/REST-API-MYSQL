@@ -287,7 +287,7 @@ There is no `429`: rate limiting is reported as `403 FORBIDDEN`.
 Roles: `user`, `admin`, `manager`.
 
 - `MODERATOR_ROLES` = `admin`, `manager` (may modify any trip/day/point/image and perform admin reads + moderation).
-- `ADMIN_ROLES` = `admin` (full account administration: user updates).
+- User account administration (including role and password changes) is restricted to `admin`.
 - `ADMIN_OR_MODERATOR_ROLES` = `admin`, `manager`.
 
 Authorization model:
@@ -1641,7 +1641,7 @@ Reports are never read back through `/reports`: users never receive the administ
 
 ## 16. Admin Endpoints
 
-Mounted at `/api/v1/admin`. Every admin endpoint is guarded by the admin rate limit (`120`/window/IP) and by role middleware. Role gates are defined in code (`ADMIN_ROLES` = `admin`; `ADMIN_OR_MODERATOR_ROLES` = `admin`, `manager`).
+Mounted at `/api/v1/admin`. Every admin endpoint is guarded by the admin rate limit (`120`/window/IP) and by role middleware. Role gates are applied per route: user account administration is restricted to `admin`; moderator functionality allows `admin` and `manager`.
 
 Admin pagination query (strict, shared by all admin list endpoints):
 
@@ -1902,7 +1902,6 @@ All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use
 | `tripEditSchema`                               | `dayNumber`, `title`, `description`, `price`, `transport`, `countPeoples`, `typeOfPeople`, `currency`, `destination`, `lat`, `lng`                                                                                                                        | Strict full edit body: all 11 fields required; `description`/`destination` and coordinates may be null as documented in §8.11. Select values are resolved against active Dynamic Config options.                                                                 |
 | `tripListQuerySchema`                          | `page?`, `limit?`, `search?`, `group?`, `transport?`, `sort?`                                                                                                                                                                                             | `page` 1..10000; `limit` 1..100; `search` 1..200; `group`/`transport` 1..45; `sort` enum `newest`/`oldest`                                                                                                                                                       |
 | Day creation (`POST /trips/:tripGroupId/days`) | `tripWriteSchema`                                                                                                                                                                                                                                         | Uses the same strict full-create body and field rules as `POST /trips`; no separate `dayCreateSchema` exists.                                                                                                                                                    |
-| `dayUpdateSchema`                              | `title?`, `description?` (at least one)                                                                                                                                                                                                                   | patch semantics; `dayNumber` is rejected (use the reorder endpoint)                                                                                                                                                                                              |
 | `dayReorderSchema`                             | `days`                                                                                                                                                                                                                                                    | strict non-empty array (1..500); each entry has positive integer `tripId` and integer `dayNumber` 1..500; no duplicate trip ids or day numbers                                                                                                                   |
 | `pointReorderSchema`                           | `pointIds`                                                                                                                                                                                                                                                | array 0..500 (true JSON numbers), no duplicates                                                                                                                                                                                                                  |
 
@@ -2015,7 +2014,7 @@ DATABASE MODELS (not returned by the API): `User`, `TripGroup`, `Trip`, `Point`,
 9. **Unverified email**: `403 EMAIL_NOT_VERIFIED` (login/refresh and any authenticated request).
 10. **Authenticated user requesting a resource they do not own** (trip/day/point/image mutation): `403 FORBIDDEN` ("Only the trip owner can modify this trip.").
 11. **Manager accessing moderator functionality**: allowed — `manager` is in `MODERATOR_ROLES`.
-12. **Admin accessing admin functionality**: allowed — `admin` is in both `ADMIN_ROLES` and `MODERATOR_ROLES`.
+12. **Admin accessing admin functionality**: allowed — `admin` has access to both admin-only account administration and moderator functionality.
 13. **Public GET with no Authorization**: `404 NOT_FOUND`.
 14. **Public GET with a valid user access JWT**: authenticated viewer context; viewer-specific fields (`likedByMe`, `favoritedByMe`) are returned where the existing DTO supports them. The public frontend bearer token instead creates an anonymous context.
 15. **Public GET with an invalid Authorization token**: `401 UNAUTHORIZED`; never silently turned anonymous.
@@ -2066,7 +2065,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | GET    | `/trips/background`                         | Public              | none                                                                                                                           | 200 `{ current: { url }, next: { url } }` | 401, 404                     |
 | POST   | `/trips`                                    | Auth                | full body: `dayNumber,title,price,transport,countPeoples,typeOfPeople,currency`; optional `description,destination,lat,lng`    | 201 `TripGroupResponse`                   | 400, 401, 403, 500           |
 | DELETE | `/trips/:tripGroupId`                       | Owner/Mod           | param `tripGroupId`                                                                                                            | 204                                       | 400, 401, 403, 404           |
-| POST   | `/trips/:tripGroupId/days`                  | Owner/Mod           | param `tripGroupId`; body `{ dayNumber, title?, description? }`                                                                | 201 `TripGroupResponse`                   | 400, 401, 403, 404, 409      |
+| POST   | `/trips/:tripGroupId/days`                  | Owner/Mod           | param `tripGroupId`; full create body in §8.9 (same `tripWriteSchema` as `POST /trips`)                                          | 201 `TripGroupResponse`                   | 400, 401, 403, 404, 409      |
 | PUT    | `/trips/:tripGroupId/days/reorder`          | Owner/Mod           | param `tripGroupId`; body `{ days: [{ tripId, dayNumber }] }`; exact complete group day set                                    | 200 `TripGroupResponse`                   | 400, 401, 403, 404, 500      |
 | PUT    | `/trips/:tripGroupId/days/:tripId`          | Owner/Mod           | params `tripGroupId,tripId`; full 11-field body in §8.11                                                                       | 200 `TripGroupResponse`                   | 400, 401, 403, 404, 409, 500 |
 | DELETE | `/trips/:tripGroupId/days/:tripId`          | Owner/Mod           | params `tripGroupId,tripId`                                                                                                    | 200 `TripGroupResponse`                   | 400, 401, 403, 404, 409      |
@@ -2249,7 +2248,7 @@ src/validations/
 | Module      | Backend schemas                                                                                                                                                                                         |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auth/`     | `registerSchema`, `loginSchema`, `verifyEmailSchema`, `resendVerificationSchema`, `updateProfileSchema`, `confirmPasswordSchema`, `changePasswordSchema`, `forgotPasswordSchema`, `resetPasswordSchema` |
-| `trips/`    | `tripWriteSchema` (used by `POST /trips` and `POST /trips/:tripGroupId/days`), `tripListQuerySchema`, `dayUpdateSchema`, `dayReorderSchema`, `pointReorderSchema`                                       |
+| `trips/`    | `tripWriteSchema` (used by `POST /trips` and `POST /trips/:tripGroupId/days`), `tripListQuerySchema`, `tripEditSchema`, `dayReorderSchema`, `pointReorderSchema`                                       |
 | `points/`   | `pointCreateSchema`, `pointUpdateSchema`                                                                                                                                                                |
 | `comments/` | `commentBodySchema`, `commentPageQuerySchema`                                                                                                                                                           |
 | `social/`   | `socialTargetBodySchema`, `socialTargetQuerySchema`, `favoriteBodySchema`, `favoriteQuerySchema`, `reportBodySchema`, `reportTargetQuerySchema`, `reportTargetTypeInput`                                |
