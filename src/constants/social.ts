@@ -37,7 +37,6 @@ export const SOCIAL_TARGET_TYPE_INPUT: Record<
   comment: SOCIAL_TARGET_TYPE.COMMENT,
 };
 
-export const REPORT_TARGET_TYPE_INPUT_VALUES = SOCIAL_TARGET_TYPE_INPUT_VALUES;
 export const COMMENT_TARGET_TYPE = 'comment' as const;
 
 /** `targetType` values as reports and the admin report queue expose them. */
