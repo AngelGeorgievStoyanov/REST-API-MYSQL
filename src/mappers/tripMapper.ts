@@ -65,7 +65,7 @@ export function toTripMetadataInput(ownerId: string, request: TripWriteRequest):
   };
 }
 
-export function toTripGroupDay(
+function toTripGroupDay(
   row: TripDayRecord,
   states: SocialStates,
   imageBaseUrl: string | null,
