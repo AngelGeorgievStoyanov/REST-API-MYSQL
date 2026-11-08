@@ -14,7 +14,6 @@ import {
   TRIP_SORTS,
 } from '../constants/trip';
 import {
-  type DayUpdateRequest,
   type TripListQuery,
   type TripSort,
   type TripWriteRequest,
@@ -26,7 +25,6 @@ import {
   asRecord,
   optionalString,
   rejectClientControlledFields,
-  rejectOwnershipAndParentFields,
   requirePositiveInt,
   requireNumberInRange,
   requireTrimmedString,
