@@ -21,7 +21,6 @@ export const MAX_TITLE_LENGTH = 60; // trips.title VARCHAR(60)
 export const MAX_DESCRIPTION_LENGTH = 2000; // trips.description VARCHAR(2000)
 export const MAX_POINT_NAME_LENGTH = 100; // points.name VARCHAR(100)
 export const MAX_POINT_DESCRIPTION_LENGTH = 1050; // points.description VARCHAR(1050)
-export const MAX_IMAGE_PATH_LENGTH = 1000; // images.filePath VARCHAR(1000)
 export const MAX_SELECT_VALUE_LENGTH = 45; // trips.typeOfPeople / trips.transport VARCHAR(45)
 export const MAX_SEARCH_LENGTH = 200;
 
