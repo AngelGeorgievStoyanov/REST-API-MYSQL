@@ -94,16 +94,6 @@ export function optionalText(bounds: StringBounds): z.ZodType<string | null> {
     .transform((value) => (value === undefined || value === null || value === '' ? null : value));
 }
 
-/** Text of a partial update: absent stays absent, blank clears the column. */
-export function patchText(bounds: StringBounds): z.ZodType<string | null | undefined> {
-  return z
-    .union([trimmedString(bounds), z.null()])
-    .optional()
-    .transform((value) =>
-      value === undefined ? undefined : value === null || value === '' ? null : value,
-    );
-}
-
 /** Required number of a JSON body: a true JSON number within the bounds. */
 export function requiredNumber(bounds: NumberBounds): z.ZodType<number> {
   return z.number().min(bounds.min).max(bounds.max);
@@ -127,7 +117,7 @@ export function requiredInt(bounds: NumberBounds): z.ZodType<number> {
 }
 
 /** Path segment of an `INT AUTO_INCREMENT` id; it stays a string for Express. */
-export const positiveIdParam = z
+const positiveIdParam = z
   .string()
   .regex(POSITIVE_INT_PATTERN, 'must be a positive integer.')
   .refine(
@@ -139,7 +129,7 @@ export const positiveIdParam = z
   );
 
 /** `users.id` is the only string id: a canonical UUID. */
-export const userIdParam = z.string().regex(UUID_PATTERN, 'must be a UUID.');
+const userIdParam = z.string().regex(UUID_PATTERN, 'must be a UUID.');
 
 /** Route parameters, one schema per path so every id is validated. */
 export const userIdParams = z.object({ userId: userIdParam }).strict();
@@ -185,7 +175,6 @@ export const targetTypeInput = z
   .transform((value) => value.toLowerCase())
   .pipe(z.enum(SOCIAL_TARGET_TYPE_INPUT_VALUES));
 
-export const reportTargetTypeInput = targetTypeInput;
 
 /** Complete ordered child list of one parent, as sent by the reorder endpoints. */
 export function idList(bounds: NumberBounds): z.ZodType<number[]> {
