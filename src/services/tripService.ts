@@ -38,7 +38,7 @@ import {
 } from '../repositories/tripRepository';
 
 /** Social targets of one day row: the day itself, its images, its points and their images. */
-export function toDayTargets(day: {
+function toDayTargets(day: {
   id: number;
   images: { id: number }[];
   points: { id: number; images: { id: number }[] }[];
