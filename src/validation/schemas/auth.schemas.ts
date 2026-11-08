@@ -59,6 +59,6 @@ export const changePasswordSchema = z.object({
 export const forgotPasswordSchema = z.object({ email, captchaToken }).strict();
 
 export const resetPasswordSchema = z.object({
-    token: trimmedString(LIMITS.auth.token),
+    token: opaqueToken,
     password: passwordString(LIMITS.auth.password),
 }).strict();
