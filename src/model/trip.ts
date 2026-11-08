@@ -133,16 +133,6 @@ export interface TripPoint {
   social: SocialState;
 }
 
-export interface TripDay {
-  id: number;
-  dayNumber: number;
-  title: string | null;
-  images: SocialImageDto[];
-  points: TripPoint[];
-  permissions: ResourcePermissions;
-  social: SocialState;
-}
-
 /** TripGroupDay represents a single day within a trip group for the unified response. */
 export interface TripGroupDay {
   id: number;
