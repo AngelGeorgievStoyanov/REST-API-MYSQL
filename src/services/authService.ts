@@ -343,6 +343,10 @@ export class AuthService {
             throw ApiError.invalidCredentials('Current password is incorrect.');
         }
 
+        if (await verifyPassword(newPassword, user.hashedPassword)) {
+            throw ApiError.validation('New password must be different from your current password.');
+        }
+
         await this.users.updatePassword(actorId, await hashPassword(newPassword));
         await this.refreshTokens.revokeAllForUser(actorId, new Date());
     }
