@@ -18,6 +18,7 @@ import { clientHeaderMiddleware } from './middlewares/clientHeaderMiddleware';
 import { publicApiRateLimit } from './middlewares/publicApiRateLimit';
 import { apiErrorMiddleware } from './middlewares/apiErrorMiddleware';
 import { requestIdMiddleware } from './middlewares/requestIdMiddleware';
+import { trimRequestBody } from './middlewares/trimRequestBody';
 import apiRouter from './routes/apiRouter';
 import { initializeApplication, releaseApplicationResources } from './startup/application';
 import { getErrorMessage } from './utils/error';
@@ -85,6 +86,7 @@ function configureApplication(application: express.Express, config: EnvironmentC
         limit: URLENCODED_BODY_LIMIT,
         parameterLimit: URLENCODED_PARAMETER_LIMIT,
     }));
+    application.use(trimRequestBody);
 
     // Registered before the routes, so the policy also reaches their responses.
     application.use('/api', apiRouter);
