@@ -1,4 +1,4 @@
-export interface CommentAuthor {
+interface CommentAuthor {
   /** `comments.nameAuthor` snapshot taken when the comment was written. */
   name: string;
 }
@@ -8,7 +8,7 @@ export interface CommentPermissions {
   canDelete: boolean;
 }
 
-export interface CommentSocialState {
+interface CommentSocialState {
   likes: number;
   likedByMe: boolean;
   comments: { count: number };
