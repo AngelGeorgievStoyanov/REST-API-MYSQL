@@ -96,7 +96,7 @@ Administrative rate limit (applied to every admin endpoint):
 * A rejected request is `400` with code `VALIDATION_ERROR` and a message naming the offending field. At most 3 issues are reported per validation failure.
 * Numeric fields in a JSON body must use actual JSON numbers; numeric strings and booleans are rejected. Integer fields reject fractional values. `null` is rejected unless that specific schema explicitly allows it (for example, `lat` and `lng` in `PUT /points/:pointId`, where `null` clears the coordinate).
 * Numeric query parameters arrive as strings and are parsed to numbers by their query schemas; route parameters are validated as digit strings (positive integer ids) or UUID strings (`userId`).
-* Before route validation, the global request-body normalization middleware recursively trims string values in parsed JSON and URL-encoded bodies. It applies to ordinary text fields, including passwords, and does not mutate non-string values.
+* Before route validation, the global `trimRequestBody` middleware recursively trims string values in parsed JSON and URL-encoded bodies. It applies to ordinary text fields, including passwords, and does not mutate non-string values.
 * Field names containing `token` or `captcha` are opaque exceptions: their values are preserved byte-for-byte and are validated without trimming. Opaque tokens and CAPTCHA response tokens containing whitespace are rejected.
 * Multipart image requests are parsed by route-specific Multer middleware. After Multer has parsed the request, the upload middleware applies the same text normalization to `req.body`; uploaded file data is never trimmed or modified by this step. Current image-upload endpoints accept only the `file` binary part and reject additional text fields.
 * Validated request parts are handed to the service layer, which re-reads them through its own domain parsers (dynamic-config select resolution, rejection of client-controlled ownership/parent/sequence fields) before persistence.
@@ -165,6 +165,7 @@ Rotation behavior:
 * Email verification token TTL: `86400` seconds (24h).
 * Password reset token TTL: `3600` seconds (1h).
 * Tokens are one-time; only the SHA-256 hash is stored.
+* Verification and password-reset tokens are opaque values: they are preserved unchanged (not trimmed) and any whitespace is rejected. The raw token is URL-encoded when placed in the email link.
 
 ### 2.5 Auth email links
 
