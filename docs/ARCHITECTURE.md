@@ -896,7 +896,9 @@ CORS
         ->
 public API rate limit
         ->
-JSON / URL-encoded body limits
+JSON / URL-encoded body parsing
+        ->
+global recursive request-body text trimming
         ->
 /api
         ->
@@ -919,7 +921,9 @@ prepared response
 
 The `x-hacktrip-client: web` marker is evaluated before CORS and is a public request-shape filter.
 
-Multipart image requests use route-specific Multer handling rather than the general JSON body parser.
+JSON and URL-encoded bodies are parsed with their configured size limits, then `trimRequestBody` runs globally before the API router. It recursively trims string values in arrays and plain objects. Field names containing `token` or `captcha` are exempt so opaque credentials and CAPTCHA response values are not silently changed; their schemas reject whitespace instead. Password fields are not exempt and therefore have surrounding whitespace removed before validation. Non-string values and non-plain objects are preserved.
+
+Multipart image requests use route-specific Multer handling rather than the general JSON body parser. After Multer completes, `imageUpload` applies the same normalization to parsed text fields in `req.body`; file bytes and file metadata are not traversed or modified by the trim helper. Current image routes allow one binary `file` part and no text fields.
 
 The public bearer token is classified inside the authentication boundary.
 
@@ -929,7 +933,15 @@ There is no separate custom public-token request header.
 
 Request validation runs in two layers.
 
-The first layer is the request boundary: strict Zod schemas under `src/validation/schemas/` validate the request body, query, and route parameters, reject undeclared fields, and hand the parsed values to the rest of the chain.
+The first layer is the request boundary: parsed request bodies are normalized by `trimRequestBody` (and by the upload middleware after Multer for multipart requests), then strict Zod schemas under `src/validation/schemas/` validate the request body, query, and route parameters, reject undeclared fields, and hand the parsed values to the rest of the chain.
+
+String normalization rules:
+
+* Ordinary string values in JSON and URL-encoded bodies are recursively trimmed before route validation, including password values.
+* Multipart text fields are normalized after Multer parsing; uploaded binary file content is never trimmed.
+* Keys containing `token` or `captcha` are excluded from trimming. Opaque verification/reset tokens and CAPTCHA response tokens are preserved unchanged and rejected if they contain whitespace.
+* Password schemas trim surrounding whitespace before enforcing password length and complexity. Whitespace remaining inside the normalized password is rejected by the password policy.
+* Query strings and route parameters are validated by their own schemas; the global body-trim middleware does not normalize them.
 
 Numeric typing rules of the Zod layer:
 
