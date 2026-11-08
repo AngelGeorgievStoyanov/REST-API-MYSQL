@@ -1716,14 +1716,14 @@ All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use
 
 | Schema                     | Fields (all required unless marked)          | Notes                                                                                                             |
 | -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `registerSchema`           | `email`, `password`, `firstName`, `lastName` | `email`: trimmed 1..45 + email pattern; `password`: 8..72 chars (72 bytes); `firstName`/`lastName`: trimmed 1..45 |
+| `registerSchema`           | `email`, `password`, `firstName`, `lastName`, `captchaToken` | `captchaToken`: required, trimmed non-empty, max 8192; other fields follow their field validators |
 | `verifyEmailSchema`        | `token`                                      | trimmed 1..200                                                                                                    |
-| `resendVerificationSchema` | `email`                                      | trimmed 1..45 + email pattern                                                                                     |
-| `loginSchema`              | `email`, `password`                          | `password`: 1..200 (comparison only)                                                                              |
+| `resendVerificationSchema` | `email`, `captchaToken`                      | email pattern; `captchaToken`: required, trimmed non-empty, max 8192                                            |
+| `loginSchema`              | `email`, `password`, `captchaToken`           | `password`: 1..200 (comparison only); `captchaToken`: required, trimmed non-empty, max 8192                     |
 | `updateProfileSchema`      | `firstName`, `lastName`                      | trimmed 1..45                                                                                                     |
 | `confirmPasswordSchema`    | `password`                                   | 1..200                                                                                                            |
 | `changePasswordSchema`     | `currentPassword`, `newPassword`             | `currentPassword`: 1..200; `newPassword`: 8..72                                                                   |
-| `forgotPasswordSchema`     | `email`                                      | trimmed 1..45 + email pattern                                                                                     |
+| `forgotPasswordSchema`     | `email`, `captchaToken`                      | email pattern; `captchaToken`: required, trimmed non-empty, max 8192                                            |
 | `resetPasswordSchema`      | `token`, `password`                          | `token`: 1..200; `password`: 8..72                                                                                |
 
 ### 18.3 Trip schemas
@@ -1871,10 +1871,10 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 
 | Method | Path                                  | Access           | Request                                                                 | Response                             | Errors                  |
 | ------ | ------------------------------------- | ---------------- | ----------------------------------------------------------------------- | ------------------------------------ | ----------------------- |
-| POST   | `/auth/register`                      | None             | `{ email, password, firstName, lastName }`                              | 201 `{ message }`                    | 400, 403                |
+| POST   | `/auth/register`                      | None             | `{ email, password, firstName, lastName, captchaToken }`                 | 201 `{ message }`                    | 400, 403                |
 | POST   | `/auth/verify-email`                  | None             | `{ token }`                                                             | 200 `{ user }`                       | 400, 403                |
-| POST   | `/auth/resend-verification`           | None             | `{ email }`                                                             | 200 `{ message }`                    | 400, 403, 500           |
-| POST   | `/auth/login`                         | None             | `{ email, password }`                                                   | 200 `AuthSessionDto` + cookie        | 401, 403, 400           |
+| POST   | `/auth/resend-verification`           | None             | `{ email, captchaToken }`                                                | 200 `{ message }`                    | 400, 403, 500           |
+| POST   | `/auth/login`                         | None             | `{ email, password, captchaToken }`                                      | 200 `AuthSessionDto` + cookie        | 401, 403, 400           |
 | POST   | `/auth/refresh`                       | Cookie           | none                                                                    | 200 `AuthSessionDto` + cookie        | 401, 403                |
 | POST   | `/auth/logout`                        | Cookie           | none                                                                    | 200 `{ message }`                    | 500                     |
 | GET    | `/auth/session`                       | Public/OptionalAuth | public token or valid user JWT; credentials enabled for refresh cookie | 200 `{ hasSession }`                 | 400, 401, 403, 404      |
@@ -1885,7 +1885,7 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | GET    | `/auth/me/image`                      | Auth             | none                                                                    | 200 `ImageDto` or null               | 401, 403                |
 | POST   | `/auth/me/image`                      | Auth             | multipart `file`                                                        | 201 `ImageDto`                       | 400, 401, 403, 409      |
 | DELETE | `/auth/me/image`                      | Auth             | none                                                                    | 204                                  | 401, 403, 404           |
-| POST   | `/auth/forgot-password`               | None             | `{ email }`                                                             | 200 `{ message }`                    | 400, 403, 500           |
+| POST   | `/auth/forgot-password`               | None             | `{ email, captchaToken }`                                                | 200 `{ message }`                    | 400, 403, 500           |
 | POST   | `/auth/reset-password`                | None             | `{ token, password }`                                                   | 200 `{ message }`                    | 400, 403                |
 | GET    | `/config/selects`                     | Public           | none                                                                    | 200 `SelectConfig[]`                 | 401                     |
 | GET    | `/config/services`                    | Public           | none                                                                    | 200 `PublicServiceConfig[]`          | 401                     |
