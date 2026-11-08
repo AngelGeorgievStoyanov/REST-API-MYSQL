@@ -70,6 +70,7 @@ export function passwordString(
 ) {
   return z
     .string()
+    .trim()
     .min(min, messages?.min ?? `Password must contain at least ${min} characters.`)
     .max(max, messages?.max ?? `Password must not exceed ${max} characters.`)
     .refine(
