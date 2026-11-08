@@ -1,7 +1,6 @@
 import { MODERATOR_ROLES } from '../constants/trip';
 import {
   type CommentDto,
-  type CommentListResponse,
   type CommentPermissions,
   type CommentRecord,
 } from '../model/comment';
