@@ -28,7 +28,7 @@ export interface TripSelectValue {
   name: string;
 }
 
-export interface TripAuthor {
+interface TripAuthor {
   id: string;
   firstName: string;
   lastName: string;
@@ -115,11 +115,6 @@ export interface TripMetadataInput {
   lat: number | null;
   lng: number | null;
   currency: string;
-}
-
-export interface DayUpdateInput {
-  title?: string;
-  description?: string | null;
 }
 
 export interface TripPoint {
