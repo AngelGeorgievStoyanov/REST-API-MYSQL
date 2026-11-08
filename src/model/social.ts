@@ -11,8 +11,8 @@ export interface SocialState {
   likes: number;
   likedByMe: boolean;
   comments: SocialCommentsState;
-  favorites?: number;
-  favoritedByMe?: boolean;
+  favorites: number;
+  favoritedByMe: boolean;
   reportedByMe: boolean;
 }
 
