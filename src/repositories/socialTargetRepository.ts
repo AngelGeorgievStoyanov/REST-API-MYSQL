@@ -46,11 +46,10 @@ export class SocialTargetRepository {
         });
         if (!day?.tripGroupId) return null;
 
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
         return {
           ...target,
           tripGroupId: day.tripGroupId,
-          tripGroupOwnerId: day.tripGroup?.ownerId ?? null,
+          tripGroupOwnerId: day.tripGroup.ownerId,
         };
       }
       case SOCIAL_TARGET_TYPE.POINT: {
@@ -60,15 +59,13 @@ export class SocialTargetRepository {
             trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
           },
         });
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
         const tripGroupId = point?.trip?.tripGroupId ?? null;
         if (tripGroupId === null) return null;
 
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
         return {
           ...target,
           tripGroupId,
-          tripGroupOwnerId: point?.trip?.tripGroup?.ownerId ?? null,
+          tripGroupOwnerId: point.trip.tripGroup.ownerId,
         };
       }
       case SOCIAL_TARGET_TYPE.IMAGE: {
