@@ -21,7 +21,9 @@
     "lint:fix": "eslint . --fix",
     "check": "npm run typecheck && npm run lint",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "duplicates": "npx --yes jscpd@5.4.3 src",
+    "knip": "npx --yes knip@6.44.2"
   },
   "author": "Angel Stoyanov",
   "license": "ISC",
