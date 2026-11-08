@@ -9,14 +9,12 @@ export function toSocialState(input: {
   favoritedByMe?: boolean;
   reportedByMe: boolean;
 }): SocialState {
-  const state: SocialState = {
+  return {
     likes: input.likes,
     likedByMe: input.likedByMe,
     comments: { count: input.commentCount },
+    favorites: input.favorites ?? 0,
+    favoritedByMe: input.favoritedByMe ?? false,
     reportedByMe: input.reportedByMe,
   };
-
-  state.favorites = input.favorites ?? 0;
-  state.favoritedByMe = input.favoritedByMe ?? false;
-  return state;
 }
