@@ -8,7 +8,7 @@ export function trimRequestValue(value: unknown, fieldName?: string): unknown {
         return fieldName !== undefined && OPAQUE_FIELD.test(fieldName) ? value : value.trim();
     }
     if (Array.isArray(value)) return value.map((item) => trimRequestValue(item, fieldName));
-    if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    if (value !== null && typeof value === 'object' && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
         return Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, trimRequestValue(nested, key)]));
     }
     return value;
