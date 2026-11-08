@@ -14,7 +14,7 @@ const email = trimmedString({
 });
 
 /** Google reCAPTCHA v2 response token; the secret key never comes from the client. */
-const captchaToken = z.string().trim().min(1).max(8192);
+const captchaToken = z.string().min(1).max(8192);
 
 export const registerSchema = z.object({
     email,
@@ -25,7 +25,7 @@ export const registerSchema = z.object({
 }).strict();
 
 export const verifyEmailSchema = z.object({
-    token: trimmedString(LIMITS.auth.token),
+    token: z.string().min(LIMITS.auth.token.min).max(LIMITS.auth.token.max),
 }).strict();
 
 export const resendVerificationSchema = z.object({ email, captchaToken }).strict();
