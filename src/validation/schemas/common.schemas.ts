@@ -175,6 +175,9 @@ export const targetTypeInput = z
   .transform((value) => value.toLowerCase())
   .pipe(z.enum(SOCIAL_TARGET_TYPE_INPUT_VALUES));
 
+/** Alias used by report validation schemas. */
+export const reportTargetTypeInput = targetTypeInput;
+
 
 /** Complete ordered child list of one parent, as sent by the reorder endpoints. */
 export function idList(bounds: NumberBounds): z.ZodType<number[]> {
