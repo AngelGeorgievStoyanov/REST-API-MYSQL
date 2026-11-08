@@ -256,7 +256,7 @@ export class PointRepository {
  * the insert can share the same SERIALIZABLE transaction without duplicating
  * the reduction.
  */
-export async function maxPointNumber(
+async function maxPointNumber(
   client: Prisma.TransactionClient,
   tripId: number,
 ): Promise<number> {
