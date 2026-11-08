@@ -4,6 +4,7 @@ import { IMAGE_UPLOAD_LIMITS, UPLOAD_FIELD_NAME } from '../constants/imageStorag
 import { ImageObjectAlreadyExistsError, UnsupportedImageError } from './imageValidation';
 import { ApiError } from '../utils/apiError';
 import { performance } from 'node:perf_hooks';
+import { trimRequestValue } from '../middlewares/trimRequestBody';
 
 let uploadSingleFile: RequestHandler | null = null;
 
@@ -49,6 +50,7 @@ export function imageUpload(req: Request, res: Response, next: NextFunction): vo
                 return;
             }
 
+            if (!error) req.body = trimRequestValue(req.body);
             next(error ?? undefined);
         });
 }
