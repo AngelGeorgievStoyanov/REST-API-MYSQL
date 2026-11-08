@@ -11,7 +11,7 @@ import { type EnvironmentConfig } from '../config/environment';
 import { toPublicServiceConfigList } from '../mappers/publicConfigMapper';
 import { listBackgroundImageNames } from '../storage/backgroundImageStorage';
 
-export interface DynamicConfig {
+interface DynamicConfig {
   selects: SelectConfig[];
   services: ServiceConfig[];
   social: readonly SocialConfig[];
