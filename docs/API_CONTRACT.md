@@ -1329,7 +1329,7 @@ Mounted at `/api/v1/points`.
 
 - Auth: `requireAuthentication` + owner/moderator.
 - Path params (strict): `{ pointId }`.
-- Body (strict): `{ name?, description?, lat?, lng? }` (at least one required). `lat`/`lng` must be true JSON numbers within their bounds or `null` (which clears the coordinate); strings/booleans are rejected.
+- Body (strict): `{ name, description, lat, lng }`. All four fields are required. `name` is a trimmed string (1..100); `description` is a trimmed string (<=1050) or `null`; `lat` and `lng` must be true JSON numbers within their geographic bounds. `null`, strings and booleans are rejected for coordinates.
 - Response `200`: `TripPoint[]` — the complete current point collection of the day the updated point belongs to, in `pointNumber` order (same full DTO as §8.14).
 - `pointNumber`/`numberPoint` cannot be changed (rejected).
 
@@ -1861,7 +1861,7 @@ The initial report queue intentionally keeps the DTO minimal. The backend must n
 
 ## 18. Zod Request Schemas
 
-All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use actual JSON numbers; numeric strings and booleans are rejected, and integer fields reject fractional values. `null` is rejected unless the specific schema explicitly permits it (for example, `lat` and `lng` in `pointUpdateSchema`, where `null` clears the coordinate). Numeric query values arrive as strings and are parsed by the query schemas.
+All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use actual JSON numbers; numeric strings and booleans are rejected, and integer fields reject fractional values. `null` is rejected unless the specific schema explicitly permits it (for example, `lat` and `lng` in `tripWriteSchema` and `tripEditSchema`). Numeric query values arrive as strings and are parsed by the query schemas.
 
 ### 18.1 Shared helpers
 
@@ -1917,7 +1917,7 @@ The new trip-data endpoints do not accept query parameters unless explicitly doc
 | Schema              | Fields                                                                                                              | Notes                                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `pointCreateSchema` | `tripId` (positive int), `name` (1..100), `description` (optional/null, <=1050), `lat` (-90..90), `lng` (-180..180) | `tripId` is the day row's `trips.id`; `tripId`/`lat`/`lng` must be true JSON numbers; `pointNumber` MUST NOT be sent                 |
-| `pointUpdateSchema` | `name?` (1..100), `description?` (patch, <=1050), `lat?` (patch, -90..90), `lng?` (patch, -180..180)                | at least one required; `lat?`/`lng?` are true JSON numbers or `null` (clears); `pointNumber`/`numberPoint`/`tripId`/`dayId` rejected |
+| `pointUpdateSchema` | `name` (1..100), `description` (nullable, <=1050), `lat` (-90..90), `lng` (-180..180) | all four fields required; coordinates are true JSON numbers and cannot be `null`; `pointNumber`/`numberPoint`/`tripId`/`dayId` rejected |
 
 ### 18.5 Social schemas
 
@@ -1925,8 +1925,8 @@ The new trip-data endpoints do not accept query parameters unless explicitly doc
 | ------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `socialTargetBodySchema`  | `targetType`, `targetId`                                    | `targetType` = `targetTypeInput`; `targetId` = positive id (true JSON number)           |
 | `socialTargetQuerySchema` | `targetType`, `targetId`                                    | same, but `targetId` uses the query-string id schema (numeric string)                   |
-| `favoriteBodySchema`      | `tripGroupId`                                               | positive id (true JSON number)                                                          |
-| `favoriteQuerySchema`     | `tripGroupId`                                               | positive id (query-string variant: numeric string)                                      |
+| `favoriteBodySchema`      | either `tripGroupId` or (`targetType`, `targetId`)           | positive id; polymorphic target uses `targetTypeInput` and a true JSON number `targetId` |
+| `favoriteQuerySchema`     | either `tripGroupId` or (`targetType`, `targetId`)           | positive id; polymorphic target uses `targetTypeInput` and numeric-string `targetId`     |
 | `commentBodySchema`       | `comment` (1..1000)                                         | trimmed; the request field and DTO field are `comment` (never `text`)                   |
 | `reportBodySchema`        | `targetType`, `targetId`, `reason?` (optional/null, <=1000) | Report target type additionally allows `comment`                                        |
 | `reportTargetTypeInput`   | `tripgroup`, `day`, `trip`, `point`, `image`, `comment`     | Case-insensitive, trimmed and lowercased; `day` and `trip` resolve to a trip/day target |
