@@ -1,11 +1,11 @@
 import {
-    DEFAULT_COMMENT_PAGE_SIZE,
-    MAX_COMMENT_LENGTH,
-    MAX_COMMENT_PAGE_SIZE,
-    MAX_REPORT_REASON_LENGTH,
-    SOCIAL_TARGET_TYPE,
-    SOCIAL_TARGET_TYPE_INPUT,
-    SOCIAL_TARGET_TYPE_INPUT_VALUES,
+  DEFAULT_COMMENT_PAGE_SIZE,
+  MAX_COMMENT_LENGTH,
+  MAX_COMMENT_PAGE_SIZE,
+  MAX_REPORT_REASON_LENGTH,
+  SOCIAL_TARGET_TYPE,
+  SOCIAL_TARGET_TYPE_INPUT,
+  SOCIAL_TARGET_TYPE_INPUT_VALUES,
 } from '../constants/social';
 import { type CommentCreateRequest, type CommentUpdateRequest } from '../model/comment';
 import { type ReportTargetRef, type ReportTargetType } from '../model/report';
@@ -13,52 +13,59 @@ import { type SocialTargetRef, type SocialTargetType } from '../model/social';
 import { type ReportTargetQuery } from '../validation/schemas/social.schemas';
 import { ApiError } from './apiError';
 import { firstValue } from './utils';
-import { asRecord, optionalPositiveInt, optionalString, parsePositiveId, requireTrimmedString } from './validation';
+import {
+  asRecord,
+  optionalPositiveInt,
+  optionalString,
+  parsePositiveId,
+  requireTrimmedString,
+} from './validation';
 
 const ACCEPTED_TARGET_TYPES = 'tripGroup, day, trip, point, image, comment';
 
 function parseTargetType(value: unknown, field: string): SocialTargetType {
-    const raw = firstValue(value);
-    if (typeof raw !== 'string') throw ApiError.validation(`"${field}" is required.`);
+  const raw = firstValue(value);
+  if (typeof raw !== 'string') throw ApiError.validation(`"${field}" is required.`);
 
-    const normalized = raw.trim().toLowerCase();
-    const accepted = SOCIAL_TARGET_TYPE_INPUT_VALUES.find((candidate) => candidate === normalized);
-    if (accepted === undefined) throw ApiError.validation(`"${field}" must be one of: ${ACCEPTED_TARGET_TYPES}.`);
+  const normalized = raw.trim().toLowerCase();
+  const accepted = SOCIAL_TARGET_TYPE_INPUT_VALUES.find((candidate) => candidate === normalized);
+  if (accepted === undefined)
+    throw ApiError.validation(`"${field}" must be one of: ${ACCEPTED_TARGET_TYPES}.`);
 
-    return SOCIAL_TARGET_TYPE_INPUT[accepted];
+  return SOCIAL_TARGET_TYPE_INPUT[accepted];
 }
 
 function recordOf(value: unknown, what: string): Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-        ? value as Record<string, unknown>
-        : what === 'Request body'
-            ? asRecord(value, what)
-            : {};
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : what === 'Request body'
+      ? asRecord(value, what)
+      : {};
 }
 
 /** Target of a mutation body: `{ targetType, targetId }`. */
 export function parseSocialTargetBody(body: unknown): SocialTargetRef {
-    const record = recordOf(body, 'Request body');
+  const record = recordOf(body, 'Request body');
 
-    return {
-        targetType: parseTargetType(record['targetType'], 'targetType'),
-        targetId: parsePositiveId(record['targetId'], 'targetId'),
-    };
+  return {
+    targetType: parseTargetType(record['targetType'], 'targetType'),
+    targetId: parsePositiveId(record['targetId'], 'targetId'),
+  };
 }
 
 /** Target of a report body: the social target types plus `comment`. */
 export function parseReportTargetBody(body: unknown): ReportTargetRef {
-    return parseSocialTargetBody(body);
+  return parseSocialTargetBody(body);
 }
 
 /** Target of a mutation query string, used by the DELETE operations. */
 export function parseSocialTargetQuery(query: unknown): SocialTargetRef {
-    const record = recordOf(query, 'Query');
+  const record = recordOf(query, 'Query');
 
-    return {
-        targetType: parseTargetType(record['targetType'], 'targetType'),
-        targetId: parsePositiveId(record['targetId'], 'targetId'),
-    };
+  return {
+    targetType: parseTargetType(record['targetType'], 'targetType'),
+    targetId: parsePositiveId(record['targetId'], 'targetId'),
+  };
 }
 
 /**
@@ -67,63 +74,64 @@ export function parseSocialTargetQuery(query: unknown): SocialTargetRef {
  * the schema stays the single source of truth for the accepted values.
  */
 export function parseReportTargetQuery(query: ReportTargetQuery): ReportTargetRef {
-    return parseSocialTargetQuery(query);
+  return parseSocialTargetQuery(query);
 }
 
 export function parseTripGroupId(value: unknown): number {
-    const record = recordOf(value, 'Request body');
+  const record = recordOf(value, 'Request body');
 
-    return parsePositiveId(record['tripGroupId'], 'tripGroupId');
+  return parsePositiveId(record['tripGroupId'], 'tripGroupId');
 }
 
 export function parseCommentCreateBody(body: unknown): CommentCreateRequest {
-    const record = asRecord(body, 'Request body');
+  const record = asRecord(body, 'Request body');
 
-    return { comment: requireTrimmedString(record['comment'], 'comment', MAX_COMMENT_LENGTH) };
+  return { comment: requireTrimmedString(record['comment'], 'comment', MAX_COMMENT_LENGTH) };
 }
 
 export function parseCommentUpdateBody(body: unknown): CommentUpdateRequest {
-    const record = asRecord(body, 'Request body');
+  const record = asRecord(body, 'Request body');
 
-    return { comment: requireTrimmedString(record['comment'], 'comment', MAX_COMMENT_LENGTH) };
+  return { comment: requireTrimmedString(record['comment'], 'comment', MAX_COMMENT_LENGTH) };
 }
 
 export function parseReportBody(body: unknown): { reason: string | null } {
-    const record = asRecord(body, 'Request body');
+  const record = asRecord(body, 'Request body');
 
-    return { reason: optionalString(record['reason'], 'reason', MAX_REPORT_REASON_LENGTH) };
+  return { reason: optionalString(record['reason'], 'reason', MAX_REPORT_REASON_LENGTH) };
 }
 
 function pageValue(value: unknown, field: string, fallback: number, max?: number): number {
-    const parsed = optionalPositiveInt(firstValue(value), field);
-    if (parsed === null) return fallback;
-    if (max !== undefined && parsed > max) {
-        throw ApiError.validation(`"${field}" must be at most ${max}.`);
-    }
-    return parsed;
+  const parsed = optionalPositiveInt(firstValue(value), field);
+  if (parsed === null) return fallback;
+  if (max !== undefined && parsed > max) {
+    throw ApiError.validation(`"${field}" must be at most ${max}.`);
+  }
+  return parsed;
 }
 
 export function parseCommentPageQuery(rawQuery: unknown): { page: number; limit: number } {
-    const query = typeof rawQuery === 'object' && rawQuery !== null ? rawQuery as Record<string, unknown> : {};
+  const query =
+    typeof rawQuery === 'object' && rawQuery !== null ? (rawQuery as Record<string, unknown>) : {};
 
-    return {
-        page: pageValue(query['page'], 'page', 1),
-        limit: pageValue(query['limit'], 'limit', DEFAULT_COMMENT_PAGE_SIZE, MAX_COMMENT_PAGE_SIZE),
-    };
+  return {
+    page: pageValue(query['page'], 'page', 1),
+    limit: pageValue(query['limit'], 'limit', DEFAULT_COMMENT_PAGE_SIZE, MAX_COMMENT_PAGE_SIZE),
+  };
 }
 
 const SOCIAL_TARGET_TYPE_VALUES: string[] = Object.values(SOCIAL_TARGET_TYPE);
 
 export function isSocialTargetType(value: string): value is SocialTargetType {
-    return SOCIAL_TARGET_TYPE_VALUES.includes(value);
+  return SOCIAL_TARGET_TYPE_VALUES.includes(value);
 }
 
 /** Narrowing guard for a `target_types.name` read back from the database. */
 export function isReportTargetType(value: string): value is ReportTargetType {
-    return isSocialTargetType(value);
+  return isSocialTargetType(value);
 }
 
 /** Map key of one polymorphic target inside a batch aggregate result. */
 export function socialTargetKey(targetTypeId: number, targetId: number): string {
-    return `${targetTypeId}:${targetId}`;
+  return `${targetTypeId}:${targetId}`;
 }

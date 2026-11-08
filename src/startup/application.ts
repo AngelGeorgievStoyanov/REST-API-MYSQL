@@ -9,11 +9,11 @@ import { dynamicConfig } from '../services/dynamicConfig';
  * here is fatal, so the caller decides how to report it.
  */
 export async function initializeApplication(environment: EnvironmentConfig): Promise<void> {
-    await dynamicConfig.init(new ConfigRepository(prisma), environment);
+  await dynamicConfig.init(new ConfigRepository(prisma), environment);
 }
 
 /** Releases the runtime resources the application owns; safe to call more than once. */
 export async function releaseApplicationResources(): Promise<void> {
-    dynamicConfig.stopRefreshTimer();
-    await prisma.$disconnect().catch(() => undefined);
+  dynamicConfig.stopRefreshTimer();
+  await prisma.$disconnect().catch(() => undefined);
 }

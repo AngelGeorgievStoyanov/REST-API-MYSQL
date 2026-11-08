@@ -10,4 +10,3 @@ export const TRUST_PROXY_HOPS = 1;
 
 /** Process signals that start the graceful shutdown. */
 export const SHUTDOWN_SIGNALS = ['SIGINT', 'SIGTERM'] as const;
-

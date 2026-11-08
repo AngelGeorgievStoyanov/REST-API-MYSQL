@@ -1,13 +1,13 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import {
-    type TripDayRecord,
-    type TripGroupDetailsRecord,
-    type TripGroupListRecord,
-    type TripListDayRecord,
-    type TripMetadataInput,
-    type TripEditRequest,
-    type TripDayReorderRequest,
+  type TripDayRecord,
+  type TripGroupDetailsRecord,
+  type TripGroupListRecord,
+  type TripListDayRecord,
+  type TripMetadataInput,
+  type TripEditRequest,
+  type TripDayReorderRequest,
 } from '../model/trip';
 import { sortPointsByNumber } from '../utils/point';
 import { toPointRecord } from '../mappers/pointPersistenceMapper';
@@ -34,581 +34,613 @@ import { pointInclude } from './pointRepository';
 // Cleaned up stale comments and imports.
 
 export interface DayContext {
-    id: number;
-    dayNumber: number | null;
-    tripGroupId: number | null;
-    ownerId: string | null;
+  id: number;
+  dayNumber: number | null;
+  tripGroupId: number | null;
+  ownerId: string | null;
 }
 
 export interface ImageContext {
-    id: number;
-    filePath: string;
-    tripId: number | null;
-    pointId: number | null;
-    ownerId: string | null;
-    tripGroupId: number | null;
-    groupOwnerId: string | null;
+  id: number;
+  filePath: string;
+  tripId: number | null;
+  pointId: number | null;
+  ownerId: string | null;
+  tripGroupId: number | null;
+  groupOwnerId: string | null;
 }
 
 export interface TripListCriteria {
-    skip: number;
-    take: number;
-    search?: string;
-    /** Accepted stored values (select key + display value) for `typeOfPeople`. */
-    groupValues?: string[];
-    /** Accepted stored values (select key + display value) for `transport`. */
-    transportValues?: string[];
-    sort: 'newest' | 'oldest';
+  skip: number;
+  take: number;
+  search?: string;
+  /** Accepted stored values (select key + display value) for `typeOfPeople`. */
+  groupValues?: string[];
+  /** Accepted stored values (select key + display value) for `transport`. */
+  transportValues?: string[];
+  sort: 'newest' | 'oldest';
 }
 
 const listInclude = {
-    owner: { select: { id: true, firstName: true, lastName: true } },
-    trips: {
-        orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
-        select: {
-            id: true,
-            title: true,
-            description: true,
-            transport: true,
-            typeOfPeople: true,
-            dayNumber: true,
-            createdAt: true,
-        },
+  owner: { select: { id: true, firstName: true, lastName: true } },
+  trips: {
+    orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      transport: true,
+      typeOfPeople: true,
+      dayNumber: true,
+      createdAt: true,
     },
+  },
 } satisfies Prisma.TripGroupInclude;
 
 const detailsInclude = {
-    owner: { select: { id: true, firstName: true, lastName: true } },
-    trips: {
-        orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
-        include: {
-            images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
-            points: { orderBy: { id: 'asc' }, include: pointInclude },
-        },
+  owner: { select: { id: true, firstName: true, lastName: true } },
+  trips: {
+    orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
+    include: {
+      images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
+      points: { orderBy: { id: 'asc' }, include: pointInclude },
     },
+  },
 } satisfies Prisma.TripGroupInclude;
 
 type TripGroupListRow = Prisma.TripGroupGetPayload<{ include: typeof listInclude }>;
 type TripGroupDetailsRow = Prisma.TripGroupGetPayload<{ include: typeof detailsInclude }>;
 
 const detailsWithPriceInclude = {
-    owner: { select: { id: true, firstName: true, lastName: true } },
-    trips: {
-        orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
-        include: {
-            images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
-            points: {
-                orderBy: [{ pointNumber: 'asc' }, { id: 'asc' },], include: pointInclude,
-            },
-        },
+  owner: { select: { id: true, firstName: true, lastName: true } },
+  trips: {
+    orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
+    include: {
+      images: { orderBy: { id: 'asc' }, select: { id: true, filePath: true } },
+      points: {
+        orderBy: [{ pointNumber: 'asc' }, { id: 'asc' }],
+        include: pointInclude,
+      },
     },
+  },
 } satisfies Prisma.TripGroupInclude;
 
-type TripGroupDetailsWithPriceRow = Prisma.TripGroupGetPayload<{ include: typeof detailsWithPriceInclude }>;
+type TripGroupDetailsWithPriceRow = Prisma.TripGroupGetPayload<{
+  include: typeof detailsWithPriceInclude;
+}>;
 type TripDayDetailsRow = TripGroupDetailsRow['trips'][number];
 
 function toTripListRecord(row: TripGroupListRow): TripGroupListRecord {
-    return {
-        id: row.id,
-        createdAt: row.createdAt,
-        owner: row.owner,
-        trips: row.trips.map((trip): TripListDayRecord => ({
-            id: trip.id,
-            title: trip.title,
-            description: trip.description,
-            transport: trip.transport,
-            typeOfPeople: trip.typeOfPeople,
-            dayNumber: trip.dayNumber,
-            createdAt: trip.createdAt,
-        })),
-    };
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    owner: row.owner,
+    trips: row.trips.map((trip): TripListDayRecord => ({
+      id: trip.id,
+      title: trip.title,
+      description: trip.description,
+      transport: trip.transport,
+      typeOfPeople: trip.typeOfPeople,
+      dayNumber: trip.dayNumber,
+      createdAt: trip.createdAt,
+    })),
+  };
 }
 
 function toTripDayRecord(row: TripDayDetailsRow): TripDayRecord {
-    return {
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        transport: row.transport,
-        typeOfPeople: row.typeOfPeople,
-        dayNumber: row.dayNumber,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        price: row.price,
-        currency: row.currency,
-        destination: row.destination ?? null,
-        countPeoples: row.countPeoples,
-        lat: row.lat ?? null,
-        lng: row.lng ?? null,
-        images: row.images.map((image) => ({ id: image.id, filePath: image.filePath })),
-        points: sortPointsByNumber(row.points).map(toPointRecord),
-    };
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    transport: row.transport,
+    typeOfPeople: row.typeOfPeople,
+    dayNumber: row.dayNumber,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    price: row.price,
+    currency: row.currency,
+    destination: row.destination ?? null,
+    countPeoples: row.countPeoples,
+    lat: row.lat ?? null,
+    lng: row.lng ?? null,
+    images: row.images.map((image) => ({ id: image.id, filePath: image.filePath })),
+    points: sortPointsByNumber(row.points).map(toPointRecord),
+  };
 }
 
 function toTripDetailsRecord(row: TripGroupDetailsRow): TripGroupDetailsRecord {
-    return {
-        id: row.id,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        owner: row.owner,
-        trips: row.trips.map((trip) => toTripDayRecord(trip)),
-    };
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    owner: row.owner,
+    trips: row.trips.map((trip) => toTripDayRecord(trip)),
+  };
 }
 
 function toTripDetailsWithPriceRecord(row: TripGroupDetailsWithPriceRow): TripGroupDetailsRecord {
-    return {
-        id: row.id,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        owner: row.owner,
-        trips: row.trips.map((trip) => toTripDayRecord(trip)),
-    };
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    owner: row.owner,
+    trips: row.trips.map((trip) => toTripDayRecord(trip)),
+  };
 }
 
 export class TripRepository {
-    constructor(private readonly prisma: PrismaClient) { }
+  constructor(private readonly prisma: PrismaClient) {}
 
-    async findPage(criteria: TripListCriteria): Promise<{ rows: TripGroupListRecord[]; total: number }> {
-        const dayFilters: Prisma.TripWhereInput[] = [];
+  async findPage(
+    criteria: TripListCriteria,
+  ): Promise<{ rows: TripGroupListRecord[]; total: number }> {
+    const dayFilters: Prisma.TripWhereInput[] = [];
 
-        if (criteria.search) {
-            dayFilters.push({
-                OR: [
-                    { title: { contains: criteria.search } },
-                    { description: { contains: criteria.search } },
-                ],
-            });
-        }
-        if (criteria.groupValues && criteria.groupValues.length > 0) {
-            dayFilters.push({ typeOfPeople: { in: criteria.groupValues } });
-        }
-        if (criteria.transportValues && criteria.transportValues.length > 0) {
-            dayFilters.push({ transport: { in: criteria.transportValues } });
-        }
-
-        const where: Prisma.TripGroupWhereInput = dayFilters.length > 0
-            ? { trips: { some: dayFilters.length === 1 ? dayFilters[0] ?? {} : { AND: dayFilters } } }
-            : {};
-
-        const orderBy: Prisma.TripGroupOrderByWithRelationInput[] = criteria.sort === 'oldest'
-            ? [{ createdAt: 'asc' }, { id: 'asc' }]
-            : [{ createdAt: 'desc' }, { id: 'desc' }];
-
-        const [rows, total] = await Promise.all([
-            this.prisma.tripGroup.findMany({
-                where,
-                orderBy,
-                skip: criteria.skip,
-                take: criteria.take,
-                include: listInclude,
-            }),
-            this.prisma.tripGroup.count({ where }),
-        ]);
-
-        return { rows: rows.map(toTripListRecord), total };
+    if (criteria.search) {
+      dayFilters.push({
+        OR: [
+          { title: { contains: criteria.search } },
+          { description: { contains: criteria.search } },
+        ],
+      });
+    }
+    if (criteria.groupValues && criteria.groupValues.length > 0) {
+      dayFilters.push({ typeOfPeople: { in: criteria.groupValues } });
+    }
+    if (criteria.transportValues && criteria.transportValues.length > 0) {
+      dayFilters.push({ transport: { in: criteria.transportValues } });
     }
 
-    /**
-     * `points` are handed over in `pointNumber` order. The column is a signed
-     * INT, so the SQL `orderBy` is already numeric; the code sort below keeps
-     * the guarantee for readers of the mapped records.
-     */
-    async findById(id: number): Promise<TripGroupDetailsRecord | null> {
-        const row = await this.prisma.tripGroup.findUnique({ where: { id }, include: detailsInclude });
-        if (!row) return null;
+    const where: Prisma.TripGroupWhereInput =
+      dayFilters.length > 0
+        ? { trips: { some: dayFilters.length === 1 ? (dayFilters[0] ?? {}) : { AND: dayFilters } } }
+        : {};
 
-        return toTripDetailsRecord(row);
+    const orderBy: Prisma.TripGroupOrderByWithRelationInput[] =
+      criteria.sort === 'oldest'
+        ? [{ createdAt: 'asc' }, { id: 'asc' }]
+        : [{ createdAt: 'desc' }, { id: 'desc' }];
+
+    const [rows, total] = await Promise.all([
+      this.prisma.tripGroup.findMany({
+        where,
+        orderBy,
+        skip: criteria.skip,
+        take: criteria.take,
+        include: listInclude,
+      }),
+      this.prisma.tripGroup.count({ where }),
+    ]);
+
+    return { rows: rows.map(toTripListRecord), total };
+  }
+
+  /**
+   * `points` are handed over in `pointNumber` order. The column is a signed
+   * INT, so the SQL `orderBy` is already numeric; the code sort below keeps
+   * the guarantee for readers of the mapped records.
+   */
+  async findById(id: number): Promise<TripGroupDetailsRecord | null> {
+    const row = await this.prisma.tripGroup.findUnique({ where: { id }, include: detailsInclude });
+    if (!row) return null;
+
+    return toTripDetailsRecord(row);
+  }
+
+  async findOwnerId(id: number): Promise<string | null> {
+    const group = await this.prisma.tripGroup.findUnique({
+      where: { id },
+      select: { ownerId: true },
+    });
+    return group?.ownerId ?? null;
+  }
+
+  async findOwnedGroupIds(ownerId: string): Promise<number[]> {
+    const rows = await this.prisma.tripGroup.findMany({
+      where: { ownerId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
+
+    return rows.map((row) => row.id);
+  }
+
+  /**
+   * Full detail records for the given trip group ids, including price,
+   * currency, destination, images, and points for each day.
+   * Ordered by the input id sequence.
+   */
+  async findGroupsByIdsWithDetails(groupIds: number[]): Promise<TripGroupDetailsRecord[]> {
+    if (groupIds.length === 0) return [];
+
+    const rows = await this.prisma.tripGroup.findMany({
+      where: { id: { in: groupIds } },
+      include: detailsWithPriceInclude,
+    });
+
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return groupIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [toTripDetailsWithPriceRecord(row)] : [];
+    });
+  }
+
+  /**
+   * Trip-group ids ranked by the number of likes on the group itself
+   * (`likes.targetTypeId` = tripGroup, `targetId` = group id): grouped, ordered
+   * by count descending and limited. Ties keep the database's order and a group
+   * appears at most once; groups without likes are not part of the ranking.
+   */
+  async findTopGroupIds(limit: number): Promise<number[]> {
+    const rows = await this.prisma.like.groupBy({
+      by: ['targetId'],
+      where: { targetType: { name: SOCIAL_TARGET_TYPE.TRIP_GROUP } },
+      orderBy: { _count: { targetId: 'desc' } },
+      take: limit,
+      _count: { _all: true },
+    });
+
+    return rows.map((row) => row.targetId);
+  }
+
+  /**
+   * Creates the trip group plus its initial day row, which carries the trip
+   * metadata. One Prisma create with a nested day create: if the day row
+   * cannot be written, the group is not created either. `input.dayNumber` is
+   * the user-selected ordinal and is persisted exactly as submitted.
+   */
+  async createTrip(input: TripMetadataInput): Promise<number> {
+    const group = await this.prisma.tripGroup.create({
+      data: {
+        ownerId: input.ownerId,
+        createdAt: new Date(),
+        trips: { create: [this.dayCreateData(input)] },
+      },
+      select: { id: true },
+    });
+
+    return group.id;
+  }
+
+  /** Trip metadata is stored on the canonical (lowest `dayNumber`) day row. */
+  async findCanonicalDay(groupId: number): Promise<{
+    id: number;
+    title: string;
+    description: string | null;
+    transport: string | null;
+    typeOfPeople: string | null;
+  } | null> {
+    return this.prisma.trip.findFirst({
+      where: { tripGroupId: groupId },
+      orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
+      select: { id: true, title: true, description: true, transport: true, typeOfPeople: true },
+    });
+  }
+
+  async updateTripMetadata(groupId: number, input: TripMetadataInput): Promise<void> {
+    const canonicalDay = await this.findCanonicalDay(groupId);
+    if (!canonicalDay) return;
+
+    await this.prisma.trip.update({
+      where: { id: canonicalDay.id },
+      data: {
+        title: input.title,
+        description: input.description,
+        transport: input.transport,
+        typeOfPeople: input.group,
+      },
+    });
+  }
+
+  /**
+   * Deletes the whole trip. Day rows cascade to points/images through the FKs;
+   * the social records of the group, its days, their points and all images are
+   * removed by the central social cleanup in the same transaction, including
+   * the favorites whose FK would otherwise block the group delete.
+   */
+  async delete(id: number): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const days = await tx.trip.findMany({ where: { tripGroupId: id }, select: { id: true } });
+      const dayIds = days.map((day) => day.id);
+
+      const points = await tx.point.findMany({
+        where: { tripId: { in: dayIds } },
+        select: { id: true },
+      });
+      const pointIds = points.map((point) => point.id);
+
+      const images = await tx.image.findMany({
+        where: { OR: [{ tripId: { in: dayIds } }, { pointId: { in: pointIds } }] },
+        select: { id: true },
+      });
+
+      await deleteSocialRecordsForTargets(tx, [
+        ...socialCleanupTargets(SOCIAL_TARGET_TYPE.TRIP_GROUP, [id]),
+        ...socialCleanupTargets(SOCIAL_TARGET_TYPE.DAY, dayIds),
+        ...socialCleanupTargets(SOCIAL_TARGET_TYPE.POINT, pointIds),
+        ...socialCleanupTargets(
+          SOCIAL_TARGET_TYPE.IMAGE,
+          images.map((image) => image.id),
+        ),
+      ]);
+
+      await tx.tripGroup.delete({ where: { id } });
+    });
+  }
+
+  async listDayIds(groupId: number): Promise<number[]> {
+    const days = await this.prisma.trip.findMany({
+      where: { tripGroupId: groupId },
+      select: { id: true },
+    });
+    return days.map((day) => day.id);
+  }
+
+  async listTripImagePaths(groupId: number): Promise<string[]> {
+    const images = await this.prisma.image.findMany({
+      where: {
+        OR: [{ trip: { tripGroupId: groupId } }, { point: { trip: { tripGroupId: groupId } } }],
+      },
+      select: { filePath: true },
+    });
+    return images.map((image) => image.filePath);
+  }
+
+  async countDays(groupId: number): Promise<number> {
+    return this.prisma.trip.count({ where: { tripGroupId: groupId } });
+  }
+
+  async findDayContext(tripId: number): Promise<DayContext | null> {
+    return this.prisma.trip.findUnique({
+      where: { id: tripId },
+      select: { id: true, dayNumber: true, tripGroupId: true, ownerId: true },
+    });
+  }
+
+  /** `null` means the trip already has a day with that number. */
+  async createDay(groupId: number, input: TripMetadataInput): Promise<number | null> {
+    try {
+      const day = await this.prisma.trip.create({
+        data: { ...this.dayCreateData(input), tripGroupId: groupId },
+        select: { id: true },
+      });
+      return day.id;
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return null;
+      throw err;
     }
+  }
 
-    async findOwnerId(id: number): Promise<string | null> {
-        const group = await this.prisma.tripGroup.findUnique({ where: { id }, select: { ownerId: true } });
-        return group?.ownerId ?? null;
-    }
-
-    async findOwnedGroupIds(ownerId: string): Promise<number[]> {
-        const rows = await this.prisma.tripGroup.findMany({
-            where: { ownerId },
-            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            select: { id: true },
+  /**
+   * Full Edit Trip write. Day-number uniqueness is checked within the same
+   * group while excluding the row being edited. countEdited increments in the
+   * same database transaction as the field update.
+   */
+  async updateDay(tripId: number, groupId: number, fields: TripEditRequest): Promise<boolean> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const conflictingDay = await tx.trip.findFirst({
+          where: {
+            tripGroupId: groupId,
+            dayNumber: fields.dayNumber,
+            id: { not: tripId },
+          },
+          select: { id: true },
         });
+        if (conflictingDay) return false;
 
-        return rows.map((row) => row.id);
-    }
-
-    /**
-     * Full detail records for the given trip group ids, including price,
-     * currency, destination, images, and points for each day.
-     * Ordered by the input id sequence.
-     */
-    async findGroupsByIdsWithDetails(groupIds: number[]): Promise<TripGroupDetailsRecord[]> {
-        if (groupIds.length === 0) return [];
-
-        const rows = await this.prisma.tripGroup.findMany({
-            where: { id: { in: groupIds } },
-            include: detailsWithPriceInclude,
+        await tx.trip.update({
+          where: { id: tripId, tripGroupId: groupId },
+          data: {
+            dayNumber: fields.dayNumber,
+            title: fields.title,
+            description: fields.description,
+            price: fields.price,
+            transport: fields.transport,
+            countPeoples: fields.countPeoples,
+            typeOfPeople: fields.typeOfPeople,
+            currency: fields.currency,
+            destination: fields.destination,
+            lat: fields.lat,
+            lng: fields.lng,
+            countEdited: { increment: 1 },
+          },
         });
+        return true;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return false;
+      }
+      throw error;
+    }
+  }
 
-        const byId = new Map(rows.map((row) => [row.id, row]));
-        return groupIds.flatMap((id) => {
-            const row = byId.get(id);
-            return row ? [toTripDetailsWithPriceRecord(row)] : [];
+  /**
+   * Applies the requested day numbers without compacting gaps. The complete
+   * child set is checked inside the transaction before any row is changed.
+   */
+  async reorderDays(groupId: number, days: TripDayReorderRequest['days']): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const existingDays = await tx.trip.findMany({
+        where: { tripGroupId: groupId },
+        select: { id: true, dayNumber: true },
+      });
+
+      const existingIds = new Set(existingDays.map((day) => day.id));
+      if (existingDays.length !== days.length || days.some((day) => !existingIds.has(day.tripId))) {
+        return false;
+      }
+
+      // Temporary values must be unique and must not collide with any
+      // existing value, including invalid legacy values outside 1..500.
+      const usedDayNumbers = new Set(existingDays.map((day) => day.dayNumber));
+      let temporaryDayNumber = -1;
+      const temporaryNumbers = new Map<number, number>();
+
+      for (const day of days) {
+        while (usedDayNumbers.has(temporaryDayNumber)) temporaryDayNumber -= 1;
+        temporaryNumbers.set(day.tripId, temporaryDayNumber);
+        usedDayNumbers.add(temporaryDayNumber);
+        temporaryDayNumber -= 1;
+      }
+
+      for (const day of days) {
+        // eslint-disable-next-line no-await-in-loop -- each temporary value must be unique before final assignments
+        await tx.trip.update({
+          where: { id: day.tripId, tripGroupId: groupId },
+          data: { dayNumber: temporaryNumbers.get(day.tripId) as number },
         });
-    }
+      }
 
-    /**
-     * Trip-group ids ranked by the number of likes on the group itself
-     * (`likes.targetTypeId` = tripGroup, `targetId` = group id): grouped, ordered
-     * by count descending and limited. Ties keep the database's order and a group
-     * appears at most once; groups without likes are not part of the ranking.
-     */
-    async findTopGroupIds(limit: number): Promise<number[]> {
-        const rows = await this.prisma.like.groupBy({
-            by: ['targetId'],
-            where: { targetType: { name: SOCIAL_TARGET_TYPE.TRIP_GROUP } },
-            orderBy: { _count: { targetId: 'desc' } },
-            take: limit,
-            _count: { _all: true },
+      for (const day of days) {
+        // eslint-disable-next-line no-await-in-loop -- sequential writes avoid unique day-number collisions during swaps
+        await tx.trip.update({
+          where: { id: day.tripId, tripGroupId: groupId },
+          data: { dayNumber: day.dayNumber },
         });
+      }
 
-        return rows.map((row) => row.targetId);
-    }
+      return true;
+    });
+  }
 
-    /**
-     * Creates the trip group plus its initial day row, which carries the trip
-     * metadata. One Prisma create with a nested day create: if the day row
-     * cannot be written, the group is not created either. `input.dayNumber` is
-     * the user-selected ordinal and is persisted exactly as submitted.
-     */
-    async createTrip(input: TripMetadataInput): Promise<number> {
-        const group = await this.prisma.tripGroup.create({
-            data: {
-                ownerId: input.ownerId,
-                createdAt: new Date(),
-                trips: { create: [this.dayCreateData(input)] },
-            },
-            select: { id: true },
-        });
+  /**
+   * Removes the day row in one transaction. Points and images cascade through
+   * their FKs; the social records of the day, its points and every image that
+   * hangs off the day row or off one of its points are removed by the central
+   * social cleanup in the same transaction.
+   */
+  async deleteDay(tripId: number): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const points = await tx.point.findMany({ where: { tripId }, select: { id: true } });
+      const pointIds = points.map((point) => point.id);
 
-        return group.id;
-    }
+      const images = await tx.image.findMany({
+        where: { OR: [{ tripId }, { pointId: { in: pointIds } }] },
+        select: { id: true },
+      });
 
-    /** Trip metadata is stored on the canonical (lowest `dayNumber`) day row. */
-    async findCanonicalDay(groupId: number): Promise<{
-        id: number;
-        title: string;
-        description: string | null;
-        transport: string | null;
-        typeOfPeople: string | null;
-    } | null> {
-        return this.prisma.trip.findFirst({
-            where: { tripGroupId: groupId },
-            orderBy: [{ dayNumber: 'asc' }, { id: 'asc' }],
-            select: { id: true, title: true, description: true, transport: true, typeOfPeople: true },
-        });
-    }
+      await deleteSocialRecordsForTargets(tx, [
+        ...socialCleanupTargets(SOCIAL_TARGET_TYPE.DAY, [tripId]),
+        ...socialCleanupTargets(SOCIAL_TARGET_TYPE.POINT, pointIds),
+        ...socialCleanupTargets(
+          SOCIAL_TARGET_TYPE.IMAGE,
+          images.map((image) => image.id),
+        ),
+      ]);
 
-    async updateTripMetadata(groupId: number, input: TripMetadataInput): Promise<void> {
-        const canonicalDay = await this.findCanonicalDay(groupId);
-        if (!canonicalDay) return;
+      await tx.trip.delete({ where: { id: tripId } });
+    });
+  }
 
-        await this.prisma.trip.update({
-            where: { id: canonicalDay.id },
-            data: {
-                title: input.title,
-                description: input.description,
-                transport: input.transport,
-                typeOfPeople: input.group,
-            },
-        });
-    }
+  /** Image file paths of the day itself, i.e. rows attached through `Image.tripId`. */
+  async listDayImagePaths(tripId: number): Promise<string[]> {
+    const images = await this.prisma.image.findMany({
+      where: { tripId },
+      select: { filePath: true },
+    });
+    return images.map((image) => image.filePath);
+  }
 
-    /**
-     * Deletes the whole trip. Day rows cascade to points/images through the FKs;
-     * the social records of the group, its days, their points and all images are
-     * removed by the central social cleanup in the same transaction, including
-     * the favorites whose FK would otherwise block the group delete.
-     */
-    async delete(id: number): Promise<void> {
-        await this.prisma.$transaction(async (tx) => {
-            const days = await tx.trip.findMany({ where: { tripGroupId: id }, select: { id: true } });
-            const dayIds = days.map((day) => day.id);
+  /**
+   * Images currently attached to a day row (`Image.tripId`), used to refuse an
+   * upload before the file is stored.
+   */
+  async countImages(tripId: number): Promise<number> {
+    return this.prisma.image.count({ where: { tripId } });
+  }
 
-            const points = await tx.point.findMany({ where: { tripId: { in: dayIds } }, select: { id: true } });
-            const pointIds = points.map((point) => point.id);
+  /**
+   * Appends one image row attached to a day: `Image.tripId` carries the `Trip.id`
+   * of that day row. `pointId` stays unset, so the row belongs to the day only.
+   * `null` means the day already carries the maximum number of images.
+   */
+  async createImage(data: {
+    ownerId: string;
+    filePath: string;
+    tripId: number;
+  }): Promise<number | null> {
+    const { tripId, ...rest } = data;
 
-            const images = await tx.image.findMany({
-                where: { OR: [{ tripId: { in: dayIds } }, { pointId: { in: pointIds } }] },
-                select: { id: true },
-            });
+    return attachImageWithinLimit(this.prisma, { tripId }, (tx) =>
+      tx.image.create({ data: { ...rest, tripId, createdAt: new Date() }, select: { id: true } }),
+    );
+  }
 
-            await deleteSocialRecordsForTargets(tx, [
-                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.TRIP_GROUP, [id]),
-                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.DAY, dayIds),
-                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.POINT, pointIds),
-                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, images.map((image) => image.id)),
-            ]);
+  async findImageContext(imageId: number): Promise<ImageContext | null> {
+    const image = await this.prisma.image.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        filePath: true,
+        tripId: true,
+        pointId: true,
+        ownerId: true,
+        trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
+        point: {
+          select: {
+            trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
+          },
+        },
+      },
+    });
+    if (!image) return null;
 
-            await tx.tripGroup.delete({ where: { id } });
-        });
-    }
+    const day = image.trip ?? image.point?.trip ?? null;
+    return {
+      id: image.id,
+      filePath: image.filePath,
+      tripId: image.tripId,
+      pointId: image.pointId,
+      ownerId: image.ownerId,
+      tripGroupId: day?.tripGroupId ?? null,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
+      groupOwnerId: day?.tripGroup?.ownerId ?? null,
+    };
+  }
 
-    async listDayIds(groupId: number): Promise<number[]> {
-        const days = await this.prisma.trip.findMany({ where: { tripGroupId: groupId }, select: { id: true } });
-        return days.map((day) => day.id);
-    }
+  async deleteImage(imageId: number): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      // The image row is removed together with every social record that
+      // targets it (likes/comments/reports and any future relationship).
+      await deleteSocialRecordsForTargets(
+        tx,
+        socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, [imageId]),
+      );
 
-    async listTripImagePaths(groupId: number): Promise<string[]> {
-        const images = await this.prisma.image.findMany({
-            where: { OR: [{ trip: { tripGroupId: groupId } }, { point: { trip: { tripGroupId: groupId } } }] },
-            select: { filePath: true },
-        });
-        return images.map((image) => image.filePath);
-    }
+      await tx.image.delete({ where: { id: imageId } });
+    });
+  }
 
-    async countDays(groupId: number): Promise<number> {
-        return this.prisma.trip.count({ where: { tripGroupId: groupId } });
-    }
+  private dayCreateData(input: TripMetadataInput): Prisma.TripUncheckedCreateWithoutTripGroupInput {
+    // `tripGroupId` is intentionally omitted: createTrip writes this row as
+    // a nested child of the group, while createDay supplies the existing
+    // group id explicitly. All Trip metadata is copied from the validated
+    // request; there are no day-creation defaults or inherited select values.
+    return {
+      title: input.title,
+      description: input.description,
+      transport: input.transport,
+      typeOfPeople: input.group,
+      dayNumber: input.dayNumber,
+      countPeoples: input.countPeoples,
+      ownerId: input.ownerId,
+      createdAt: new Date(),
+      price: input.price,
+      destination: input.destination,
+      lat: input.lat,
+      lng: input.lng,
+      currency: input.currency,
+    };
+  }
 
-    async findDayContext(tripId: number): Promise<DayContext | null> {
-        return this.prisma.trip.findUnique({
-            where: { id: tripId },
-            select: { id: true, dayNumber: true, tripGroupId: true, ownerId: true },
-        });
-    }
-
-    /** `null` means the trip already has a day with that number. */
-    async createDay(groupId: number, input: TripMetadataInput): Promise<number | null> {
-        try {
-            const day = await this.prisma.trip.create({
-                data: { ...this.dayCreateData(input), tripGroupId: groupId },
-                select: { id: true },
-            });
-            return day.id;
-        } catch (err) {
-            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return null;
-            throw err;
-        }
-    }
-
-    /**
-     * Full Edit Trip write. Day-number uniqueness is checked within the same
-     * group while excluding the row being edited. countEdited increments in the
-     * same database transaction as the field update.
-     */
-    async updateDay(tripId: number, groupId: number, fields: TripEditRequest): Promise<boolean> {
-        try {
-            return await this.prisma.$transaction(async (tx) => {
-                const conflictingDay = await tx.trip.findFirst({
-                    where: {
-                        tripGroupId: groupId,
-                        dayNumber: fields.dayNumber,
-                        id: { not: tripId },
-                    },
-                    select: { id: true },
-                });
-                if (conflictingDay) return false;
-
-                await tx.trip.update({
-                    where: { id: tripId, tripGroupId: groupId },
-                    data: {
-                        dayNumber: fields.dayNumber,
-                        title: fields.title,
-                        description: fields.description,
-                        price: fields.price,
-                        transport: fields.transport,
-                        countPeoples: fields.countPeoples,
-                        typeOfPeople: fields.typeOfPeople,
-                        currency: fields.currency,
-                        destination: fields.destination,
-                        lat: fields.lat,
-                        lng: fields.lng,
-                        countEdited: { increment: 1 },
-                    },
-                });
-                return true;
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                return false;
-            }
-            throw error;
-        }
-    }
-
-    /**
-     * Applies the requested day numbers without compacting gaps. The complete
-     * child set is checked inside the transaction before any row is changed.
-     */
-    async reorderDays(groupId: number, days: TripDayReorderRequest['days']): Promise<boolean> {
-        return this.prisma.$transaction(async (tx) => {
-            const existingDays = await tx.trip.findMany({
-                where: { tripGroupId: groupId },
-                select: { id: true, dayNumber: true },
-            });
-
-            const existingIds = new Set(existingDays.map((day) => day.id));
-            if (
-                existingDays.length !== days.length
-                || days.some((day) => !existingIds.has(day.tripId))
-            ) {
-                return false;
-            }
-
-            // Temporary values must be unique and must not collide with any
-            // existing value, including invalid legacy values outside 1..500.
-            const usedDayNumbers = new Set(existingDays.map((day) => day.dayNumber));
-            let temporaryDayNumber = -1;
-            const temporaryNumbers = new Map<number, number>();
-
-            for (const day of days) {
-                while (usedDayNumbers.has(temporaryDayNumber)) temporaryDayNumber -= 1;
-                temporaryNumbers.set(day.tripId, temporaryDayNumber);
-                usedDayNumbers.add(temporaryDayNumber);
-                temporaryDayNumber -= 1;
-            }
-
-            for (const day of days) {
-                // eslint-disable-next-line no-await-in-loop -- each temporary value must be unique before final assignments
-                await tx.trip.update({
-                    where: { id: day.tripId, tripGroupId: groupId },
-                    data: { dayNumber: temporaryNumbers.get(day.tripId) as number },
-                });
-            }
-
-            for (const day of days) {
-                // eslint-disable-next-line no-await-in-loop -- sequential writes avoid unique day-number collisions during swaps
-                await tx.trip.update({
-                    where: { id: day.tripId, tripGroupId: groupId },
-                    data: { dayNumber: day.dayNumber },
-                });
-            }
-
-            return true;
-        });
-    }
-
-    /**
-     * Removes the day row in one transaction. Points and images cascade through
-     * their FKs; the social records of the day, its points and every image that
-     * hangs off the day row or off one of its points are removed by the central
-     * social cleanup in the same transaction.
-     */
-    async deleteDay(tripId: number): Promise<void> {
-        await this.prisma.$transaction(async (tx) => {
-            const points = await tx.point.findMany({ where: { tripId }, select: { id: true } });
-            const pointIds = points.map((point) => point.id);
-
-            const images = await tx.image.findMany({
-                where: { OR: [{ tripId }, { pointId: { in: pointIds } }] },
-                select: { id: true },
-            });
-
-            await deleteSocialRecordsForTargets(tx, [
-                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.DAY, [tripId]),
-                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.POINT, pointIds),
-                ...socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, images.map((image) => image.id)),
-            ]);
-
-            await tx.trip.delete({ where: { id: tripId } });
-        });
-    }
-
-    /** Image file paths of the day itself, i.e. rows attached through `Image.tripId`. */
-    async listDayImagePaths(tripId: number): Promise<string[]> {
-        const images = await this.prisma.image.findMany({ where: { tripId }, select: { filePath: true } });
-        return images.map((image) => image.filePath);
-    }
-
-    /**
-     * Images currently attached to a day row (`Image.tripId`), used to refuse an
-     * upload before the file is stored.
-     */
-    async countImages(tripId: number): Promise<number> {
-        return this.prisma.image.count({ where: { tripId } });
-    }
-
-    /**
-     * Appends one image row attached to a day: `Image.tripId` carries the `Trip.id`
-     * of that day row. `pointId` stays unset, so the row belongs to the day only.
-     * `null` means the day already carries the maximum number of images.
-     */
-    async createImage(data: { ownerId: string; filePath: string; tripId: number }): Promise<number | null> {
-        const { tripId, ...rest } = data;
-
-        return attachImageWithinLimit(
-            this.prisma,
-            { tripId },
-            (tx) => tx.image.create({ data: { ...rest, tripId, createdAt: new Date() }, select: { id: true } }),
-        );
-    }
-
-    async findImageContext(imageId: number): Promise<ImageContext | null> {
-        const image = await this.prisma.image.findUnique({
-            where: { id: imageId },
-            select: {
-                id: true,
-                filePath: true,
-                tripId: true,
-                pointId: true,
-                ownerId: true,
-                trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
-                point: { select: { trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } } } },
-            },
-        });
-        if (!image) return null;
-
-        const day = image.trip ?? image.point?.trip ?? null;
-        return {
-            id: image.id,
-            filePath: image.filePath,
-            tripId: image.tripId,
-            pointId: image.pointId,
-            ownerId: image.ownerId,
-            tripGroupId: day?.tripGroupId ?? null,
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
-            groupOwnerId: day?.tripGroup?.ownerId ?? null,
-        };
-    }
-
-    async deleteImage(imageId: number): Promise<void> {
-        await this.prisma.$transaction(async (tx) => {
-            // The image row is removed together with every social record that
-            // targets it (likes/comments/reports and any future relationship).
-            await deleteSocialRecordsForTargets(tx, socialCleanupTargets(SOCIAL_TARGET_TYPE.IMAGE, [imageId]));
-
-            await tx.image.delete({ where: { id: imageId } });
-        });
-    }
-
-    private dayCreateData(input: TripMetadataInput): Prisma.TripUncheckedCreateWithoutTripGroupInput {
-        // `tripGroupId` is intentionally omitted: createTrip writes this row as
-        // a nested child of the group, while createDay supplies the existing
-        // group id explicitly. All Trip metadata is copied from the validated
-        // request; there are no day-creation defaults or inherited select values.
-        return {
-            title: input.title,
-            description: input.description,
-            transport: input.transport,
-            typeOfPeople: input.group,
-            dayNumber: input.dayNumber,
-            countPeoples: input.countPeoples,
-            ownerId: input.ownerId,
-            createdAt: new Date(),
-            price: input.price,
-            destination: input.destination,
-            lat: input.lat,
-            lng: input.lng,
-            currency: input.currency,
-        };
-    }
-
-    /** Image file paths of the points of the day, i.e. rows attached through `Image.pointId`. */
-    async listPointImagePathsOfDay(tripId: number): Promise<string[]> {
-        const images = await this.prisma.image.findMany({
-            where: { point: { tripId } },
-            select: { filePath: true },
-        });
-        return images.map((image) => image.filePath);
-    }
-
+  /** Image file paths of the points of the day, i.e. rows attached through `Image.pointId`. */
+  async listPointImagePathsOfDay(tripId: number): Promise<string[]> {
+    const images = await this.prisma.image.findMany({
+      where: { point: { tripId } },
+      select: { filePath: true },
+    });
+    return images.map((image) => image.filePath);
+  }
 }

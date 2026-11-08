@@ -1,12 +1,22 @@
 import { z } from 'zod';
 import { TRIP_SORTS } from '../../constants/trip';
 import { VALIDATION_LIMITS } from '../../constants/validation/limits';
-import { idList, optionalInt, optionalText, patchText, positiveId, requiredInt, requiredNumber, trimmedString } from './common.schemas';
+import {
+  idList,
+  optionalInt,
+  optionalText,
+  patchText,
+  positiveId,
+  requiredInt,
+  requiredNumber,
+  trimmedString,
+} from './common.schemas';
 
 const LIMITS = VALIDATION_LIMITS;
 
 /** A trip is written as a whole: every metadata field is part of the write. */
-export const tripWriteSchema = z.object({
+export const tripWriteSchema = z
+  .object({
     /**
      * `dayNumber` is the user-selected ordinal of the initial day row — a plain
      * positive integer within the trip-days cap, never an identifier. It is
@@ -23,81 +33,102 @@ export const tripWriteSchema = z.object({
     lat: z.union([z.number().min(-90).max(90), z.null()]).optional(),
     lng: z.union([z.number().min(-180).max(180), z.null()]).optional(),
     currency: trimmedString({ min: 1, max: 3 }),
-}).strict();
+  })
+  .strict();
 
 /** Full Edit Trip contract: every field is required; nullable columns must be sent explicitly as null. */
-export const tripEditSchema = z.object({
+export const tripEditSchema = z
+  .object({
     /**
      * Required day ordinal within this trip group. It must be unique among the
      * group's day rows; the current row is excluded from the conflict check.
      */
     dayNumber: requiredInt(LIMITS.trip.dayNumber),
     title: trimmedString(LIMITS.trip.title),
-    description: z.union([trimmedString(LIMITS.trip.description), z.literal(''), z.null()]).transform((value) => value === '' ? null : value),
+    description: z
+      .union([trimmedString(LIMITS.trip.description), z.literal(''), z.null()])
+      .transform((value) => (value === '' ? null : value)),
     price: requiredNumber({ min: 0, max: 1000000 }),
     transport: trimmedString(LIMITS.trip.selectValue),
     countPeoples: requiredInt(LIMITS.trip.countPeoples),
     typeOfPeople: trimmedString(LIMITS.trip.selectValue),
     currency: trimmedString({ min: 1, max: 3 }),
-    destination: z.union([trimmedString({ min: 1, max: LIMITS.trip.title.max }), z.literal(''), z.null()]).transform((value) => value === '' ? null : value),
+    destination: z
+      .union([trimmedString({ min: 1, max: LIMITS.trip.title.max }), z.literal(''), z.null()])
+      .transform((value) => (value === '' ? null : value)),
     lat: z.union([z.number().min(-90).max(90), z.null()]),
     lng: z.union([z.number().min(-180).max(180), z.null()]),
-}).strict();
+  })
+  .strict();
 
 /**
  * List filters. Unknown parameters are dropped instead of rejected: only the
  * declared keys can ever reach the repository, which is the whitelist that matters.
  */
-export const tripListQuerySchema = z.object({
+export const tripListQuerySchema = z
+  .object({
     page: optionalInt(LIMITS.pagination.page),
     limit: optionalInt(LIMITS.pagination.tripLimit),
     search: trimmedString(LIMITS.trip.search).optional(),
     group: trimmedString(LIMITS.trip.selectValue).optional(),
     transport: trimmedString(LIMITS.trip.selectValue).optional(),
     sort: z.enum(TRIP_SORTS).optional(),
-}).strict();
+  })
+  .strict();
 
-export const dayUpdateSchema = z.object({
+export const dayUpdateSchema = z
+  .object({
     title: patchText(LIMITS.trip.title),
     description: patchText(LIMITS.trip.description),
-}).strict()
-    .refine((body) => body.title !== undefined || body.description !== undefined, {
-        message: 'Provide at least one of "title" or "description".',
-    });
+  })
+  .strict()
+  .refine((body) => body.title !== undefined || body.description !== undefined, {
+    message: 'Provide at least one of "title" or "description".',
+  });
 
-export const dayReorderSchema = z.object({
-    days: z.array(z.object({
-        // The primary key `trips.id` of one day row, never the trip-group id.
-        tripId: positiveId,
-        dayNumber: requiredInt(LIMITS.trip.dayNumber),
-    }).strict())
-        .min(1)
-        .max(LIMITS.arrays.reorder.max),
-}).strict().superRefine((body, context) => {
+export const dayReorderSchema = z
+  .object({
+    days: z
+      .array(
+        z
+          .object({
+            // The primary key `trips.id` of one day row, never the trip-group id.
+            tripId: positiveId,
+            dayNumber: requiredInt(LIMITS.trip.dayNumber),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(LIMITS.arrays.reorder.max),
+  })
+  .strict()
+  .superRefine((body, context) => {
     const tripIds = new Set<number>();
     const dayNumbers = new Set<number>();
 
     body.days.forEach((day, index) => {
-        if (tripIds.has(day.tripId)) {
-            context.addIssue({
-                code: 'custom',
-                path: ['days', index, 'tripId'],
-                message: 'must not contain duplicate trip ids.',
-            });
-        }
-        tripIds.add(day.tripId);
+      if (tripIds.has(day.tripId)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['days', index, 'tripId'],
+          message: 'must not contain duplicate trip ids.',
+        });
+      }
+      tripIds.add(day.tripId);
 
-        if (dayNumbers.has(day.dayNumber)) {
-            context.addIssue({
-                code: 'custom',
-                path: ['days', index, 'dayNumber'],
-                message: 'must not contain duplicate day numbers.',
-            });
-        }
-        dayNumbers.add(day.dayNumber);
+      if (dayNumbers.has(day.dayNumber)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['days', index, 'dayNumber'],
+          message: 'must not contain duplicate day numbers.',
+        });
+      }
+      dayNumbers.add(day.dayNumber);
     });
-});
+  });
 
-export const pointReorderSchema = z.object({
+export const pointReorderSchema = z
+  .object({
     pointIds: idList({ min: 0, max: LIMITS.arrays.reorder.max }),
-}).strict();
+  })
+  .strict();

@@ -13,13 +13,23 @@ import { validateRequest } from '../validation/validateRequest';
  */
 const meController = express.Router();
 
-meController.get('/trips', validateRequest({}), requireAuthentication, asyncHandler(async (req, res) => {
+meController.get(
+  '/trips',
+  validateRequest({}),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
     res.status(200).json(await tripService.listOwnTrips(actorFrom(req)));
-}));
+  }),
+);
 
-meController.get('/favorites', validateRequest({}), requireAuthentication, asyncHandler(async (req, res) => {
+meController.get(
+  '/favorites',
+  validateRequest({}),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
     res.status(200).json(await favoriteService.listFavorites(actorFrom(req)));
-}));
+  }),
+);
 
 meController.use(apiErrorMiddleware);
 meController.use(routeNotFoundLogsMiddleware);

@@ -13,32 +13,34 @@ import { getErrorMessage } from '../utils/error';
  * Returns the created image id.
  */
 export async function attachUploadedImage(
-    storage: ImageFileStorage,
-    filePath: string,
-    writeRow: () => Promise<number | null>,
+  storage: ImageFileStorage,
+  filePath: string,
+  writeRow: () => Promise<number | null>,
 ): Promise<number> {
-    let imageId: number | null;
+  let imageId: number | null;
 
-    try {
-        imageId = await writeRow();
-    } catch (error) {
-        await removeQuietly(storage, filePath);
-        throw error;
-    }
+  try {
+    imageId = await writeRow();
+  } catch (error) {
+    await removeQuietly(storage, filePath);
+    throw error;
+  }
 
-    if (imageId === null) {
-        await removeQuietly(storage, filePath);
-        throw ApiError.conflict(IMAGE_LIMIT_MESSAGE);
-    }
+  if (imageId === null) {
+    await removeQuietly(storage, filePath);
+    throw ApiError.conflict(IMAGE_LIMIT_MESSAGE);
+  }
 
-    return imageId;
+  return imageId;
 }
 
 /** Cleanup must not mask the original failure. */
 async function removeQuietly(storage: ImageFileStorage, filePath: string): Promise<void> {
-    try {
-        await storage.remove(filePath);
-    } catch (error) {
-        console.log(`[images] could not remove the unused upload "${filePath}": ${getErrorMessage(error)}`);
-    }
+  try {
+    await storage.remove(filePath);
+  } catch (error) {
+    console.log(
+      `[images] could not remove the unused upload "${filePath}": ${getErrorMessage(error)}`,
+    );
+  }
 }

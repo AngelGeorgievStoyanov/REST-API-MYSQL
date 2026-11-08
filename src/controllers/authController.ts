@@ -5,22 +5,26 @@ import { authService } from '../container';
 import type { AuthSessionResult, LoginContext } from '../services/authService';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
-import { actorFrom, optionalAuthentication, requireAuthentication } from '../middlewares/authBoundary';
+import {
+  actorFrom,
+  optionalAuthentication,
+  requireAuthentication,
+} from '../middlewares/authBoundary';
 import { authRateLimit } from '../middlewares/authRateLimit';
 import { asyncHandler } from '../utils/asyncHandler';
 import { readCookie } from '../utils/auth';
 import { imageUpload, uploadedFileName } from '../storage/imageUpload';
 import { validateRequest } from '../validation/validateRequest';
 import {
-    confirmPasswordSchema,
-    changePasswordSchema,
-    forgotPasswordSchema,
-    loginSchema,
-    registerSchema,
-    resendVerificationSchema,
-    resetPasswordSchema,
-    updateProfileSchema,
-    verifyEmailSchema,
+  confirmPasswordSchema,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resendVerificationSchema,
+  resetPasswordSchema,
+  updateProfileSchema,
+  verifyEmailSchema,
 } from '../validation/schemas/auth.schemas';
 
 /**
@@ -32,172 +36,208 @@ import {
 const authController = express.Router();
 
 const refreshCookieOptions = {
-    httpOnly: true,
-    secure: authConfig.cookieSecure,
-    sameSite: authConfig.cookieSameSite,
-    path: REFRESH_COOKIE_PATH,
+  httpOnly: true,
+  secure: authConfig.cookieSecure,
+  sameSite: authConfig.cookieSameSite,
+  path: REFRESH_COOKIE_PATH,
 };
 
 /** Brute-force protection for credential and token endpoints. */
 function attemptLimiter(bucket: string): express.RequestHandler {
-    return authRateLimit(bucket, authConfig.rateLimit.max, authConfig.rateLimit);
+  return authRateLimit(bucket, authConfig.rateLimit.max, authConfig.rateLimit);
 }
 
 /** Email-abuse protection for the endpoints that send mail. */
 function emailLimiter(bucket: string): express.RequestHandler {
-    return authRateLimit(bucket, authConfig.rateLimit.emailMax, authConfig.rateLimit);
+  return authRateLimit(bucket, authConfig.rateLimit.emailMax, authConfig.rateLimit);
 }
 
 function setRefreshCookie(res: express.Response, session: AuthSessionResult): void {
-    res.cookie(REFRESH_COOKIE_NAME, session.refreshToken, {
-        ...refreshCookieOptions,
-        expires: session.refreshTokenExpiresAt,
-        maxAge: authConfig.refreshTokenTtlSeconds * 1000,
-    });
+  res.cookie(REFRESH_COOKIE_NAME, session.refreshToken, {
+    ...refreshCookieOptions,
+    expires: session.refreshTokenExpiresAt,
+    maxAge: authConfig.refreshTokenTtlSeconds * 1000,
+  });
 }
 
 function clearRefreshCookie(res: express.Response): void {
-    res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieOptions);
+  res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieOptions);
 }
 
 /** IP and user agent of the attempt; observability data for the failed-log table. */
 function loginContext(req: express.Request): LoginContext {
-    const socketAddress = req.socket.remoteAddress ?? '';
-    return {
-        ip: req.ip || socketAddress,
-        userAgent: req.header('user-agent') ?? '',
-    };
+  const socketAddress = req.socket.remoteAddress ?? '';
+  return {
+    ip: req.ip || socketAddress,
+    userAgent: req.header('user-agent') ?? '',
+  };
 }
 
 authController.post(
-    '/register',
-    attemptLimiter('register'),
-    validateRequest({ body: registerSchema }),
-    asyncHandler(async (req, res) => {
-        res.status(201).json(await authService.register(req.body));
-    }),
+  '/register',
+  attemptLimiter('register'),
+  validateRequest({ body: registerSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await authService.register(req.body));
+  }),
 );
 
 authController.post(
-    '/verify-email',
-    attemptLimiter('verify-email'),
-    validateRequest({ body: verifyEmailSchema }),
-    asyncHandler(async (req, res) => {
-        res.status(200).json(await authService.verifyEmail(req.body));
-    }),
+  '/verify-email',
+  attemptLimiter('verify-email'),
+  validateRequest({ body: verifyEmailSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await authService.verifyEmail(req.body));
+  }),
 );
 
 authController.post(
-    '/resend-verification',
-    emailLimiter('resend-verification'),
-    validateRequest({ body: resendVerificationSchema }),
-    asyncHandler(async (req, res) => {
-        res.status(200).json(await authService.resendVerification(req.body));
-    }),
+  '/resend-verification',
+  emailLimiter('resend-verification'),
+  validateRequest({ body: resendVerificationSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await authService.resendVerification(req.body));
+  }),
 );
 
 authController.post(
-    '/login',
-    attemptLimiter('login'),
-    validateRequest({ body: loginSchema }),
-    asyncHandler(async (req, res) => {
-        const session = await authService.login(req.body, loginContext(req));
-        setRefreshCookie(res, session);
-        res.status(200).json(session.session);
-    }),
+  '/login',
+  attemptLimiter('login'),
+  validateRequest({ body: loginSchema }),
+  asyncHandler(async (req, res) => {
+    const session = await authService.login(req.body, loginContext(req));
+    setRefreshCookie(res, session);
+    res.status(200).json(session.session);
+  }),
 );
 
-authController.post('/refresh', attemptLimiter('refresh'), validateRequest({}), asyncHandler(async (req, res) => {
+authController.post(
+  '/refresh',
+  attemptLimiter('refresh'),
+  validateRequest({}),
+  asyncHandler(async (req, res) => {
     try {
-        const session = await authService.refresh(readCookie(req.headers.cookie, REFRESH_COOKIE_NAME));
-        setRefreshCookie(res, session);
-        res.status(200).json(session.session);
+      const session = await authService.refresh(
+        readCookie(req.headers.cookie, REFRESH_COOKIE_NAME),
+      );
+      setRefreshCookie(res, session);
+      res.status(200).json(session.session);
     } catch (error) {
-        // A refresh session that is refused must not leave a stale cookie behind.
-        clearRefreshCookie(res);
-        throw error;
+      // A refresh session that is refused must not leave a stale cookie behind.
+      clearRefreshCookie(res);
+      throw error;
     }
-}));
+  }),
+);
 
 authController.get(
-    '/session',
-    validateRequest({}),
-    optionalAuthentication,
-    asyncHandler(async (req, res) => {
-        res.status(200).json(await authService.sessionPresence(readCookie(req.headers.cookie, REFRESH_COOKIE_NAME)));
-    }),
+  '/session',
+  validateRequest({}),
+  optionalAuthentication,
+  asyncHandler(async (req, res) => {
+    res
+      .status(200)
+      .json(await authService.sessionPresence(readCookie(req.headers.cookie, REFRESH_COOKIE_NAME)));
+  }),
 );
 
-authController.post('/logout', validateRequest({}), asyncHandler(async (req, res) => {
+authController.post(
+  '/logout',
+  validateRequest({}),
+  asyncHandler(async (req, res) => {
     const result = await authService.logout(readCookie(req.headers.cookie, REFRESH_COOKIE_NAME));
     clearRefreshCookie(res);
     res.status(200).json(result);
-}));
+  }),
+);
 
-authController.get('/me', validateRequest({}), requireAuthentication, asyncHandler(async (req, res) => {
+authController.get(
+  '/me',
+  validateRequest({}),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
     res.status(200).json(await authService.me(actorFrom(req).id));
-}));
+  }),
+);
 
 authController.put(
-    '/me',
-    validateRequest({ body: updateProfileSchema }),
-    requireAuthentication,
-    asyncHandler(async (req, res) => {
-        res.status(200).json(await authService.updateProfile(actorFrom(req).id, req.body));
-    }),
+  '/me',
+  validateRequest({ body: updateProfileSchema }),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await authService.updateProfile(actorFrom(req).id, req.body));
+  }),
 );
 
 /** Re-authentication gate used before a sensitive profile change. */
 authController.post(
-    '/confirm-password',
-    attemptLimiter('confirm-password'),
-    validateRequest({ body: confirmPasswordSchema }),
-    requireAuthentication,
-    asyncHandler(async (req, res) => {
-        res.status(200).json(await authService.confirmPassword(actorFrom(req).id, req.body));
-    }),
+  '/confirm-password',
+  attemptLimiter('confirm-password'),
+  validateRequest({ body: confirmPasswordSchema }),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await authService.confirmPassword(actorFrom(req).id, req.body));
+  }),
 );
 
 authController.put(
-    '/me/password',
-    attemptLimiter('change-password'),
-    validateRequest({ body: changePasswordSchema }),
-    requireAuthentication,
-    asyncHandler(async (req, res) => {
-        await authService.changePassword(actorFrom(req).id, req.body);
-        res.status(204).send();
-    }),
+  '/me/password',
+  attemptLimiter('change-password'),
+  validateRequest({ body: changePasswordSchema }),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
+    await authService.changePassword(actorFrom(req).id, req.body);
+    res.status(204).send();
+  }),
 );
 
-authController.get('/me/image', validateRequest({}), requireAuthentication, asyncHandler(async (req, res) => {
+authController.get(
+  '/me/image',
+  validateRequest({}),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
     res.status(200).json(await authService.getProfileImage(actorFrom(req).id));
-}));
+  }),
+);
 
-authController.post('/me/image', validateRequest({}), requireAuthentication, imageUpload, asyncHandler(async (req, res) => {
-    res.status(201).json(await authService.setProfileImage(actorFrom(req).id, uploadedFileName(req)));
-}));
+authController.post(
+  '/me/image',
+  validateRequest({}),
+  requireAuthentication,
+  imageUpload,
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(await authService.setProfileImage(actorFrom(req).id, uploadedFileName(req)));
+  }),
+);
 
-authController.delete('/me/image', validateRequest({}), requireAuthentication, asyncHandler(async (req, res) => {
+authController.delete(
+  '/me/image',
+  validateRequest({}),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
     await authService.removeProfileImage(actorFrom(req).id);
     res.status(204).send();
-}));
-
-authController.post(
-    '/forgot-password',
-    emailLimiter('forgot-password'),
-    validateRequest({ body: forgotPasswordSchema }),
-    asyncHandler(async (req, res) => {
-        res.status(200).json(await authService.forgotPassword(req.body));
-    }),
+  }),
 );
 
 authController.post(
-    '/reset-password',
-    attemptLimiter('reset-password'),
-    validateRequest({ body: resetPasswordSchema }),
-    asyncHandler(async (req, res) => {
-        res.status(200).json(await authService.resetPassword(req.body));
-    }),
+  '/forgot-password',
+  emailLimiter('forgot-password'),
+  validateRequest({ body: forgotPasswordSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await authService.forgotPassword(req.body));
+  }),
+);
+
+authController.post(
+  '/reset-password',
+  attemptLimiter('reset-password'),
+  validateRequest({ body: resetPasswordSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await authService.resetPassword(req.body));
+  }),
 );
 
 authController.use(apiErrorMiddleware);

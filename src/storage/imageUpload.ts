@@ -13,12 +13,12 @@ let uploadSingleFile: RequestHandler | null = null;
  * `sharp` dependency, which the rest of the API must not need just to boot.
  */
 function getUploadMiddleware(): RequestHandler {
-    if (!uploadSingleFile) {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { storage } = require('./storageConfig') as { storage: StorageEngine };
-        uploadSingleFile = multer({ storage, limits: IMAGE_UPLOAD_LIMITS }).single(UPLOAD_FIELD_NAME);
-    }
-    return uploadSingleFile;
+  if (!uploadSingleFile) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { storage } = require('./storageConfig') as { storage: StorageEngine };
+    uploadSingleFile = multer({ storage, limits: IMAGE_UPLOAD_LIMITS }).single(UPLOAD_FIELD_NAME);
+  }
+  return uploadSingleFile;
 }
 
 /**
@@ -27,67 +27,77 @@ function getUploadMiddleware(): RequestHandler {
  * validation error instead of an unmapped 500.
  */
 export function imageUpload(req: Request, res: Response, next: NextFunction): void {
-    const startedAt = performance.now();
-    getUploadMiddleware()(req, res, (error: unknown) => {
-            console.info(`[images] ${JSON.stringify({
-                event: error ? 'upload.middleware.failed' : 'upload.middleware.completed',
-                durationMs: Math.round(performance.now() - startedAt),
-                inputBytes: req.file?.size,
-                ...imageUploadErrorDetails(error),
-            })}`);
-            if (error instanceof MulterError) {
-                next(ApiError.validation(`Image upload failed: ${error.message}.`));
-                return;
-            }
+  const startedAt = performance.now();
+  getUploadMiddleware()(req, res, (error: unknown) => {
+    console.info(
+      `[images] ${JSON.stringify({
+        event: error ? 'upload.middleware.failed' : 'upload.middleware.completed',
+        durationMs: Math.round(performance.now() - startedAt),
+        inputBytes: req.file?.size,
+        ...imageUploadErrorDetails(error),
+      })}`,
+    );
+    if (error instanceof MulterError) {
+      next(ApiError.validation(`Image upload failed: ${error.message}.`));
+      return;
+    }
 
-            if (error instanceof UnsupportedImageError) {
-                next(ApiError.validation(`Image upload failed: ${error.message}`));
-                return;
-            }
+    if (error instanceof UnsupportedImageError) {
+      next(ApiError.validation(`Image upload failed: ${error.message}`));
+      return;
+    }
 
-            if (error instanceof ImageObjectAlreadyExistsError) {
-                next(ApiError.conflict('The image could not be stored because its generated key already exists.'));
-                return;
-            }
+    if (error instanceof ImageObjectAlreadyExistsError) {
+      next(
+        ApiError.conflict(
+          'The image could not be stored because its generated key already exists.',
+        ),
+      );
+      return;
+    }
 
-            if (!error) req.body = trimRequestValue(req.body);
-            next(error ?? undefined);
-        });
+    if (!error) req.body = trimRequestValue(req.body);
+    next(error ?? undefined);
+  });
 }
 
 function imageUploadErrorDetails(error: unknown): Record<string, unknown> {
-    // Successful middleware completion has no error; do not log it as UnknownError.
-    if (error === undefined || error === null) return {};
+  // Successful middleware completion has no error; do not log it as UnknownError.
+  if (error === undefined || error === null) return {};
 
-    if (typeof error !== 'object') {
-        const message = typeof error === 'string' || typeof error === 'number'
-            || typeof error === 'boolean' || typeof error === 'bigint' || typeof error === 'symbol'
-            ? String(error).slice(0, 300)
-            : 'Unknown error';
-        return { errorName: 'UnknownError', errorMessage: message };
-    }
+  if (typeof error !== 'object') {
+    const message =
+      typeof error === 'string' ||
+      typeof error === 'number' ||
+      typeof error === 'boolean' ||
+      typeof error === 'bigint' ||
+      typeof error === 'symbol'
+        ? String(error).slice(0, 300)
+        : 'Unknown error';
+    return { errorName: 'UnknownError', errorMessage: message };
+  }
 
-    const readString = (key: string): string | undefined => {
-        const value: unknown = Reflect.get(error, key) as unknown;
-        return typeof value === 'string' || typeof value === 'number'
-            ? String(value).slice(0, 300)
-            : undefined;
-    };
+  const readString = (key: string): string | undefined => {
+    const value: unknown = Reflect.get(error, key) as unknown;
+    return typeof value === 'string' || typeof value === 'number'
+      ? String(value).slice(0, 300)
+      : undefined;
+  };
 
-    return {
-        errorName: error instanceof Error ? error.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message.slice(0, 300) : readString('message'),
-        errorCode: readString('code'),
-        errorStatus: readString('status') ?? readString('statusCode'),
-    };
+  return {
+    errorName: error instanceof Error ? error.name : 'UnknownError',
+    errorMessage: error instanceof Error ? error.message.slice(0, 300) : readString('message'),
+    errorCode: readString('code'),
+    errorStatus: readString('status') ?? readString('statusCode'),
+  };
 }
 
 /** The storage engine reports the stored object name as `destination`. */
 export function uploadedFileName(req: Request): string {
-    const file = req.file as unknown as { destination?: unknown } | undefined;
+  const file = req.file as unknown as { destination?: unknown } | undefined;
 
-    if (!file || typeof file.destination !== 'string' || file.destination.length === 0) {
-        throw ApiError.validation(`An image file is required in the "${UPLOAD_FIELD_NAME}" field.`);
-    }
-    return file.destination;
+  if (!file || typeof file.destination !== 'string' || file.destination.length === 0) {
+    throw ApiError.validation(`An image file is required in the "${UPLOAD_FIELD_NAME}" field.`);
+  }
+  return file.destination;
 }

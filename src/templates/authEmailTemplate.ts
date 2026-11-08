@@ -1,26 +1,26 @@
 export interface AuthEmailTemplateOptions {
-    title: string;
-    description: string;
-    buttonLabel: string;
-    expiry: string;
-    link: string;
+  title: string;
+  description: string;
+  buttonLabel: string;
+  expiry: string;
+  link: string;
 }
 
 /** Shared responsive HTML template for authentication emails. */
 export function renderAuthEmailTemplate({
-    title,
-    description,
-    buttonLabel,
-    expiry,
-    link
+  title,
+  description,
+  buttonLabel,
+  expiry,
+  link,
 }: AuthEmailTemplateOptions): string {
-    const safeTitle = escapeHtml(title);
-    const safeDescription = escapeHtml(description);
-    const safeButtonLabel = escapeHtml(buttonLabel);
-    const safeExpiry = escapeHtml(expiry);
-    const safeLink = escapeHtml(link);
+  const safeTitle = escapeHtml(title);
+  const safeDescription = escapeHtml(description);
+  const safeButtonLabel = escapeHtml(buttonLabel);
+  const safeExpiry = escapeHtml(expiry);
+  const safeLink = escapeHtml(link);
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -76,10 +76,10 @@ export function renderAuthEmailTemplate({
 }
 
 function escapeHtml(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

@@ -15,24 +15,24 @@ const DEFAULT_MAX_ATTEMPTS = 3;
  * requests without adding a schema or locking change.
  */
 export async function runSerializableWithRetry<T>(
-    prisma: PrismaClient,
-    work: (tx: Prisma.TransactionClient) => Promise<T>,
-    maxAttempts: number = DEFAULT_MAX_ATTEMPTS,
+  prisma: PrismaClient,
+  work: (tx: Prisma.TransactionClient) => Promise<T>,
+  maxAttempts: number = DEFAULT_MAX_ATTEMPTS,
 ): Promise<T> {
-    for (let attempt = 1; ; attempt += 1) {
-        try {
-            // eslint-disable-next-line no-await-in-loop -- retry loop for serialization conflicts
-            return await prisma.$transaction(work, {
-                isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-            });
-        } catch (error) {
-            // The last attempt reports the conflict unchanged instead of hiding it.
-            if (attempt >= maxAttempts || !isSerializationConflict(error)) throw error;
-        }
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- retry loop for serialization conflicts
+      return await prisma.$transaction(work, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      // The last attempt reports the conflict unchanged instead of hiding it.
+      if (attempt >= maxAttempts || !isSerializationConflict(error)) throw error;
     }
+  }
 }
 
 /** Prisma tag of a transaction rolled back by a serialization conflict. */
 function isSerializationConflict(error: unknown): boolean {
-    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
 }

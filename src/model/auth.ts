@@ -1,7 +1,7 @@
 /** Permissions for the authenticated caller, surfaced on self-profile responses. */
 export interface Permissions {
-    isManager: boolean;
-    isAdmin: boolean;
+  isManager: boolean;
+  isAdmin: boolean;
 }
 
 /**
@@ -11,81 +11,81 @@ export interface Permissions {
  * client.
  */
 export interface ProfileDto {
-    email: string;
-    firstName: string;
-    lastName: string;
-    permissions?: Permissions;
+  email: string;
+  firstName: string;
+  lastName: string;
+  permissions?: Permissions;
 }
 
 /** Public representation of the authenticated account; never carries the hash. */
 export interface AuthUserDto {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    status: string;
-    emailVerified: boolean;
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  status: string;
+  emailVerified: boolean;
 }
 
 /** Internal authenticated account record; password hashes never reach the API mapper output. */
 export interface AuthUserRecord {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    hashedPassword: string;
-    role: string;
-    status: string;
-    emailVerifiedAt: Date | null;
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  hashedPassword: string;
+  role: string;
+  status: string;
+  emailVerifiedAt: Date | null;
 }
 
 /** Identity of the authenticated actor, always resolved from the database row. */
 export interface AuthActor {
-    id: string;
-    role: string;
+  id: string;
+  role: string;
 }
 
 export interface AuthSessionDto {
-    accessToken: string;
-    tokenType: 'Bearer';
-    expiresIn: number;
-    user: ProfileDto;
+  accessToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+  user: ProfileDto;
 }
 
 export interface AuthUserResponse {
-    user: ProfileDto;
+  user: ProfileDto;
 }
 
 export interface MessageResponse {
-    message: string;
+  message: string;
 }
 
 export interface SessionPresenceResponse {
-    hasSession: boolean;
+  hasSession: boolean;
 }
 
 export interface RegisterRequest {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface LoginRequest {
-    email: string;
-    password: string;
+  email: string;
+  password: string;
 }
 
 export interface VerifyEmailRequest {
-    token: string;
+  token: string;
 }
 
 export interface EmailRequest {
-    email: string;
+  email: string;
 }
 
 export interface ResetPasswordRequest {
-    token: string;
-    password: string;
+  token: string;
+  password: string;
 }

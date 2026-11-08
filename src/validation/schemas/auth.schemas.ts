@@ -7,58 +7,77 @@ const LIMITS = VALIDATION_LIMITS;
 
 /** The only identity input of the slice; the format check runs after trimming. */
 const email = trimmedString({
-    min: LIMITS.auth.email.min,
-    max: LIMITS.auth.email.max,
-    pattern: EMAIL_PATTERN,
-    patternMessage: 'must be a valid email address.',
+  min: LIMITS.auth.email.min,
+  max: LIMITS.auth.email.max,
+  pattern: EMAIL_PATTERN,
+  patternMessage: 'must be a valid email address.',
 });
 
 /** Google reCAPTCHA v2 response token; the secret key never comes from the client. */
-const captchaToken = z.string().min(1).max(8192).refine((value) => !/\s/.test(value));
-const opaqueToken = z.string().min(LIMITS.auth.token.min).max(LIMITS.auth.token.max)
-    .refine((value) => !/\s/.test(value));
+const captchaToken = z
+  .string()
+  .min(1)
+  .max(8192)
+  .refine((value) => !/\s/.test(value));
+const opaqueToken = z
+  .string()
+  .min(LIMITS.auth.token.min)
+  .max(LIMITS.auth.token.max)
+  .refine((value) => !/\s/.test(value));
 
-export const registerSchema = z.object({
+export const registerSchema = z
+  .object({
     email,
     password: passwordString(LIMITS.auth.password),
     firstName: trimmedString(LIMITS.auth.name),
     lastName: trimmedString(LIMITS.auth.name),
     captchaToken,
-}).strict();
+  })
+  .strict();
 
-export const verifyEmailSchema = z.object({
+export const verifyEmailSchema = z
+  .object({
     token: opaqueToken,
-}).strict();
+  })
+  .strict();
 
 export const resendVerificationSchema = z.object({ email, captchaToken }).strict();
 
-export const loginSchema = z.object({
+export const loginSchema = z
+  .object({
     email,
     // Login only checks that a password was supplied and is within the input limit.
     // Complexity rules apply when creating or changing a password, not when logging in.
-    password: z.string()
-        .min(LIMITS.auth.passwordInput.min)
-        .max(LIMITS.auth.passwordInput.max),
+    password: z.string().min(LIMITS.auth.passwordInput.min).max(LIMITS.auth.passwordInput.max),
     captchaToken,
-}).strict();
+  })
+  .strict();
 
-export const updateProfileSchema = z.object({
+export const updateProfileSchema = z
+  .object({
     firstName: trimmedString(LIMITS.auth.name),
     lastName: trimmedString(LIMITS.auth.name),
-}).strict();
+  })
+  .strict();
 
-export const confirmPasswordSchema = z.object({
+export const confirmPasswordSchema = z
+  .object({
     password: passwordString(LIMITS.auth.passwordInput),
-}).strict();
+  })
+  .strict();
 
-export const changePasswordSchema = z.object({
+export const changePasswordSchema = z
+  .object({
     currentPassword: passwordString(LIMITS.auth.passwordInput),
     newPassword: passwordString(LIMITS.auth.password),
-}).strict();
+  })
+  .strict();
 
 export const forgotPasswordSchema = z.object({ email, captchaToken }).strict();
 
-export const resetPasswordSchema = z.object({
+export const resetPasswordSchema = z
+  .object({
     token: opaqueToken,
     password: passwordString(LIMITS.auth.password),
-}).strict();
+  })
+  .strict();

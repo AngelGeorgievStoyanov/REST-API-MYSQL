@@ -37,7 +37,12 @@ export const MAX_IMAGE_HEIGHT = 10000;
 export const MAX_IMAGE_PIXELS = 50_000_000;
 
 /** Declared `Content-Type` values accepted as a cheap first gate. */
-export const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+] as const;
 
 /** Declared file extensions matching the accepted formats. */
 export const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'] as const;
@@ -49,15 +54,15 @@ export const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif
  * buffered and before anything reaches GCS.
  */
 export const IMAGE_UPLOAD_LIMITS = {
-    /** Exactly one binary part per request. */
-    files: 1,
-    fileSize: MAX_UPLOAD_BYTES,
-    /** No text parts are part of the contract. */
-    fields: 0,
-    fieldSize: 8 * 1024,
-    fieldNameSize: 64,
-    /** One binary part; Multer 2 accepts exactly the configured count. */
-    parts: 1,
+  /** Exactly one binary part per request. */
+  files: 1,
+  fileSize: MAX_UPLOAD_BYTES,
+  /** No text parts are part of the contract. */
+  fields: 0,
+  fieldSize: 8 * 1024,
+  fieldNameSize: 64,
+  /** One binary part; Multer 2 accepts exactly the configured count. */
+  parts: 1,
 } as const;
 
 /**
@@ -72,11 +77,11 @@ export const THUMBNAIL_SUFFIX = '_thumb.webp';
  * kept exactly as uploaded; only the sidecar is resized and re-encoded.
  */
 export const IMAGE_THUMBNAIL = {
-    width: 400,
-    height: 300,
-    quality: 80,
-    /** `sharp` fit mode: the image is scaled down inside the box, never cropped. */
-    fit: 'inside',
+  width: 400,
+  height: 300,
+  quality: 80,
+  /** `sharp` fit mode: the image is scaled down inside the box, never cropped. */
+  fit: 'inside',
 } as const;
 
 /**

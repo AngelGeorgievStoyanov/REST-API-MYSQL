@@ -10,7 +10,6 @@ export const BACKGROUND_IMAGES_BASE_URL_KEY = 'background_images_base_url';
 /** `GET /trips/top` returns at most this many trip groups, ranked by likes. */
 export const TOP_TRIPS_LIMIT = 5;
 
-
 export const TRIP_SORTS = ['newest', 'oldest'] as const;
 
 export const DEFAULT_PAGE = 1;

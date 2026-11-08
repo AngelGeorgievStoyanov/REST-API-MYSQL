@@ -10,90 +10,110 @@ import { type TargetTypeRepository } from './targetTypeRepository';
  * owner, which is what authorization needs.
  */
 export class SocialTargetRepository {
-    constructor(
-        private readonly prisma: PrismaClient,
-        private readonly targetTypes: TargetTypeRepository,
-    ) { }
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly targetTypes: TargetTypeRepository,
+  ) {}
 
-    async requireContext(target: { targetType: 'comment' | SocialTargetType; targetId: number }): Promise<SocialTargetContext> {
-        const context = await this.findContext(target);
-        if (!context) throw ApiError.notFound('The target resource does not exist.');
+  async requireContext(target: {
+    targetType: 'comment' | SocialTargetType;
+    targetId: number;
+  }): Promise<SocialTargetContext> {
+    const context = await this.findContext(target);
+    if (!context) throw ApiError.notFound('The target resource does not exist.');
 
-        return context;
+    return context;
+  }
+
+  async findContext(target: {
+    targetType: SocialTargetType;
+    targetId: number;
+  }): Promise<SocialTargetContext | null> {
+    switch (target.targetType) {
+      case SOCIAL_TARGET_TYPE.TRIP_GROUP: {
+        const group = await this.prisma.tripGroup.findUnique({
+          where: { id: target.targetId },
+          select: { ownerId: true },
+        });
+        if (!group) return null;
+
+        return { ...target, tripGroupId: target.targetId, tripGroupOwnerId: group.ownerId };
+      }
+      case SOCIAL_TARGET_TYPE.DAY: {
+        const day = await this.prisma.trip.findUnique({
+          where: { id: target.targetId },
+          select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } },
+        });
+        if (!day?.tripGroupId) return null;
+
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
+        return {
+          ...target,
+          tripGroupId: day.tripGroupId,
+          tripGroupOwnerId: day.tripGroup?.ownerId ?? null,
+        };
+      }
+      case SOCIAL_TARGET_TYPE.POINT: {
+        const point = await this.prisma.point.findUnique({
+          where: { id: target.targetId },
+          select: {
+            trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
+          },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
+        const tripGroupId = point?.trip?.tripGroupId ?? null;
+        if (tripGroupId === null) return null;
+
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
+        return {
+          ...target,
+          tripGroupId,
+          tripGroupOwnerId: point?.trip?.tripGroup?.ownerId ?? null,
+        };
+      }
+      case SOCIAL_TARGET_TYPE.IMAGE: {
+        const image = await this.prisma.image.findUnique({
+          where: { id: target.targetId },
+          select: {
+            trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
+            point: {
+              select: {
+                trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
+              },
+            },
+          },
+        });
+        if (!image) return null;
+
+        // An image hangs off a day row or off a point; either way the trip
+        // group is the authorization context. Profile images and other
+        // unattached images are not social targets.
+        const day = image.trip ?? image.point?.trip ?? null;
+        if (!day?.tripGroupId) return null;
+
+        return {
+          ...target,
+          tripGroupId: day.tripGroupId,
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
+          tripGroupOwnerId: day.tripGroup?.ownerId ?? null,
+        };
+      }
+      case SOCIAL_TARGET_TYPE.COMMENT: {
+        const comment = await this.prisma.comment.findUnique({
+          where: { id: target.targetId },
+          select: { targetTypeId: true, targetId: true },
+        });
+        if (!comment) return null;
+        const rootType = (await this.targetTypes.loadNames()).get(comment.targetTypeId);
+        if (!rootType || rootType === SOCIAL_TARGET_TYPE.COMMENT) return null;
+        const root = await this.findContext({ targetType: rootType, targetId: comment.targetId });
+        if (!root) return null;
+        return {
+          ...target,
+          tripGroupId: root.tripGroupId,
+          tripGroupOwnerId: root.tripGroupOwnerId,
+        };
+      }
     }
-
-    async findContext(target: { targetType: SocialTargetType; targetId: number }): Promise<SocialTargetContext | null> {
-        switch (target.targetType) {
-            case SOCIAL_TARGET_TYPE.TRIP_GROUP: {
-                const group = await this.prisma.tripGroup.findUnique({
-                    where: { id: target.targetId },
-                    select: { ownerId: true },
-                });
-                if (!group) return null;
-
-                return { ...target, tripGroupId: target.targetId, tripGroupOwnerId: group.ownerId };
-            }
-            case SOCIAL_TARGET_TYPE.DAY: {
-                const day = await this.prisma.trip.findUnique({
-                    where: { id: target.targetId },
-                    select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } },
-                });
-                if (!day?.tripGroupId) return null;
-
-                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
-                return { ...target, tripGroupId: day.tripGroupId, tripGroupOwnerId: day.tripGroup?.ownerId ?? null };
-            }
-            case SOCIAL_TARGET_TYPE.POINT: {
-                const point = await this.prisma.point.findUnique({
-                    where: { id: target.targetId },
-                    select: { trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } } },
-                });
-                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
-                const tripGroupId = point?.trip?.tripGroupId ?? null;
-                if (tripGroupId === null) return null;
-
-                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
-                return { ...target, tripGroupId, tripGroupOwnerId: point?.trip?.tripGroup?.ownerId ?? null };
-            }
-            case SOCIAL_TARGET_TYPE.IMAGE: {
-                const image = await this.prisma.image.findUnique({
-                    where: { id: target.targetId },
-                    select: {
-                        trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
-                        point: {
-                            select: {
-                                trip: { select: { tripGroupId: true, tripGroup: { select: { ownerId: true } } } },
-                            },
-                        },
-                    },
-                });
-                if (!image) return null;
-
-                // An image hangs off a day row or off a point; either way the trip
-                // group is the authorization context. Profile images and other
-                // unattached images are not social targets.
-                const day = image.trip ?? image.point?.trip ?? null;
-                if (!day?.tripGroupId) return null;
-
-                return {
-                    ...target,
-                    tripGroupId: day.tripGroupId,
-                    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Prisma select returns undefined for missing relations, convert to null
-                    tripGroupOwnerId: day.tripGroup?.ownerId ?? null,
-                };
-            }
-            case SOCIAL_TARGET_TYPE.COMMENT: {
-                const comment = await this.prisma.comment.findUnique({
-                    where: { id: target.targetId },
-                    select: { targetTypeId: true, targetId: true },
-                });
-                if (!comment) return null;
-                const rootType = (await this.targetTypes.loadNames()).get(comment.targetTypeId);
-                if (!rootType || rootType === SOCIAL_TARGET_TYPE.COMMENT) return null;
-                const root = await this.findContext({ targetType: rootType, targetId: comment.targetId });
-                if (!root) return null;
-                return { ...target, tripGroupId: root.tripGroupId, tripGroupOwnerId: root.tripGroupOwnerId };
-            }
-        }
-    }
+  }
 }

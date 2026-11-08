@@ -15,23 +15,23 @@ import { reportBodySchema, reportTargetQuerySchema } from '../validation/schemas
 const reportController = express.Router();
 
 reportController.post(
-    '/',
-    validateRequest({ body: reportBodySchema }),
-    requireAuthentication,
-    asyncHandler(async (req, res) => {
-        const report = await reportService.create(actorFrom(req), req.body);
-        res.status(201).json(report);
-    }),
+  '/',
+  validateRequest({ body: reportBodySchema }),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
+    const report = await reportService.create(actorFrom(req), req.body);
+    res.status(201).json(report);
+  }),
 );
 
 reportController.delete(
-    '/',
-    validateRequest({ query: reportTargetQuerySchema }),
-    requireAuthentication,
-    asyncHandler(async (req, res) => {
-        await reportService.removeOwned(actorFrom(req), reportTargetQuerySchema.parse(req.query));
-        res.status(204).send();
-    }),
+  '/',
+  validateRequest({ query: reportTargetQuerySchema }),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
+    await reportService.removeOwned(actorFrom(req), reportTargetQuerySchema.parse(req.query));
+    res.status(204).send();
+  }),
 );
 
 reportController.use(apiErrorMiddleware);

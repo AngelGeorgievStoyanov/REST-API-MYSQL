@@ -10,18 +10,23 @@ const LIMITS = VALIDATION_LIMITS;
  * `trips.dayNumber`. `pointNumber` is assigned by the server from the current
  * children of that day and is never accepted here.
  */
-export const pointCreateSchema = z.object({
+export const pointCreateSchema = z
+  .object({
     tripId: positiveId,
     name: trimmedString(LIMITS.point.name),
     description: optionalText(LIMITS.point.description),
     lat: requiredNumber(LIMITS.point.lat),
     lng: requiredNumber(LIMITS.point.lng),
-}).strict();
+  })
+  .strict();
 
-export const pointUpdateSchema = z.object({
+export const pointUpdateSchema = z
+  .object({
     name: trimmedString(LIMITS.point.name),
-    description: z.union([trimmedString(LIMITS.point.description), z.null()])
-        .transform((value) => value === '' ? null : value),
+    description: z
+      .union([trimmedString(LIMITS.point.description), z.null()])
+      .transform((value) => (value === '' ? null : value)),
     lat: requiredNumber(LIMITS.point.lat),
     lng: requiredNumber(LIMITS.point.lng),
-}).strict();
+  })
+  .strict();

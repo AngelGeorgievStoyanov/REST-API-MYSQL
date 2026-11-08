@@ -8,6 +8,6 @@ import { BACKGROUND_BUCKET_NAME } from '../constants/imageStorage';
  * refresh, never by an HTTP controller.
  */
 export async function listBackgroundImageNames(): Promise<string[]> {
-    const [files] = await gcsClient.bucket(BACKGROUND_BUCKET_NAME).getFiles();
-    return files.map((file) => file.name);
+  const [files] = await gcsClient.bucket(BACKGROUND_BUCKET_NAME).getFiles();
+  return files.map((file) => file.name);
 }

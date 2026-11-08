@@ -9,7 +9,10 @@ import likeController from '../controllers/likeController';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
 import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { ApiError } from '../utils/apiError';
-import pointController, { dayPointController, tripPointController } from '../controllers/pointController';
+import pointController, {
+  dayPointController,
+  tripPointController,
+} from '../controllers/pointController';
 import meController from '../controllers/meController';
 import reportController from '../controllers/reportController';
 import tripController from '../controllers/tripController';
@@ -41,7 +44,9 @@ apiRouterV1.use('/trips', tripController);
 apiRouterV1.use('/points', pointController);
 apiRouterV1.use('/days', dayPointController);
 apiRouterV1.use('/images', imagesController);
-apiRouterV1.use((_req, _res, next) => { next(ApiError.notFound()); });
+apiRouterV1.use((_req, _res, next) => {
+  next(ApiError.notFound());
+});
 apiRouterV1.use(apiErrorMiddleware);
 
 export default apiRouterV1;

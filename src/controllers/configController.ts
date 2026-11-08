@@ -9,19 +9,18 @@ import { toSocialConfigResponse } from '../mappers/socialConfigMapper';
 const configController = express.Router();
 
 configController.get('/selects', validateRequest({}), optionalAuthentication, (_req, res) => {
-    res.status(200).json(dynamicConfig.getSelectTypes());
+  res.status(200).json(dynamicConfig.getSelectTypes());
 });
 
 configController.get('/services', validateRequest({}), optionalAuthentication, (_req, res) => {
-    res.status(200).json(dynamicConfig.getPublicServiceConfigs());
+  res.status(200).json(dynamicConfig.getPublicServiceConfigs());
 });
 
 configController.get('/social', validateRequest({}), optionalAuthentication, (_req, res) => {
-    res.status(200).json(toSocialConfigResponse(dynamicConfig.getSocialConfig()));
+  res.status(200).json(toSocialConfigResponse(dynamicConfig.getSocialConfig()));
 });
 
 configController.use(apiErrorMiddleware);
 configController.use(routeNotFoundLogsMiddleware);
 
 export default configController;
-

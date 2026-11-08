@@ -12,242 +12,242 @@ import { type SocialState } from './social';
 
 /** Authenticated caller. Always derived from the JWT, never from the request body. */
 export interface TripActor {
-    id: string;
-    role: string;
+  id: string;
+  role: string;
 }
 
 /** Server-side computed edit/delete rights of one resource for the requesting actor. */
 export interface ResourcePermissions {
-    canEdit: boolean;
-    canDelete: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
 /** Key/name pair resolved through the dynamic config selects (`group_type` / `transport` / `currency`). */
 export interface TripSelectValue {
-    key: string;
-    name: string;
+  key: string;
+  name: string;
 }
 
 export interface TripAuthor {
-    id: string;
-    firstName: string;
-    lastName: string;
+  id: string;
+  firstName: string;
+  lastName: string;
 }
 
 /** Currency resolved from select_options (currency select type). */
 export interface CurrencyDto {
-    id: number;
-    code: string;
-    name: string;
+  id: number;
+  code: string;
+  name: string;
 }
 
 /** Application read shape returned by point/trip repositories. */
 export interface PointRecord {
-    id: number;
-    name: string;
-    description: string | null;
-    lat: number;
-    lng: number;
-    pointNumber: number;
-    /** Required: the day row (`trips.id`) this point belongs to. */
-    tripId: number;
-    createdAt: Date | null;
-    updatedAt: Date | null;
-    images: ImageRecord[];
+  id: number;
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
+  pointNumber: number;
+  /** Required: the day row (`trips.id`) this point belongs to. */
+  tripId: number;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  images: ImageRecord[];
 }
 
 export interface TripListDayRecord {
-    id: number;
-    title: string;
-    description: string | null;
-    transport: string | null;
-    typeOfPeople: string | null;
-    /** Required: the user-selected ordinal stored on the day row. */
-    dayNumber: number;
-    createdAt: Date | null;
+  id: number;
+  title: string;
+  description: string | null;
+  transport: string | null;
+  typeOfPeople: string | null;
+  /** Required: the user-selected ordinal stored on the day row. */
+  dayNumber: number;
+  createdAt: Date | null;
 }
 
 export interface TripDayRecord extends TripListDayRecord {
-    updatedAt: Date | null;
-    price: number | null;
-    currency: string | null;
-    destination: string | null;
-    countPeoples: number;
-    lat: number | null;
-    lng: number | null;
-    images: ImageRecord[];
-    points: PointRecord[];
+  updatedAt: Date | null;
+  price: number | null;
+  currency: string | null;
+  destination: string | null;
+  countPeoples: number;
+  lat: number | null;
+  lng: number | null;
+  images: ImageRecord[];
+  points: PointRecord[];
 }
 
 export interface TripGroupListRecord {
-    id: number;
-    createdAt: Date | null;
-    owner: TripAuthor;
-    trips: TripListDayRecord[];
+  id: number;
+  createdAt: Date | null;
+  owner: TripAuthor;
+  trips: TripListDayRecord[];
 }
 
 export interface TripGroupDetailsRecord {
-    id: number;
-    createdAt: Date | null;
-    updatedAt: Date | null;
-    owner: TripAuthor;
-    trips: TripDayRecord[];
+  id: number;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  owner: TripAuthor;
+  trips: TripDayRecord[];
 }
 
 export interface PointWriteInput {
-    name: string;
-    description: string | null;
-    lat: number;
-    lng: number;
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
 }
 
 export interface TripMetadataInput {
-    ownerId: string;
-    /** User-selected ordinal of the initial day row; persisted as `trips.dayNumber`. */
-    dayNumber: number;
-    title: string;
-    description: string | null;
-    price: number;
-    transport: string;
-    countPeoples: number;
-    group: string;
-    destination: string | null;
-    lat: number | null;
-    lng: number | null;
-    currency: string;
+  ownerId: string;
+  /** User-selected ordinal of the initial day row; persisted as `trips.dayNumber`. */
+  dayNumber: number;
+  title: string;
+  description: string | null;
+  price: number;
+  transport: string;
+  countPeoples: number;
+  group: string;
+  destination: string | null;
+  lat: number | null;
+  lng: number | null;
+  currency: string;
 }
 
 export interface DayUpdateInput {
-    title?: string;
-    description?: string | null;
+  title?: string;
+  description?: string | null;
 }
 
 export interface TripPoint {
-    id: number;
-    name: string;
-    description: string | null;
-    lat: number;
-    lng: number;
-    pointNumber: number;
-    /** Required: the parent day row (`points.tripId` = `trips.id`). */
-    tripId: number;
-    createdAt: string | null;
-    updatedAt: string | null;
-    images: SocialImageDto[];
-    permissions: ResourcePermissions;
-    social: SocialState;
+  id: number;
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
+  pointNumber: number;
+  /** Required: the parent day row (`points.tripId` = `trips.id`). */
+  tripId: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+  images: SocialImageDto[];
+  permissions: ResourcePermissions;
+  social: SocialState;
 }
 
 export interface TripDay {
-    id: number;
-    dayNumber: number;
-    title: string | null;
-    images: SocialImageDto[];
-    points: TripPoint[];
-    permissions: ResourcePermissions;
-    social: SocialState;
+  id: number;
+  dayNumber: number;
+  title: string | null;
+  images: SocialImageDto[];
+  points: TripPoint[];
+  permissions: ResourcePermissions;
+  social: SocialState;
 }
 
 /** TripGroupDay represents a single day within a trip group for the unified response. */
 export interface TripGroupDay {
-    id: number;
-    dayNumber: number;
-    title: string | null;
-    description: string | null;
-    price: number | null;
-    currency: CurrencyDto | null;
-    transport: TripSelectValue;
-    group: TripSelectValue;
-    countPeoples: number;
-    destination: string | null;
-    lat: number | null;
-    lng: number | null;
-    images: SocialImageDto[];
-    permissions: ResourcePermissions;
-    social: SocialState;
-    points: TripPoint[];
-    createdAt: string | null;
-    updatedAt: string | null;
+  id: number;
+  dayNumber: number;
+  title: string | null;
+  description: string | null;
+  price: number | null;
+  currency: CurrencyDto | null;
+  transport: TripSelectValue;
+  group: TripSelectValue;
+  countPeoples: number;
+  destination: string | null;
+  lat: number | null;
+  lng: number | null;
+  images: SocialImageDto[];
+  permissions: ResourcePermissions;
+  social: SocialState;
+  points: TripPoint[];
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 /** TripGroupResponse is the unified response for GET /trips, GET /trips/top, GET /trips/:tripGroupId */
 export interface TripGroupResponse {
-    id: number;
-    permissions: ResourcePermissions;
-    social: SocialState;
-    days: TripGroupDay[];
+  id: number;
+  permissions: ResourcePermissions;
+  social: SocialState;
+  days: TripGroupDay[];
 }
 
 export type TripSort = 'newest' | 'oldest';
 
 export interface TripListQuery {
-    page: number;
-    limit: number;
-    search: string | null;
-    group: string | null;
-    transport: string | null;
-    sort: TripSort;
+  page: number;
+  limit: number;
+  search: string | null;
+  group: string | null;
+  transport: string | null;
+  sort: TripSort;
 }
 
 export interface TripWriteRequest {
-    /** Required user-selected ordinal of the initial day row (`trips.dayNumber`). */
-    dayNumber: number;
-    title: string;
-    description: string | null;
-    price: number;
-    transport: string;
-    countPeoples: number;
-    typeOfPeople: string;
-    destination: string | null;
-    lat: number | null;
-    lng: number | null;
-    currency: string;
+  /** Required user-selected ordinal of the initial day row (`trips.dayNumber`). */
+  dayNumber: number;
+  title: string;
+  description: string | null;
+  price: number;
+  transport: string;
+  countPeoples: number;
+  typeOfPeople: string;
+  destination: string | null;
+  lat: number | null;
+  lng: number | null;
+  currency: string;
 }
 
 export interface TripEditRequest {
-    /** Required day ordinal; unique within the same trip group except for this row. */
-    dayNumber: number;
-    title: string;
-    description: string | null;
-    price: number;
-    transport: string;
-    countPeoples: number;
-    typeOfPeople: string;
-    currency: string;
-    destination: string | null;
-    lat: number | null;
-    lng: number | null;
+  /** Required day ordinal; unique within the same trip group except for this row. */
+  dayNumber: number;
+  title: string;
+  description: string | null;
+  price: number;
+  transport: string;
+  countPeoples: number;
+  typeOfPeople: string;
+  currency: string;
+  destination: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 /** Complete day-number assignment for one trip group reorder operation. */
 export interface TripDayReorderRequest {
-    days: {
-        tripId: number;
-        dayNumber: number;
-    }[];
+  days: {
+    tripId: number;
+    dayNumber: number;
+  }[];
 }
 
 export interface PointCreateRequest {
-    /**
-     * The day the point is created in: the primary key `Trip.id` of that day
-     * row — a day row has no separate identifier. Never the trip-group id and
-     * never `trips.dayNumber`.
-     */
-    tripId: number;
-    name: string;
-    description: string | null;
-    lat: number;
-    lng: number;
+  /**
+   * The day the point is created in: the primary key `Trip.id` of that day
+   * row — a day row has no separate identifier. Never the trip-group id and
+   * never `trips.dayNumber`.
+   */
+  tripId: number;
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
 }
 
 export interface PointUpdateRequest {
-    name: string;
-    description: string | null;
-    lat: number;
-    lng: number;
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
 }
 
 export interface DayUpdateRequest {
-    title?: string;
-    description?: string | null;
+  title?: string;
+  description?: string | null;
 }

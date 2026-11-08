@@ -58,6 +58,7 @@ The auth service does not issue provider HTTP requests. `CaptchaService` validat
    ```
 
    A request without the required marker is rejected according to the production route-not-found behavior. The marker is a public request-shape filter and is not authentication.
+
 3. CORS applies the environment-specific origin allowlist and credential policy.
 4. The public API rate limit bounds traffic arriving under `/api`.
 5. JSON and URL-encoded parsers enforce bounded request sizes. Multipart image requests are handled separately by their route-specific Multer configuration.
@@ -105,37 +106,37 @@ All mapper modules are located under `src/mappers/`.
 
 API mappers:
 
-* accept application/domain contracts;
-* perform transformation only;
-* do not query databases;
-* do not call services or repositories;
-* do not contain business rules;
-* do not perform authorization or ownership decisions;
-* do not depend on Express or Prisma.
+- accept application/domain contracts;
+- perform transformation only;
+- do not query databases;
+- do not call services or repositories;
+- do not contain business rules;
+- do not perform authorization or ownership decisions;
+- do not depend on Express or Prisma.
 
 Persistence mappers are separate from API mappers and convert persistence representations into application contracts where required.
 
 ### Project structure
 
-* `src/index.ts`: Express application setup and server lifecycle.
-* `src/routes/`: `/api` and `/v1` router composition.
-* `src/controllers/`: HTTP route handlers and response delivery.
-* `src/services/`: business logic, authorization, ownership checks, orchestration, API response preparation, and external-integration policy services (including CAPTCHA).
-* `src/repositories/`: Prisma queries and persistence mapping.
-* `src/mappers/`: API/resource mappers and persistence-oriented mappers.
-* `src/model/`: application/domain contracts and API DTOs.
-* `src/validation/`: request validation middleware and Zod schemas.
-* `src/middlewares/`: client marker, authentication/authorization, rate limiting, error handling, and route diagnostics.
-* `src/clients/`: shared Prisma and external HTTP/provider clients (including the reCAPTCHA transport client).
-* `src/config/`: environment reading and validation.
-* `src/constants/`: reusable application constants and policy defaults.
-* `src/storage/`: image validation and object-storage adapters.
-* `src/startup/`: runtime initialization and cleanup.
-* `src/db/cloneTestDatabase.ts`: guarded disposable database-clone tooling.
-* `src/migration/`: guarded database migration tooling.
-* `src/utils/`: shared helpers.
-* `prisma/`: Prisma schema, seed data, and migrations.
-* `build/`: generated TypeScript output and is not source of truth.
+- `src/index.ts`: Express application setup and server lifecycle.
+- `src/routes/`: `/api` and `/v1` router composition.
+- `src/controllers/`: HTTP route handlers and response delivery.
+- `src/services/`: business logic, authorization, ownership checks, orchestration, API response preparation, and external-integration policy services (including CAPTCHA).
+- `src/repositories/`: Prisma queries and persistence mapping.
+- `src/mappers/`: API/resource mappers and persistence-oriented mappers.
+- `src/model/`: application/domain contracts and API DTOs.
+- `src/validation/`: request validation middleware and Zod schemas.
+- `src/middlewares/`: client marker, authentication/authorization, rate limiting, error handling, and route diagnostics.
+- `src/clients/`: shared Prisma and external HTTP/provider clients (including the reCAPTCHA transport client).
+- `src/config/`: environment reading and validation.
+- `src/constants/`: reusable application constants and policy defaults.
+- `src/storage/`: image validation and object-storage adapters.
+- `src/startup/`: runtime initialization and cleanup.
+- `src/db/cloneTestDatabase.ts`: guarded disposable database-clone tooling.
+- `src/migration/`: guarded database migration tooling.
+- `src/utils/`: shared helpers.
+- `prisma/`: Prisma schema, seed data, and migrations.
+- `build/`: generated TypeScript output and is not source of truth.
 
 ## Public API contract (V6)
 
@@ -156,12 +157,12 @@ It identifies the expected HackTrip web-client request shape.
 
 It is:
 
-* public;
-* copyable;
-* not authentication;
-* not authorization;
-* not a user credential;
-* not a session.
+- public;
+- copyable;
+- not authentication;
+- not authorization;
+- not a user credential;
+- not a session.
 
 The marker remains required independently of the public bearer token.
 
@@ -177,17 +178,17 @@ Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>
 
 It is:
 
-* public;
-* non-secret;
-* visible in browser DevTools;
-* copyable;
-* not a password;
-* not a user credential;
-* not a JWT;
-* not a session;
-* not an ownership identity;
-* not an authorization credential;
-* not a security boundary.
+- public;
+- non-secret;
+- visible in browser DevTools;
+- copyable;
+- not a password;
+- not a user credential;
+- not a JWT;
+- not a session;
+- not an ownership identity;
+- not an authorization credential;
+- not a security boundary.
 
 The default value is:
 
@@ -203,14 +204,14 @@ The public token is never hashed, generated as a secret, treated as a credential
 
 For requests reaching an authentication boundary, bearer authentication has the following production behavior:
 
-| Request authentication state                          | Result                                              |
-| ----------------------------------------------------- | --------------------------------------------------- |
-| No `Authorization` header                             | `404 NOT_FOUND`                                     |
-| Missing/malformed bearer scheme or empty bearer value | `404 NOT_FOUND`                                     |
-| `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`       | Anonymous context                                   |
-| Valid `Authorization: Bearer <USER_ACCESS_TOKEN>`     | Authenticated user context                          |
-| Invalid/expired user access JWT                      | `401 UNAUTHORIZED`; never anonymous                  |
-| Valid user access JWT with suspended/deactivated/unverified account | `403` with the relevant account-status error          |
+| Request authentication state                                        | Result                                       |
+| ------------------------------------------------------------------- | -------------------------------------------- |
+| No `Authorization` header                                           | `404 NOT_FOUND`                              |
+| Missing/malformed bearer scheme or empty bearer value               | `404 NOT_FOUND`                              |
+| `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`                     | Anonymous context                            |
+| Valid `Authorization: Bearer <USER_ACCESS_TOKEN>`                   | Authenticated user context                   |
+| Invalid/expired user access JWT                                     | `401 UNAUTHORIZED`; never anonymous          |
+| Valid user access JWT with suspended/deactivated/unverified account | `403` with the relevant account-status error |
 
 A request without `Authorization` is not treated as successful anonymous authentication.
 
@@ -287,27 +288,27 @@ Anonymous/public access is read-only.
 
 Public access includes the explicitly exposed public resources such as:
 
-* public trip reads;
-* public day and point data included in public trip responses;
-* public point reads;
-* public comment reads;
-* public like counts/state;
-* public favorite counts/state where exposed publicly;
-* public-safe configuration;
-* public image metadata exposed by public DTOs.
+- public trip reads;
+- public day and point data included in public trip responses;
+- public point reads;
+- public comment reads;
+- public like counts/state;
+- public favorite counts/state where exposed publicly;
+- public-safe configuration;
+- public image metadata exposed by public DTOs.
 
 Anonymous access cannot:
 
-* create or modify trips;
-* create or modify points;
-* create or modify comments;
-* create or delete likes;
-* create or delete favorites;
-* submit reports;
-* access admin endpoints;
-* access private user data;
-* access user-specific private resources;
-* perform ownership-sensitive operations.
+- create or modify trips;
+- create or modify points;
+- create or modify comments;
+- create or delete likes;
+- create or delete favorites;
+- submit reports;
+- access admin endpoints;
+- access private user data;
+- access user-specific private resources;
+- perform ownership-sensitive operations.
 
 The public token grants no write capability and never bypasses authorization.
 
@@ -361,21 +362,21 @@ The `/api/v1` endpoint inventory below is derived from the mounted routers and c
 
 `GET /` is a separate application greeting and is not a versioned API endpoint.
 
-| Resource       | Methods and paths relative to `/api/v1`                                                                                                                                                                                                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Auth           | `POST /auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/confirm-password`, `/auth/forgot-password`, `/auth/reset-password`; `GET /auth/session`, `/auth/me`, `/auth/me/image`; `PUT /auth/me`, `/auth/me/password`; `POST /auth/me/image`; `DELETE /auth/me/image` |
-| Admin          | `GET /admin/users`; `PUT` and `DELETE /admin/users/:userId`; `GET /admin/failed-login-logs`; `DELETE /admin/failed-login-logs`; `GET /admin/route-not-found-logs`; `GET /admin/images/cloud`, `/admin/images/database`, `/admin/images/orphans`                                                                            |
-| Config         | `GET /config/selects`, `/config/services`, `/config/social`                                                                                                                                                                                                                                                                                  |
-| Comments       | `GET` and `POST /trip-groups/:tripGroupId/comments`; `/trips/:tripGroupId/days/:tripId/comments`; `/points/:pointId/comments`; `/images/:imageId/comments`; `PUT` and `DELETE /comments/:commentId`                                                                                                                              |
-| Trips and days | `GET /trips`, `/trips/:tripGroupId`; `POST /trips`, `/trips/:tripGroupId/days`, `/trips/:tripGroupId/days/:tripId/images`; `PUT /trips/:tripGroupId/days/reorder`, `/trips/:tripGroupId/days/:tripId`; `DELETE /trips/:tripGroupId`, `/trips/:tripGroupId/days/:tripId` |
-| Trip discovery/social | `GET /trips/top`, `GET /trips/background`; public discovery endpoints use the public Frontend token |
-| Current-user trips/favorites | `GET /me/trips`, `GET /me/favorites`; authenticated user-specific endpoints resolve the user from authentication and do not accept a `userId` route parameter |
-| Points         | `POST /points`; `GET /trips/:tripId/points`, `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:tripId/points/reorder`                                                                                                                                  |
-| Images         | `DELETE /images/:imageId`                                                                                                                                                                                                                                                                                                  |
-| Likes          | `POST` and `DELETE /likes`                                                                                                                                                                                                                                                                                                 |
-| Favorites      | `POST` and `DELETE /favorites`                                                                                                                                                                                                                                                                                             |
-| Reports        | `POST /reports`; `DELETE /reports?targetType=…&targetId=…` (author withdraw); anonymous contexts cannot create reports                        |
-| Admin reports | `GET /admin/reports`, `DELETE /admin/reports/:reportId`; moderation access is restricted to `admin` and `manager` |
+| Resource                     | Methods and paths relative to `/api/v1`                                                                                                                                                                                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth                         | `POST /auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/confirm-password`, `/auth/forgot-password`, `/auth/reset-password`; `GET /auth/session`, `/auth/me`, `/auth/me/image`; `PUT /auth/me`, `/auth/me/password`; `POST /auth/me/image`; `DELETE /auth/me/image` |
+| Admin                        | `GET /admin/users`; `PUT` and `DELETE /admin/users/:userId`; `GET /admin/failed-login-logs`; `DELETE /admin/failed-login-logs`; `GET /admin/route-not-found-logs`; `GET /admin/images/cloud`, `/admin/images/database`, `/admin/images/orphans`                                                                                             |
+| Config                       | `GET /config/selects`, `/config/services`, `/config/social`                                                                                                                                                                                                                                                                                 |
+| Comments                     | `GET` and `POST /trip-groups/:tripGroupId/comments`; `/trips/:tripGroupId/days/:tripId/comments`; `/points/:pointId/comments`; `/images/:imageId/comments`; `PUT` and `DELETE /comments/:commentId`                                                                                                                                         |
+| Trips and days               | `GET /trips`, `/trips/:tripGroupId`; `POST /trips`, `/trips/:tripGroupId/days`, `/trips/:tripGroupId/days/:tripId/images`; `PUT /trips/:tripGroupId/days/reorder`, `/trips/:tripGroupId/days/:tripId`; `DELETE /trips/:tripGroupId`, `/trips/:tripGroupId/days/:tripId`                                                                     |
+| Trip discovery/social        | `GET /trips/top`, `GET /trips/background`; public discovery endpoints use the public Frontend token                                                                                                                                                                                                                                         |
+| Current-user trips/favorites | `GET /me/trips`, `GET /me/favorites`; authenticated user-specific endpoints resolve the user from authentication and do not accept a `userId` route parameter                                                                                                                                                                               |
+| Points                       | `POST /points`; `GET /trips/:tripId/points`, `GET /points/:pointId`; `PUT` and `DELETE /points/:pointId`; `POST /points/:pointId/images`; `DELETE /points/:pointId/images/:imageId`; `PUT /days/:tripId/points/reorder`                                                                                                                     |
+| Images                       | `DELETE /images/:imageId`                                                                                                                                                                                                                                                                                                                   |
+| Likes                        | `POST` and `DELETE /likes`                                                                                                                                                                                                                                                                                                                  |
+| Favorites                    | `POST` and `DELETE /favorites`                                                                                                                                                                                                                                                                                                              |
+| Reports                      | `POST /reports`; `DELETE /reports?targetType=…&targetId=…` (author withdraw); anonymous contexts cannot create reports                                                                                                                                                                                                                      |
+| Admin reports                | `GET /admin/reports`, `DELETE /admin/reports/:reportId`; moderation access is restricted to `admin` and `manager`                                                                                                                                                                                                                           |
 
 Comments are mounted at the v1 root because their collections span several resource prefixes.
 
@@ -389,15 +390,15 @@ Request bodies, queries, and route parameters are validated by Zod schemas under
 
 Important DTO families include:
 
-* `AuthSessionDto` contains a bearer access token and the public `ProfileDto` (email, names, optional `permissions`); refresh tokens are delivered only through an HttpOnly cookie.
-* The three public trip GET endpoints (`GET /trips`, `GET /trips/top`, `GET /trips/:tripGroupId`) use the canonical `TripGroupResponse` structure defined below. `GET /me/trips`, `GET /me/favorites`, and the trip/day write endpoints also reuse this response model where documented; access rules and selection/cardinality differ by endpoint.
-* Trip GET and trip write responses use the Trip Group response model described in the trip response sections. The response root contains only `id` (the trip-group id), server-computed `permissions`, global `social`, and `days[]`; day-specific metadata belongs inside each Day.
-* `CommentListResponse` is paginated.
-* Comment writes use `{ comment }`; authorship comes from the authenticated actor.
-* `ImageDto` contains `id`, `url`, and `thumbnailUrl`; storage object paths are not exposed as the API image contract.
-* Social mutations identify a target using target type and ID; the acting user comes from authentication.
-* Admin lists return bounded items with pagination metadata.
-* Configuration responses use the application configuration models.
+- `AuthSessionDto` contains a bearer access token and the public `ProfileDto` (email, names, optional `permissions`); refresh tokens are delivered only through an HttpOnly cookie.
+- The three public trip GET endpoints (`GET /trips`, `GET /trips/top`, `GET /trips/:tripGroupId`) use the canonical `TripGroupResponse` structure defined below. `GET /me/trips`, `GET /me/favorites`, and the trip/day write endpoints also reuse this response model where documented; access rules and selection/cardinality differ by endpoint.
+- Trip GET and trip write responses use the Trip Group response model described in the trip response sections. The response root contains only `id` (the trip-group id), server-computed `permissions`, global `social`, and `days[]`; day-specific metadata belongs inside each Day.
+- `CommentListResponse` is paginated.
+- Comment writes use `{ comment }`; authorship comes from the authenticated actor.
+- `ImageDto` contains `id`, `url`, and `thumbnailUrl`; storage object paths are not exposed as the API image contract.
+- Social mutations identify a target using target type and ID; the acting user comes from authentication.
+- Admin lists return bounded items with pagination metadata.
+- Configuration responses use the application configuration models.
 
 API-facing services return prepared response contracts through API mappers. Controllers do not reconstruct DTOs.
 
@@ -534,10 +535,11 @@ Points use the following public `TripPoint` structure. Field names follow the da
 `ownerId` is intentionally excluded from both Day and Point API responses. It remains server-side ownership data and must never be serialized to the Frontend.
 
 Social state is present at:
-* trip-group level;
-* day level;
-* point level;
-* image level.
+
+- trip-group level;
+- day level;
+- point level;
+- image level.
 
 The existing `SocialState` structure is unchanged.
 
@@ -547,19 +549,19 @@ The endpoint-level contracts of these reads — query parameters, pagination, th
 
 ### GET /trips/:tripGroupId
 
-* Auth: `optionalAuthentication`.
-* Path parameter `tripGroupId` is the `trip_groups.id` (INT, autoincrement), not a day row id.
-* Missing trip group -> `404 TRIP_NOT_FOUND`.
-* Response `200`: one `TripGroupResponse`.
-* The response always contains the complete trip group: `id` (the trip-group id), `permissions`, trip-group `social`, and all of its `days[]`.
-* If the Frontend opens a specific day, it may select that day from the returned `days[]`, but the backend still returns the complete trip group.
-* Missing trip group -> `404 TRIP_NOT_FOUND`.
+- Auth: `optionalAuthentication`.
+- Path parameter `tripGroupId` is the `trip_groups.id` (INT, autoincrement), not a day row id.
+- Missing trip group -> `404 TRIP_NOT_FOUND`.
+- Response `200`: one `TripGroupResponse`.
+- The response always contains the complete trip group: `id` (the trip-group id), `permissions`, trip-group `social`, and all of its `days[]`.
+- If the Frontend opens a specific day, it may select that day from the returned `days[]`, but the backend still returns the complete trip group.
+- Missing trip group -> `404 TRIP_NOT_FOUND`.
 
 All three endpoints therefore share the same nested data model; only the cardinality differs:
-* `/trips` -> array of trip groups;
-* `/trips/top` -> array of up to 5 trip groups;
-* `/trips/:tripGroupId` -> one trip group.
 
+- `/trips` -> array of trip groups;
+- `/trips/top` -> array of up to 5 trip groups;
+- `/trips/:tripGroupId` -> one trip group.
 
 ## Trip and point write endpoints
 
@@ -567,16 +569,16 @@ Trip groups are grouping containers only. A trip group has no title, description
 
 Write-side architecture rules:
 
-* `POST /api/v1/trips` validates the complete initial-trip body in the request schema, then the service resolves Dynamic Config select inputs and derives ownership from the authenticated actor. The repository creates the `trip_groups` row and its first `trips` day row in one nested Prisma create; failure to create the day also fails the group create. `dayNumber` is required and user-selected.
-* The metadata in `POST /api/v1/trips` is stored on the newly created initial day row. There is no shared trip metadata row and no need to select a canonical day to decide where POST data is written.
-* `PUT /api/v1/trips/:tripGroupId/days/:tripId` edits exactly the `trips` row identified by `tripId`, after the service confirms that row belongs to `tripGroupId` and that the actor can modify the group. The request is a full update: all 11 day fields are required, including explicit nullable values. The request field is `typeOfPeople`; the read DTO exposes the corresponding select as `group`.
-* The edit service resolves `transport`, `typeOfPeople`, and `currency` against the runtime Dynamic Config options before persistence. The repository checks `dayNumber` uniqueness within the same group while excluding the current row, then updates the exact row and increments `countEdited` in the same transaction. A duplicate number maps to `409 CONFLICT`; it must not redirect field updates to another day row.
-* `POST /api/v1/trips/:tripGroupId/days` adds a day row using the same strict full-write schema and service-level Trip parser/mapper as `POST /api/v1/trips`. The body contains the complete Trip metadata contract; `tripGroupId` is taken from the URL and `ownerId` from the authenticated actor. The repository persists the submitted metadata on the new row and does not inherit `transport`, `typeOfPeople`, price, currency, people count, destination, or coordinates from an existing day. Dynamic Config select values are validated before persistence, and duplicate `dayNumber` values within the group return `409 CONFLICT`.
-* A day is addressed by its `trips` row id. There is no `PUT /api/v1/trips/:tripGroupId`: the group itself has no editable metadata.
-* `PUT /api/v1/trips/:tripGroupId/days/reorder` accepts the complete set of day rows as `{ days: [{ tripId, dayNumber }] }`. The request schema validates a non-empty array of at most 500 entries, positive integer day-row ids, day numbers from 1 through 500, and uniqueness of both ids and day numbers. The service applies the existing trip-group modify authorization and delegates the exact-set check and number assignments to one repository transaction. The repository verifies that the submitted ids match every day row in the group, temporarily moves rows to collision-free values, then writes the exact requested day numbers. It never compacts gaps or infers numbers from array order. A missing, extra, or foreign day id causes the transaction to make no changes and the service returns a validation error.
-* Day writes (`POST .../days`, `PUT .../days/:tripId`), day deletion (`DELETE .../days/:tripId`), and day reorder (`PUT .../days/reorder`) answer with the complete `TripGroupResponse` of the parent group after the change. The service reloads the parent group and uses the canonical trip-group response mapper with the current actor, so the response contains every current day, point, image, permission, and social state. The Frontend can replace its cached Trip Group directly and does not need a follow-up GET.
-* Point writes answer with the complete `TripPoint[]` collection of the affected day, in `pointNumber` order. `pointNumber` is server-generated (`max(existing pointNumber) + 1` on create, renumbered on reorder/delete) and is never accepted from the client.
-* Deletes remove image objects from storage before the database transaction starts, so a storage failure leaves the database untouched; the row deletes run the social cleanup of "Social cleanup on resource deletion" inside the same transaction. After deleting one day row, the service reads the parent trip group again and returns its complete `TripGroupResponse` (`200`), rather than an empty `204` response.
+- `POST /api/v1/trips` validates the complete initial-trip body in the request schema, then the service resolves Dynamic Config select inputs and derives ownership from the authenticated actor. The repository creates the `trip_groups` row and its first `trips` day row in one nested Prisma create; failure to create the day also fails the group create. `dayNumber` is required and user-selected.
+- The metadata in `POST /api/v1/trips` is stored on the newly created initial day row. There is no shared trip metadata row and no need to select a canonical day to decide where POST data is written.
+- `PUT /api/v1/trips/:tripGroupId/days/:tripId` edits exactly the `trips` row identified by `tripId`, after the service confirms that row belongs to `tripGroupId` and that the actor can modify the group. The request is a full update: all 11 day fields are required, including explicit nullable values. The request field is `typeOfPeople`; the read DTO exposes the corresponding select as `group`.
+- The edit service resolves `transport`, `typeOfPeople`, and `currency` against the runtime Dynamic Config options before persistence. The repository checks `dayNumber` uniqueness within the same group while excluding the current row, then updates the exact row and increments `countEdited` in the same transaction. A duplicate number maps to `409 CONFLICT`; it must not redirect field updates to another day row.
+- `POST /api/v1/trips/:tripGroupId/days` adds a day row using the same strict full-write schema and service-level Trip parser/mapper as `POST /api/v1/trips`. The body contains the complete Trip metadata contract; `tripGroupId` is taken from the URL and `ownerId` from the authenticated actor. The repository persists the submitted metadata on the new row and does not inherit `transport`, `typeOfPeople`, price, currency, people count, destination, or coordinates from an existing day. Dynamic Config select values are validated before persistence, and duplicate `dayNumber` values within the group return `409 CONFLICT`.
+- A day is addressed by its `trips` row id. There is no `PUT /api/v1/trips/:tripGroupId`: the group itself has no editable metadata.
+- `PUT /api/v1/trips/:tripGroupId/days/reorder` accepts the complete set of day rows as `{ days: [{ tripId, dayNumber }] }`. The request schema validates a non-empty array of at most 500 entries, positive integer day-row ids, day numbers from 1 through 500, and uniqueness of both ids and day numbers. The service applies the existing trip-group modify authorization and delegates the exact-set check and number assignments to one repository transaction. The repository verifies that the submitted ids match every day row in the group, temporarily moves rows to collision-free values, then writes the exact requested day numbers. It never compacts gaps or infers numbers from array order. A missing, extra, or foreign day id causes the transaction to make no changes and the service returns a validation error.
+- Day writes (`POST .../days`, `PUT .../days/:tripId`), day deletion (`DELETE .../days/:tripId`), and day reorder (`PUT .../days/reorder`) answer with the complete `TripGroupResponse` of the parent group after the change. The service reloads the parent group and uses the canonical trip-group response mapper with the current actor, so the response contains every current day, point, image, permission, and social state. The Frontend can replace its cached Trip Group directly and does not need a follow-up GET.
+- Point writes answer with the complete `TripPoint[]` collection of the affected day, in `pointNumber` order. `pointNumber` is server-generated (`max(existing pointNumber) + 1` on create, renumbered on reorder/delete) and is never accepted from the client.
+- Deletes remove image objects from storage before the database transaction starts, so a storage failure leaves the database untouched; the row deletes run the social cleanup of "Social cleanup on resource deletion" inside the same transaction. After deleting one day row, the service reads the parent trip group again and returns its complete `TripGroupResponse` (`200`), rather than an empty `204` response.
 
 The endpoint-level contracts (request bodies, validation, statuses, response examples) are defined in `docs/API_CONTRACT.md` §8–§11 and are not repeated here.
 
@@ -595,13 +597,13 @@ TRIP_GROUP
 
 Deleting a resource removes the social records of every level that is being removed:
 
-| Delete | Social records removed |
-| ------ | ---------------------- |
-| `DELETE /api/v1/images/:imageId`, `DELETE /api/v1/points/:pointId/images/:imageId` | the image's (likes/comments/reports and any future relationship) |
-| `DELETE /api/v1/points/:pointId` | the point's and every image's of that point |
-| `DELETE /api/v1/trips/:tripGroupId/days/:tripId` | the day's, its points' and all of their images' |
-| `DELETE /api/v1/trips/:tripGroupId` | the trip group's, its days', points' and images' |
-| `DELETE /api/v1/comments/:commentId` | the comment's replies and their likes, favorites and reports, plus the parent's likes, favorites and reports |
+| Delete                                                                             | Social records removed                                                                                       |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `DELETE /api/v1/images/:imageId`, `DELETE /api/v1/points/:pointId/images/:imageId` | the image's (likes/comments/reports and any future relationship)                                             |
+| `DELETE /api/v1/points/:pointId`                                                   | the point's and every image's of that point                                                                  |
+| `DELETE /api/v1/trips/:tripGroupId/days/:tripId`                                   | the day's, its points' and all of their images'                                                              |
+| `DELETE /api/v1/trips/:tripGroupId`                                                | the trip group's, its days', points' and images'                                                             |
+| `DELETE /api/v1/comments/:commentId`                                               | the comment's replies and their likes, favorites and reports, plus the parent's likes, favorites and reports |
 
 Favorites use `(targetTypeId, targetId)` persistence and retain the legacy `{ tripGroupId }` API form for trip groups. They are removed by the same cleanup before their target rows are deleted. Profile image removal and profile image replacement delete the replaced image's social records the same way.
 
@@ -632,18 +634,18 @@ The request must be sent with credentials enabled so the browser may include the
 
 Architecture and security requirements:
 
-* the endpoint is read-only;
-* it must not rotate, revoke, create, or modify refresh tokens;
-* it must not return an access token, refresh token, user id, email, role, account status, or other user/account data;
-* the `hasSession` value is determined from the refresh cookie and its stored refresh-token/user state, not access-token identity; `optionalAuthentication` still processes any supplied bearer before the handler, so an invalid/expired user JWT or unusable account can return `401`/`403` before the cookie probe runs;
-* it returns only whether the current browser request has a valid refresh session;
-* absent and invalid sessions use the same response shape and do not reveal why the session is unavailable;
-* it does not require a user access JWT, but the shared boundary rejects a missing `Authorization` bearer;
-* the response is exactly one boolean session-presence value, for example `{ "hasSession": true }` or `{ "hasSession": false }`;
-* `hasSession: false` must never cause the Frontend to call `POST /api/v1/auth/refresh`;
-* `hasSession: true` only permits the Frontend to intentionally start the normal refresh flow;
-* the endpoint is protected by the normal public API rate limit;
-* the public bearer token remains non-secret and is never treated as proof of a user session.
+- the endpoint is read-only;
+- it must not rotate, revoke, create, or modify refresh tokens;
+- it must not return an access token, refresh token, user id, email, role, account status, or other user/account data;
+- the `hasSession` value is determined from the refresh cookie and its stored refresh-token/user state, not access-token identity; `optionalAuthentication` still processes any supplied bearer before the handler, so an invalid/expired user JWT or unusable account can return `401`/`403` before the cookie probe runs;
+- it returns only whether the current browser request has a valid refresh session;
+- absent and invalid sessions use the same response shape and do not reveal why the session is unavailable;
+- it does not require a user access JWT, but the shared boundary rejects a missing `Authorization` bearer;
+- the response is exactly one boolean session-presence value, for example `{ "hasSession": true }` or `{ "hasSession": false }`;
+- `hasSession: false` must never cause the Frontend to call `POST /api/v1/auth/refresh`;
+- `hasSession: true` only permits the Frontend to intentionally start the normal refresh flow;
+- the endpoint is protected by the normal public API rate limit;
+- the public bearer token remains non-secret and is never treated as proof of a user session.
 
 The endpoint is specifically designed to separate anonymous public-page refresh from authenticated session restoration without exposing the HttpOnly refresh cookie to client-side JavaScript and without using `localStorage` or `sessionStorage` as authentication/session state.
 
@@ -683,10 +685,10 @@ The session-presence endpoint does not replace the refresh endpoint. It only pro
 
 The browser renders the reCAPTCHA v2 widget and submits its response token with each protected public auth action:
 
-* `POST /api/v1/auth/register`: `{ email, password, firstName, lastName, captchaToken }`
-* `POST /api/v1/auth/login`: `{ email, password, captchaToken }`
-* `POST /api/v1/auth/resend-verification`: `{ email, captchaToken }`
-* `POST /api/v1/auth/forgot-password`: `{ email, captchaToken }`
+- `POST /api/v1/auth/register`: `{ email, password, firstName, lastName, captchaToken }`
+- `POST /api/v1/auth/login`: `{ email, password, captchaToken }`
+- `POST /api/v1/auth/resend-verification`: `{ email, captchaToken }`
+- `POST /api/v1/auth/forgot-password`: `{ email, captchaToken }`
 
 All four routes use the same backend verification boundary:
 
@@ -703,16 +705,16 @@ AuthController
 
 Responsibilities and invariants:
 
-* The controller remains a thin HTTP adapter. It applies the existing route-specific rate limiter, validates the strict request body, and delegates to `AuthService`.
-* The shared `captchaToken` Zod field is trimmed, non-empty, and limited to 8192 characters. The four endpoint schemas require it; unknown body fields remain rejected.
-* `AuthService` delegates CAPTCHA policy to `CaptchaService`; it contains no Google URL, HTTP request, or provider-response parsing.
-* `CaptchaService` validates the token, reads the backend-only `RECAPTCHA_V2_SECRET_KEY` through `AuthConfig`, calls the provider client, and maps rejection/provider failures to the API's validation/internal errors.
-* `RecaptchaHttpClient` owns only the provider transport: URL-encoded `secret` and `response`, the Google `siteverify` URL, response-shape checking, and the 5-second timeout.
-* Verification is fail-closed: absent configuration, malformed/provider/network failure, or unsuccessful verification prevents the requested auth operation. The browser's own success state is never sufficient evidence.
-* The browser receives only the public reCAPTCHA v2 Site Key. The secret is loaded by `src/config/auth.ts` from `RECAPTCHA_V2_SECRET_KEY`; it must not use a `NEXT_PUBLIC_*` variable or be exposed by an API response.
-* CAPTCHA is not required for `verify-email`, `reset-password`, `refresh`, `logout`, or authenticated profile/session endpoints.
-* Registration still creates a pending-verification account, stores a bcrypt password hash, creates a one-time email-verification token (only its SHA-256 hash is stored; 24-hour TTL), and starts verification-email delivery in the background.
-* Existing-email and unique-constraint race outcomes retain the same generic registration-accepted response. Resend and forgot-password retain their anti-enumeration response after CAPTCHA verification.
+- The controller remains a thin HTTP adapter. It applies the existing route-specific rate limiter, validates the strict request body, and delegates to `AuthService`.
+- The shared `captchaToken` Zod field is trimmed, non-empty, and limited to 8192 characters. The four endpoint schemas require it; unknown body fields remain rejected.
+- `AuthService` delegates CAPTCHA policy to `CaptchaService`; it contains no Google URL, HTTP request, or provider-response parsing.
+- `CaptchaService` validates the token, reads the backend-only `RECAPTCHA_V2_SECRET_KEY` through `AuthConfig`, calls the provider client, and maps rejection/provider failures to the API's validation/internal errors.
+- `RecaptchaHttpClient` owns only the provider transport: URL-encoded `secret` and `response`, the Google `siteverify` URL, response-shape checking, and the 5-second timeout.
+- Verification is fail-closed: absent configuration, malformed/provider/network failure, or unsuccessful verification prevents the requested auth operation. The browser's own success state is never sufficient evidence.
+- The browser receives only the public reCAPTCHA v2 Site Key. The secret is loaded by `src/config/auth.ts` from `RECAPTCHA_V2_SECRET_KEY`; it must not use a `NEXT_PUBLIC_*` variable or be exposed by an API response.
+- CAPTCHA is not required for `verify-email`, `reset-password`, `refresh`, `logout`, or authenticated profile/session endpoints.
+- Registration still creates a pending-verification account, stores a bcrypt password hash, creates a one-time email-verification token (only its SHA-256 hash is stored; 24-hour TTL), and starts verification-email delivery in the background.
+- Existing-email and unique-constraint race outcomes retain the same generic registration-accepted response. Resend and forgot-password retain their anti-enumeration response after CAPTCHA verification.
 
 The relevant implementation is split across `src/controllers/authController.ts`, `src/validation/schemas/auth.schemas.ts`, `src/services/authService.ts`, `src/services/captchaService.ts`, `src/clients/recaptchaHttpClient.ts`, `src/config/auth.ts`, `src/container.ts`, and the existing auth/rate-limit utilities.
 
@@ -741,11 +743,11 @@ Client-supplied identity fields are never treated as proof of identity.
 
 The following values cannot establish ownership or authorization by themselves:
 
-* `ownerId`;
-* `authorId`;
-* client-supplied user IDs;
-* client-supplied role values;
-* client-supplied account status.
+- `ownerId`;
+- `authorId`;
+- client-supplied user IDs;
+- client-supplied role values;
+- client-supplied account status.
 
 Admin and moderator permissions are route-specific and role-based.
 
@@ -755,13 +757,13 @@ Refresh tokens are delivered through an HttpOnly cookie.
 
 The refresh cookie:
 
-* is scoped to `/api/v1/auth`;
-* is host-only;
-* does not use a `Domain` attribute;
-* is not returned in response bodies;
-* uses `Secure` in production;
-* remains inaccessible to client-side JavaScript;
-* uses the configured `SameSite` policy.
+- is scoped to `/api/v1/auth`;
+- is host-only;
+- does not use a `Domain` attribute;
+- is not returned in response bodies;
+- uses `Secure` in production;
+- remains inaccessible to client-side JavaScript;
+- uses the configured `SameSite` policy.
 
 Production security requirements cannot be weakened through environment configuration.
 
@@ -773,10 +775,10 @@ Reusable application defaults belong in `src/constants/`.
 
 Current constant ownership includes:
 
-* `src/constants/environment.ts`
-* `src/constants/auth.ts`
-* `src/constants/http.ts`
-* `src/constants/imageStorage.ts`
+- `src/constants/environment.ts`
+- `src/constants/auth.ts`
+- `src/constants/http.ts`
+- `src/constants/imageStorage.ts`
 
 Configuration modules import reusable defaults rather than defining duplicate fallback constants locally.
 
@@ -797,6 +799,7 @@ hacktrip-public-v1
 ```
 
 The public token is not a secret and must not be treated as one.
+
 ### Dynamic background-image configuration
 
 The existing `refreshSlow()` lifecycle also loads the available background-image object names from Google Cloud Storage.
@@ -823,14 +826,14 @@ dynamic configuration
 
 Rules:
 
-* background-image names are loaded through the existing `refreshSlow()` lifecycle;
-* a successful refresh replaces the current in-memory list with the newly loaded list;
-* a failed refresh does not clear a previously successful list;
-* background-image discovery failure must not fail application startup or a later slow refresh;
-* failures are logged at `warn` level;
-* the last successful list remains available until a later successful refresh;
-* request-path code does not call GCS for every background request;
-* the list is runtime configuration/cache data, not a database entity.
+- background-image names are loaded through the existing `refreshSlow()` lifecycle;
+- a successful refresh replaces the current in-memory list with the newly loaded list;
+- a failed refresh does not clear a previously successful list;
+- background-image discovery failure must not fail application startup or a later slow refresh;
+- failures are logged at `warn` level;
+- the last successful list remains available until a later successful refresh;
+- request-path code does not call GCS for every background request;
+- the list is runtime configuration/cache data, not a database entity.
 
 A dedicated background-image storage service/adapter owns GCS access. Controllers do not access Google Cloud Storage directly.
 
@@ -937,17 +940,17 @@ The first layer is the request boundary: parsed request bodies are normalized by
 
 String normalization rules:
 
-* Ordinary string values in JSON and URL-encoded bodies are recursively trimmed before route validation, including password values.
-* Multipart text fields are normalized after Multer parsing; uploaded binary file content is never trimmed.
-* Keys containing `token` or `captcha` are excluded from trimming. Opaque verification/reset tokens and CAPTCHA response tokens are preserved unchanged and rejected if they contain whitespace.
-* Password schemas trim surrounding whitespace before enforcing password length and complexity. Whitespace remaining inside the normalized password is rejected by the password policy.
-* Query strings and route parameters are validated by their own schemas; the global body-trim middleware does not normalize them.
+- Ordinary string values in JSON and URL-encoded bodies are recursively trimmed before route validation, including password values.
+- Multipart text fields are normalized after Multer parsing; uploaded binary file content is never trimmed.
+- Keys containing `token` or `captcha` are excluded from trimming. Opaque verification/reset tokens and CAPTCHA response tokens are preserved unchanged and rejected if they contain whitespace.
+- Password schemas trim surrounding whitespace before enforcing password length and complexity. Whitespace remaining inside the normalized password is rejected by the password policy.
+- Query strings and route parameters are validated by their own schemas; the global body-trim middleware does not normalize them.
 
 Numeric typing rules of the Zod layer:
 
-* JSON-body numeric fields (`dayNumber`, `tripId`, `targetId`, `tripGroupId`, `lat`, `lng`, reorder id lists) accept true JSON numbers; numeric strings and booleans are rejected, and integer fields reject fractions. `null` is accepted only where the specific schema explicitly permits it (for example, `lat`/`lng` in `PUT /points/:pointId` to clear coordinates).
-* Query schemas (`page`, `limit`, `pageSize`, and the DELETE target ids) parse their string values into numbers.
-* Route parameters are validated as digit strings (positive integer ids) or UUID strings (`userId`).
+- JSON-body numeric fields (`dayNumber`, `tripId`, `targetId`, `tripGroupId`, `lat`, `lng`, reorder id lists) accept true JSON numbers; numeric strings and booleans are rejected, and integer fields reject fractions. `null` is accepted only where the specific schema explicitly permits it (for example, `lat`/`lng` in `PUT /points/:pointId` to clear coordinates).
+- Query schemas (`page`, `limit`, `pageSize`, and the DELETE target ids) parse their string values into numbers.
+- Route parameters are validated as digit strings (positive integer ids) or UUID strings (`userId`).
 
 The second layer is the service boundary: domain parsers under `src/utils/` (`trip.ts`, `point.ts`, `social.ts`, `validation.ts`) re-read the validated request parts, resolve dynamic-config select values, and reject client-controlled ownership, parent, and sequence fields. Trip domain parsers reuse the centralized limits in `src/constants/validation/limits.ts`; `countPeoples` must be a true JSON integer from `1` through `1000` for both trip creation and full day editing.
 
@@ -973,23 +976,23 @@ The application enforces server-side authorization and ownership checks.
 
 Current security invariants include:
 
-* database-backed role resolution;
-* registration anti-enumeration;
-* password re-authentication for password changes;
-* HttpOnly refresh-token cookies;
-* secure production cookies;
-* bounded request bodies;
-* strict request validation;
-* API error contracts;
-* generic production 500 responses;
-* no stack traces or database internals in API responses;
-* route-not-found logging data minimization;
-* server-generated image object keys;
-* create-only GCS writes;
-* sanitized/re-encoded image output;
-* thumbnail generation;
-* image ownership checks;
-* transactional image attachment and cleanup.
+- database-backed role resolution;
+- registration anti-enumeration;
+- password re-authentication for password changes;
+- HttpOnly refresh-token cookies;
+- secure production cookies;
+- bounded request bodies;
+- strict request validation;
+- API error contracts;
+- generic production 500 responses;
+- no stack traces or database internals in API responses;
+- route-not-found logging data minimization;
+- server-generated image object keys;
+- create-only GCS writes;
+- sanitized/re-encoded image output;
+- thumbnail generation;
+- image ownership checks;
+- transactional image attachment and cleanup.
 
 ### Proxy trust
 
@@ -1015,24 +1018,24 @@ API errors use the application's API error contract.
 
 Production responses do not expose:
 
-* stack traces;
-* database errors;
-* filesystem paths;
-* credentials;
-* JWT secrets;
-* request cookies;
-* authorization credentials.
+- stack traces;
+- database errors;
+- filesystem paths;
+- credentials;
+- JWT secrets;
+- request cookies;
+- authorization credentials.
 
 Route-not-found diagnostics apply data minimization and do not record sensitive request values such as:
 
-* request body;
-* query;
-* params;
-* `Authorization`;
-* `Cookie`;
-* passwords;
-* tokens;
-* API keys.
+- request body;
+- query;
+- params;
+- `Authorization`;
+- `Cookie`;
+- passwords;
+- tokens;
+- API keys.
 
 Raw forwarded IP headers are retained only as bounded forensic diagnostic evidence.
 
@@ -1044,17 +1047,17 @@ Image upload processing uses Multer 2 and Sharp.
 
 The current image contract preserves:
 
-* one image per upload request;
-* maximum image count per entity;
-* maximum upload size;
-* Sharp byte-level image validation;
-* server-generated GCS object names;
-* create-only GCS writes;
-* sanitized/re-encoded image output;
-* thumbnails;
-* transactional attachment;
-* cleanup on partial upload failure;
-* ownership checks.
+- one image per upload request;
+- maximum image count per entity;
+- maximum upload size;
+- Sharp byte-level image validation;
+- server-generated GCS object names;
+- create-only GCS writes;
+- sanitized/re-encoded image output;
+- thumbnails;
+- transactional attachment;
+- cleanup on partial upload failure;
+- ownership checks.
 
 Client filenames are not used as GCS object keys.
 
@@ -1080,11 +1083,11 @@ The dynamic-configuration service requests object names from the background-imag
 
 The adapter:
 
-* uses the configured GCS client;
-* lists object names from `hack-trip-background-images`;
-* returns object names to the dynamic-configuration service;
-* propagates discovery failures so the refresh layer can preserve the previous successful value and emit a warning;
-* is never called directly by an HTTP controller.
+- uses the configured GCS client;
+- lists object names from `hack-trip-background-images`;
+- returns object names to the dynamic-configuration service;
+- propagates discovery failures so the refresh layer can preserve the previous successful value and emit a warning;
+- is never called directly by an HTTP controller.
 
 The public background value is prepared by the background-image service from the cached object name and the configured/public storage URL rules.
 
@@ -1110,33 +1113,33 @@ Development mail transport may write generated messages to the operating-system 
 
 `GET /api/v1/me/trips`:
 
-* requires authenticated user context;
-* does not accept a `userId` route parameter, query parameter, or body field;
-* resolves the current user exclusively from the authenticated request context;
-* returns only trip groups owned by that authenticated user;
-* uses the authenticated user's UUID only server-side for ownership filtering;
-* returns raw `TripGroupResponse[]`;
-* uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:tripGroupId`;
-* serializes only `id` (the trip-group id), server-computed `permissions`, trip-group `social`, and the existing `days[]` structure;
-* never serializes `userId`, `ownerId`, or an author/owner object;
-* never uses a client-supplied user id to establish ownership;
-* returns `200 []` when the authenticated user owns no trip groups.
+- requires authenticated user context;
+- does not accept a `userId` route parameter, query parameter, or body field;
+- resolves the current user exclusively from the authenticated request context;
+- returns only trip groups owned by that authenticated user;
+- uses the authenticated user's UUID only server-side for ownership filtering;
+- returns raw `TripGroupResponse[]`;
+- uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:tripGroupId`;
+- serializes only `id` (the trip-group id), server-computed `permissions`, trip-group `social`, and the existing `days[]` structure;
+- never serializes `userId`, `ownerId`, or an author/owner object;
+- never uses a client-supplied user id to establish ownership;
+- returns `200 []` when the authenticated user owns no trip groups.
 
 `GET /api/v1/me/favorites`:
 
-* requires authenticated user context;
-* does not accept a `userId` route parameter, query parameter, or body field;
-* resolves the current user exclusively from the authenticated request context;
-* reads the authenticated user's persisted `Favorite` records server-side;
-* returns trip groups represented by Favorite rows with target type `tripGroup`;
-* resolves the corresponding trip groups/trips from those persisted favorite relationships;
-* returns raw `TripGroupResponse[]`;
-* uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:tripGroupId`;
-* serializes only `id` (the trip-group id), server-computed `permissions`, trip-group `social`, and the existing `days[]` structure;
-* never serializes `userId`, `ownerId`, or an author/owner object, including the owner id of a favorited trip created by another user;
-* never serializes the authenticated user's UUID or favorite-record ownership fields;
-* never accepts a client-supplied user id to retrieve another user's favorites;
-* returns `200 []` when the authenticated user has no favorites.
+- requires authenticated user context;
+- does not accept a `userId` route parameter, query parameter, or body field;
+- resolves the current user exclusively from the authenticated request context;
+- reads the authenticated user's persisted `Favorite` records server-side;
+- returns trip groups represented by Favorite rows with target type `tripGroup`;
+- resolves the corresponding trip groups/trips from those persisted favorite relationships;
+- returns raw `TripGroupResponse[]`;
+- uses exactly the same unified trip-group response structure as `GET /trips`, `GET /trips/top`, and `GET /trips/:tripGroupId`;
+- serializes only `id` (the trip-group id), server-computed `permissions`, trip-group `social`, and the existing `days[]` structure;
+- never serializes `userId`, `ownerId`, or an author/owner object, including the owner id of a favorited trip created by another user;
+- never serializes the authenticated user's UUID or favorite-record ownership fields;
+- never accepts a client-supplied user id to retrieve another user's favorites;
+- returns `200 []` when the authenticated user has no favorites.
 
 Both endpoints return `TripGroupResponse[]` and share the normal trip response preparation after their repository queries. Controllers remain thin HTTP adapters; services enforce current-actor ownership/favorite relationships, and user/owner IDs are never serialized.
 
@@ -1146,11 +1149,11 @@ Both endpoints return `TripGroupResponse[]` and share the normal trip response p
 
 Current ranking rules:
 
-* select at most 5 trip groups that have at least one persisted like on the trip-group target; groups with zero trip-group likes are omitted by the query;
-* order the returned groups by descending trip-group like count;
-* the endpoint may return fewer than 5 even when more than 5 groups exist, if fewer than 5 have at least one group-level like;
-* tie ordering is not guaranteed because the query has no secondary sort;
-* return the normal trip response structure rather than the legacy `/top/:id` representation.
+- select at most 5 trip groups that have at least one persisted like on the trip-group target; groups with zero trip-group likes are omitted by the query;
+- order the returned groups by descending trip-group like count;
+- the endpoint may return fewer than 5 even when more than 5 groups exist, if fewer than 5 have at least one group-level like;
+- tie ordering is not guaranteed because the query has no secondary sort;
+- return the normal trip response structure rather than the legacy `/top/:id` representation.
 
 The ranking is based on persisted social data and is independent of the requesting user.
 
@@ -1160,13 +1163,13 @@ Reports are created by authenticated users and persisted as report records targe
 
 The moderation boundary is separate from report creation:
 
-* `POST /api/v1/reports` creates a report for the authenticated actor;
-* `DELETE /api/v1/reports?targetType=…&targetId=…` lets the reporter withdraw their own report of that target; it is addressed by the reported target, like `DELETE /api/v1/likes` and `DELETE /api/v1/favorites`, so no report id is involved;
-* the withdrawal is scoped by the reporter inside the delete predicate, so a user can only ever remove their own report of that target; a report the user does not have is a successful no-op;
-* `GET /api/v1/admin/reports` lists persisted reports for moderation triage;
-* `DELETE /api/v1/admin/reports/:reportId` removes a report record by its id and stays separate from the author withdrawal;
-* report listing and admin deletion are restricted to `admin` and `manager`;
-* ordinary users cannot read or delete the moderation queue.
+- `POST /api/v1/reports` creates a report for the authenticated actor;
+- `DELETE /api/v1/reports?targetType=…&targetId=…` lets the reporter withdraw their own report of that target; it is addressed by the reported target, like `DELETE /api/v1/likes` and `DELETE /api/v1/favorites`, so no report id is involved;
+- the withdrawal is scoped by the reporter inside the delete predicate, so a user can only ever remove their own report of that target; a report the user does not have is a successful no-op;
+- `GET /api/v1/admin/reports` lists persisted reports for moderation triage;
+- `DELETE /api/v1/admin/reports/:reportId` removes a report record by its id and stays separate from the author withdrawal;
+- report listing and admin deletion are restricted to `admin` and `manager`;
+- ordinary users cannot read or delete the moderation queue.
 
 Report authorization is role-based and independent from ownership of the reported target. Exact target types, duplicate-report behavior, DTOs, pagination, and error responses remain defined by the API contract.
 
@@ -1182,19 +1185,19 @@ src/clients/prisma.ts
 
 Principal database entities include:
 
-* `User`;
-* `TripGroup`;
-* `Trip`;
-* `Point`;
-* `Comment`;
-* `Like`;
-* `Favorite`;
-* `Report`;
-* `Image`;
-* authentication token records;
-* `FailedLog`;
-* `RouteNotFoundLog`;
-* configuration entities.
+- `User`;
+- `TripGroup`;
+- `Trip`;
+- `Point`;
+- `Comment`;
+- `Like`;
+- `Favorite`;
+- `Report`;
+- `Image`;
+- authentication token records;
+- `FailedLog`;
+- `RouteNotFoundLog`;
+- configuration entities.
 
 User IDs remain UUID strings.
 
@@ -1254,23 +1257,23 @@ The Dynamic Config cache therefore contains only active select types and active 
 
 Loading and refresh behavior:
 
-* Initial load runs during startup via `dynamicConfig.init()`, which calls `refreshSlow()` then `refreshFast()`; startup fails if the initial load fails.
-* `refreshSlow()` also loads background-image names from GCS; a failed background refresh keeps the last successful list and does not invalidate the select/service config.
-* Periodic refresh runs on a timer every `slowRefreshSeconds` seconds (default `DEFAULT_SLOW_REFRESH_SECONDS = 300`, overridable via `CONFIG_SLOW_REFRESH_SECONDS`).
-* `refreshFast()` performs no database queries.
-* A refresh is atomic: the new config replaces the current one only when select types are non-empty; otherwise the previous (last-known-good) config is kept and the failure is logged.
-* Concurrent refresh calls share a single in-flight load.
-* Changes to `isActive` become visible after the next successful refresh; they are not necessarily immediate. No server restart is required.
+- Initial load runs during startup via `dynamicConfig.init()`, which calls `refreshSlow()` then `refreshFast()`; startup fails if the initial load fails.
+- `refreshSlow()` also loads background-image names from GCS; a failed background refresh keeps the last successful list and does not invalidate the select/service config.
+- Periodic refresh runs on a timer every `slowRefreshSeconds` seconds (default `DEFAULT_SLOW_REFRESH_SECONDS = 300`, overridable via `CONFIG_SLOW_REFRESH_SECONDS`).
+- `refreshFast()` performs no database queries.
+- A refresh is atomic: the new config replaces the current one only when select types are non-empty; otherwise the previous (last-known-good) config is kept and the failure is logged.
+- Concurrent refresh calls share a single in-flight load.
+- Changes to `isActive` become visible after the next successful refresh; they are not necessarily immediate. No server restart is required.
 
 ### CREATE TRIP select validation
 
 `POST /api/v1/trips` validates the request fields `transport`, `typeOfPeople` (select type `group_type`), and `currency` against the Dynamic Config cache. The input field is `typeOfPeople`; `group` is the corresponding field name in the read response DTO. Validation is performed in `src/utils/trip.ts` (`resolveSelectKey()`), invoked from `parseTripBody()` during `tripService.createTrip()`.
 
-* Both the stable select key and the stored display value are accepted as input (case-insensitive match).
-* Only active options are present in the cache, so inactive options are unavailable and are rejected.
-* An inactive select type is absent from the cache and behaves as an unknown type, so its values are rejected.
-* Unknown or unavailable values are rejected with `400` validation errors listing the available (active) keys.
-* Validation uses the in-memory configuration; it does not query the database for each submitted select value.
+- Both the stable select key and the stored display value are accepted as input (case-insensitive match).
+- Only active options are present in the cache, so inactive options are unavailable and are rejected.
+- An inactive select type is absent from the cache and behaves as an unknown type, so its values are rejected.
+- Unknown or unavailable values are rejected with `400` validation errors listing the available (active) keys.
+- Validation uses the in-memory configuration; it does not query the database for each submitted select value.
 
 ## Deployment context
 
@@ -1286,11 +1289,11 @@ Node / Express :8080
 
 The application source does not establish:
 
-* firewall configuration;
-* PM2 runtime state;
-* actual Nginx configuration;
-* actual production database state;
-* external proxy layers not represented in the repository.
+- firewall configuration;
+- PM2 runtime state;
+- actual Nginx configuration;
+- actual production database state;
+- external proxy layers not represented in the repository.
 
 Infrastructure must therefore be verified independently when operational changes are made.
 
@@ -1329,32 +1332,32 @@ There is currently no automated application test suite configured.
 
 The following are part of the current production architecture:
 
-* `x-hacktrip-client: web` is the required Frontend client marker;
-* anonymous/public Frontend requests carry `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`;
-* no `Authorization` at an authentication boundary results in `404`;
-* the public bearer token identifies anonymous context only;
-* the public bearer token is never treated as a JWT;
-* the public bearer token does not authenticate a user;
-* the public bearer token does not establish ownership;
-* invalid or expired user JWTs return `401 UNAUTHORIZED`; missing or malformed bearer values return `404 NOT_FOUND`; neither condition falls back to anonymous;
-* valid JWTs are evaluated against current database account status;
-* suspended/deactivated users follow the existing account-status authentication behavior;
-* anonymous/public permissions are read-only;
-* authenticated requests use user access JWTs;
-* current user status and role come from the database;
-* ownership and authorship derive from the authenticated actor;
-* refresh tokens use protected HttpOnly cookies;
-* controllers remain thin;
-* services own business rules and authorization;
-* repositories own persistence;
-* deleting a resource removes every social record targeting it and its descendants in the same database transaction;
-* API mappers perform transformation only;
-* persistence mapping remains separate from API mapping;
-* request-path Prisma access uses the shared Prisma client;
-* image object keys are server-generated;
-* image writes are create-only;
-* image processing sanitizes and re-encodes accepted images;
-* API errors do not expose internal implementation details;
-* generated `build/` output is not source code.
+- `x-hacktrip-client: web` is the required Frontend client marker;
+- anonymous/public Frontend requests carry `Authorization: Bearer <PUBLIC_FRONTEND_TOKEN>`;
+- no `Authorization` at an authentication boundary results in `404`;
+- the public bearer token identifies anonymous context only;
+- the public bearer token is never treated as a JWT;
+- the public bearer token does not authenticate a user;
+- the public bearer token does not establish ownership;
+- invalid or expired user JWTs return `401 UNAUTHORIZED`; missing or malformed bearer values return `404 NOT_FOUND`; neither condition falls back to anonymous;
+- valid JWTs are evaluated against current database account status;
+- suspended/deactivated users follow the existing account-status authentication behavior;
+- anonymous/public permissions are read-only;
+- authenticated requests use user access JWTs;
+- current user status and role come from the database;
+- ownership and authorship derive from the authenticated actor;
+- refresh tokens use protected HttpOnly cookies;
+- controllers remain thin;
+- services own business rules and authorization;
+- repositories own persistence;
+- deleting a resource removes every social record targeting it and its descendants in the same database transaction;
+- API mappers perform transformation only;
+- persistence mapping remains separate from API mapping;
+- request-path Prisma access uses the shared Prisma client;
+- image object keys are server-generated;
+- image writes are create-only;
+- image processing sanitizes and re-encodes accepted images;
+- API errors do not expose internal implementation details;
+- generated `build/` output is not source code.
 
 This document describes the current production architecture and contract. It distinguishes implemented backend behavior from frontend integration guidance and does not claim to verify deployment state outside the repository.

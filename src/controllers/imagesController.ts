@@ -11,13 +11,13 @@ import { imageIdParams } from '../validation/schemas/common.schemas';
 const imagesController = express.Router();
 
 imagesController.delete(
-    '/:imageId',
-    validateRequest({ params: imageIdParams }),
-    requireAuthentication,
-    asyncHandler(async (req, res) => {
-        await tripService.deleteImage(actorFrom(req), routeParam(req.params['imageId']));
-        res.status(204).send();
-    }),
+  '/:imageId',
+  validateRequest({ params: imageIdParams }),
+  requireAuthentication,
+  asyncHandler(async (req, res) => {
+    await tripService.deleteImage(actorFrom(req), routeParam(req.params['imageId']));
+    res.status(204).send();
+  }),
 );
 
 imagesController.use(apiErrorMiddleware);

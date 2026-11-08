@@ -1,55 +1,61 @@
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
 import { type SocialStates } from '../model/social';
-import { type PointCreateRequest, type PointRecord, type PointUpdateRequest, type PointWriteInput, type ResourcePermissions, type TripPoint } from '../model/trip';
+import {
+  type PointCreateRequest,
+  type PointRecord,
+  type PointUpdateRequest,
+  type PointWriteInput,
+  type ResourcePermissions,
+  type TripPoint,
+} from '../model/trip';
 import { toSocialImageDto } from './imageMapper';
 import { toIsoString } from '../utils/utils';
 
 export function toPointDto(
-    row: PointRecord,
-    states: SocialStates,
-    imageBaseUrl: string | null,
-    permissions: ResourcePermissions,
+  row: PointRecord,
+  states: SocialStates,
+  imageBaseUrl: string | null,
+  permissions: ResourcePermissions,
 ): TripPoint {
-    return {
-        id: row.id,
-        name: row.name,
-        description: row.description,
-        lat: row.lat,
-        lng: row.lng,
-        pointNumber: row.pointNumber,
-        tripId: row.tripId,
-        createdAt: toIsoString(row.createdAt),
-        updatedAt: toIsoString(row.updatedAt),
-        images: row.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
-        permissions,
-        social: states.get(SOCIAL_TARGET_TYPE.POINT, row.id),
-    };
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    lat: row.lat,
+    lng: row.lng,
+    pointNumber: row.pointNumber,
+    tripId: row.tripId,
+    createdAt: toIsoString(row.createdAt),
+    updatedAt: toIsoString(row.updatedAt),
+    images: row.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
+    permissions,
+    social: states.get(SOCIAL_TARGET_TYPE.POINT, row.id),
+  };
 }
 
 export function toPointDtoList(
-    rows: PointRecord[],
-    states: SocialStates,
-    imageBaseUrl: string | null,
-    permissions: ResourcePermissions,
+  rows: PointRecord[],
+  states: SocialStates,
+  imageBaseUrl: string | null,
+  permissions: ResourcePermissions,
 ): TripPoint[] {
-    return rows.map((row) => toPointDto(row, states, imageBaseUrl, permissions));
+  return rows.map((row) => toPointDto(row, states, imageBaseUrl, permissions));
 }
 
 export function toPointWriteInput(request: PointCreateRequest): PointWriteInput {
-    return {
-        name: request.name,
-        description: request.description,
-        lat: request.lat,
-        lng: request.lng,
-    };
+  return {
+    name: request.name,
+    description: request.description,
+    lat: request.lat,
+    lng: request.lng,
+  };
 }
 
 export function toPointUpdateInput(request: PointUpdateRequest): PointWriteInput {
-    return {
-        name: request.name,
-        description: request.description,
-        lat: request.lat,
-        lng: request.lng,
-    };
+  return {
+    name: request.name,
+    description: request.description,
+    lat: request.lat,
+    lng: request.lng,
+  };
 }
-

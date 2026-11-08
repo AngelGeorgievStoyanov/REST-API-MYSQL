@@ -6,16 +6,16 @@ Documentation only. No code, Prisma schema, database, or migration-script change
 
 ## 1. Overall phases
 
-| Phase | Scope | Status |
-|---|---|---|
-| Phase 0 — Inventory | Map legacy MySQL tables, controllers, services, GCS image flow | ✅ Completed |
-| Phase 1 — Backend modernization | Dependencies, ESLint, Multer v2 + custom GCS engine, import cleanup | ✅ Completed |
-| Phase 2 — Legacy freeze | Keep `src/index.ts` + `mysql` pool + repositories unchanged; remove auto `CREATE USER/DATABASE/TABLE` from startup | ✅ Completed |
-| Phase 3 — Schema redesign / finalization | Finalize target tables, column names, INT vs UUID policy, `target_types` polymorphism | 🟡 Current phase |
-| Phase 4 — Migration tooling | `src/migration/*` runner: preflight, DDL, phased data migration, quarantine, verify, resume | 🟡 Test-only; must later be aligned with the finalized Phase 3 schema |
-| Phase 5 — Application refactor | Rewrite services/controllers on Prisma Client against final schema | ⬜ Not started |
-| Phase 6 — Testing | Unit/integration, migration dry-runs, parity checks, load/smoke tests | ⬜ Not started |
-| Phase 7 — Production cutover | Backup, final migration rehearsal, cutover, cleanup of legacy columns | ⬜ Planned later, only after application refactor and testing are completed |
+| Phase                                    | Scope                                                                                                              | Status                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Phase 0 — Inventory                      | Map legacy MySQL tables, controllers, services, GCS image flow                                                     | ✅ Completed                                                                |
+| Phase 1 — Backend modernization          | Dependencies, ESLint, Multer v2 + custom GCS engine, import cleanup                                                | ✅ Completed                                                                |
+| Phase 2 — Legacy freeze                  | Keep `src/index.ts` + `mysql` pool + repositories unchanged; remove auto `CREATE USER/DATABASE/TABLE` from startup | ✅ Completed                                                                |
+| Phase 3 — Schema redesign / finalization | Finalize target tables, column names, INT vs UUID policy, `target_types` polymorphism                              | 🟡 Current phase                                                            |
+| Phase 4 — Migration tooling              | `src/migration/*` runner: preflight, DDL, phased data migration, quarantine, verify, resume                        | 🟡 Test-only; must later be aligned with the finalized Phase 3 schema       |
+| Phase 5 — Application refactor           | Rewrite services/controllers on Prisma Client against final schema                                                 | ⬜ Not started                                                              |
+| Phase 6 — Testing                        | Unit/integration, migration dry-runs, parity checks, load/smoke tests                                              | ⬜ Not started                                                              |
+| Phase 7 — Production cutover             | Backup, final migration rehearsal, cutover, cleanup of legacy columns                                              | ⬜ Planned later, only after application refactor and testing are completed |
 
 Existing migration operations detail stays in `src/migration/README.md`; this file is the project-level plan.
 
@@ -87,4 +87,3 @@ Key relations/FKs: resource-tree deletes cascade; user references restrict/casca
 - Rehearse full migration on a restore; resolve all quarantine/blockers.
 - Run production migration with dual confirmation, then switch the app to Prisma.
 - Only after successful cutover: drop transitional `legacyId`, legacy VARCHAR dates, and comma-separated columns in a separate verified step.
-

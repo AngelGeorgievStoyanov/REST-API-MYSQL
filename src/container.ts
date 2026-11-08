@@ -42,11 +42,11 @@ const favoriteRepository = new FavoriteRepository(prisma);
 const reportRepository = new ReportRepository(prisma);
 
 const socialStateService = new SocialStateService(
-    targetTypeRepository,
-    commentRepository,
-    likeRepository,
-    favoriteRepository,
-    reportRepository,
+  targetTypeRepository,
+  commentRepository,
+  likeRepository,
+  favoriteRepository,
+  reportRepository,
 );
 
 const tripRepository = new TripRepository(prisma);
@@ -55,10 +55,30 @@ const tripService = new TripService(tripRepository, gcsImageFileStorage, socialS
 const pointRepository = new PointRepository(prisma);
 const pointService = new PointService(pointRepository, gcsImageFileStorage, socialStateService);
 
-const commentService = new CommentService(commentRepository, socialTargetRepository, targetTypeRepository, socialStateService);
-const likeService = new LikeService(likeRepository, socialTargetRepository, targetTypeRepository, socialStateService);
-const favoriteService = new FavoriteService(favoriteRepository, socialTargetRepository, socialStateService, tripRepository, targetTypeRepository);
-const reportService = new ReportService(reportRepository, socialTargetRepository, targetTypeRepository);
+const commentService = new CommentService(
+  commentRepository,
+  socialTargetRepository,
+  targetTypeRepository,
+  socialStateService,
+);
+const likeService = new LikeService(
+  likeRepository,
+  socialTargetRepository,
+  targetTypeRepository,
+  socialStateService,
+);
+const favoriteService = new FavoriteService(
+  favoriteRepository,
+  socialTargetRepository,
+  socialStateService,
+  tripRepository,
+  targetTypeRepository,
+);
+const reportService = new ReportService(
+  reportRepository,
+  socialTargetRepository,
+  targetTypeRepository,
+);
 
 const authUserRepository = new AuthUserRepository(prisma);
 const emailVerificationTokenRepository = new EmailVerificationTokenRepository(prisma);
@@ -71,16 +91,16 @@ const recaptchaHttpClient = new RecaptchaHttpClient();
 const captchaService = new CaptchaService(authConfig, recaptchaHttpClient);
 
 const authService = new AuthService(
-    authUserRepository,
-    emailVerificationTokenRepository,
-    passwordResetTokenRepository,
-    refreshTokenRepository,
-    authMailer,
-    failedLogRepository,
-    imageRepository,
-    gcsImageFileStorage,
-    captchaService,
-    authConfig,
+  authUserRepository,
+  emailVerificationTokenRepository,
+  passwordResetTokenRepository,
+  refreshTokenRepository,
+  authMailer,
+  failedLogRepository,
+  imageRepository,
+  gcsImageFileStorage,
+  captchaService,
+  authConfig,
 );
 
 const adminUserService = new AdminUserService(authUserRepository);
@@ -93,16 +113,16 @@ const routeNotFoundLogsService = new RouteNotFoundLogsService(routeNotFoundLogsR
 const backgroundImageService = new BackgroundImageService();
 
 export {
-    adminUserService,
-    authService,
-    backgroundImageService,
-    commentService,
-    failedLogService,
-    favoriteService,
-    imageInventoryService,
-    likeService,
-    pointService,
-    reportService,
-    routeNotFoundLogsService,
-    tripService,
+  adminUserService,
+  authService,
+  backgroundImageService,
+  commentService,
+  failedLogService,
+  favoriteService,
+  imageInventoryService,
+  likeService,
+  pointService,
+  reportService,
+  routeNotFoundLogsService,
+  tripService,
 };
