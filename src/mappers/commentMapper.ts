@@ -1,9 +1,5 @@
 import { MODERATOR_ROLES } from '../constants/trip';
-import {
-  type CommentDto,
-  type CommentPermissions,
-  type CommentRecord,
-} from '../model/comment';
+import { type CommentDto, type CommentPermissions, type CommentRecord } from '../model/comment';
 import { type TripActor } from '../model/trip';
 import { type SocialState } from '../model/social';
 import { toIsoString } from '../utils/utils';

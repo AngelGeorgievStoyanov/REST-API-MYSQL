@@ -256,10 +256,7 @@ export class PointRepository {
  * the insert can share the same SERIALIZABLE transaction without duplicating
  * the reduction.
  */
-async function maxPointNumber(
-  client: Prisma.TransactionClient,
-  tripId: number,
-): Promise<number> {
+async function maxPointNumber(client: Prisma.TransactionClient, tripId: number): Promise<number> {
   const points = await client.point.findMany({ where: { tripId }, select: { pointNumber: true } });
   return points.reduce((max, point) => (point.pointNumber > max ? point.pointNumber : max), 0);
 }

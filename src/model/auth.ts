@@ -64,4 +64,3 @@ export interface MessageResponse {
 export interface SessionPresenceResponse {
   hasSession: boolean;
 }
-

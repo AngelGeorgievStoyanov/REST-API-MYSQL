@@ -231,4 +231,3 @@ export interface PointUpdateRequest {
   lat: number;
   lng: number;
 }
-

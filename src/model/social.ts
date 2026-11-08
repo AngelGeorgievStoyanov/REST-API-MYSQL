@@ -31,4 +31,3 @@ export interface SocialTargetContext extends SocialTargetRef {
   tripGroupId: number | null;
   tripGroupOwnerId: string | null;
 }
-

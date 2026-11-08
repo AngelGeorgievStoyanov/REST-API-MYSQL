@@ -40,7 +40,6 @@ export const SOCIAL_TARGET_TYPE_INPUT: Record<
   comment: SOCIAL_TARGET_TYPE.COMMENT,
 };
 
-
 /** Longer than `comments.comment` VARCHAR(1000). */
 export const MAX_COMMENT_LENGTH = 1000;
 
