@@ -10,7 +10,7 @@ export class CaptchaService {
     ) { }
 
     async verifyToken(value: unknown): Promise<void> {
-        if (typeof value !== 'string' || value.trim() === '') {
+        if (typeof value !== 'string' || value.length === 0 || /\s/.test(value)) {
             throw ApiError.validation('Please complete the CAPTCHA challenge.');
         }
 
@@ -20,7 +20,7 @@ export class CaptchaService {
         }
 
         try {
-            const verification = await this.client.verify(secret, value.trim());
+            const verification = await this.client.verify(secret, value);
             if (!verification.success) {
                 throw ApiError.validation('CAPTCHA verification failed. Please complete the challenge again.');
             }
