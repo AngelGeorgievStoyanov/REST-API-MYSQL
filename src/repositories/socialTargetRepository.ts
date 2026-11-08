@@ -62,7 +62,6 @@ export class SocialTargetRepository {
         if (!point) return null;
 
         const tripGroupId = point.trip.tripGroupId;
-        if (tripGroupId === null) return null;
 
         return {
           ...target,
