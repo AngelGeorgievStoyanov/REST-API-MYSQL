@@ -398,7 +398,7 @@ All auth routes are mounted at `/api/v1/auth`.
 
 * Auth: none. Rate-limited (`login` bucket).
 * Body (strict): `{ email, password, captchaToken }`.
-* `captchaToken`: required, trimmed non-empty Google reCAPTCHA v2 response token, maximum 8192 characters. CAPTCHA is verified before credential lookup.
+* `captchaToken`: required non-empty Google reCAPTCHA v2 response token, maximum 8192 characters; preserved unchanged and rejected if it contains whitespace. CAPTCHA is verified before credential lookup.
 * Response `200`: `AuthSessionDto` and sets the refresh cookie.
 * Errors: CAPTCHA rejection -> `400 VALIDATION_ERROR`; CAPTCHA provider/configuration failure -> `500 INTERNAL_SERVER_ERROR`; invalid credentials -> `401 UNAUTHORIZED`; suspended -> `403 ACCOUNT_SUSPENDED`; deactivated -> `403 ACCOUNT_DEACTIVATED`; unverified -> `403 EMAIL_NOT_VERIFIED`.
 
@@ -462,7 +462,7 @@ All auth routes are mounted at `/api/v1/auth`.
 
 * Auth: none. Rate-limited (email, `forgot-password` bucket).
 * Body (strict): `{ email, captchaToken }`.
-* `captchaToken`: required, trimmed non-empty Google reCAPTCHA v2 response token, maximum 8192 characters. CAPTCHA is verified before account lookup or email delivery.
+* `captchaToken`: required non-empty Google reCAPTCHA v2 response token, maximum 8192 characters; preserved unchanged and rejected if it contains whitespace. CAPTCHA is verified before account lookup or email delivery.
 * Response `200`: `{ "message": "..." }` (anti-enumeration: "If the account exists, a password reset email was sent.") after successful CAPTCHA verification.
 * Errors: CAPTCHA rejection -> `400 VALIDATION_ERROR`; CAPTCHA provider/configuration failure -> `500 INTERNAL_SERVER_ERROR`.
 
@@ -1721,12 +1721,12 @@ All schemas are `.strict()` unless noted. Numeric fields in a JSON body must use
 | -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `registerSchema`           | `email`, `password`, `firstName`, `lastName`, `captchaToken` | `captchaToken`: required non-empty opaque value, max 8192; whitespace rejected; other fields follow their field validators |
 | `verifyEmailSchema`        | `token`                                      | opaque 1..200; preserved unchanged; whitespace rejected                                                           |
-| `resendVerificationSchema` | `email`, `captchaToken`                      | email pattern; `captchaToken`: required, trimmed non-empty, max 8192                                            |
-| `loginSchema`              | `email`, `password`, `captchaToken`           | `password`: 1..200 (comparison only); `captchaToken`: required, trimmed non-empty, max 8192                     |
+| `resendVerificationSchema` | `email`, `captchaToken`                      | email pattern; `captchaToken`: required non-empty opaque value, max 8192; preserved unchanged and rejected if it contains whitespace                                            |
+| `loginSchema`              | `email`, `password`, `captchaToken`           | `password`: 1..200 (comparison only); `captchaToken`: required non-empty opaque value, max 8192; preserved unchanged and rejected if it contains whitespace                     |
 | `updateProfileSchema`      | `firstName`, `lastName`                      | trimmed 1..45                                                                                                     |
 | `confirmPasswordSchema`    | `password`                                   | 1..200                                                                                                            |
 | `changePasswordSchema`     | `currentPassword`, `newPassword`             | `currentPassword`: 1..200; `newPassword`: 8..72                                                                   |
-| `forgotPasswordSchema`     | `email`, `captchaToken`                      | email pattern; `captchaToken`: required, trimmed non-empty, max 8192                                            |
+| `forgotPasswordSchema`     | `email`, `captchaToken`                      | email pattern; `captchaToken`: required non-empty opaque value, max 8192; preserved unchanged and rejected if it contains whitespace                                            |
 | `resetPasswordSchema`      | `token`, `password`                          | `token`: opaque 1..200; whitespace rejected; `password`: 8..72                                                                                |
 
 ### 18.3 Trip schemas
