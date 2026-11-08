@@ -50,7 +50,6 @@ export const loginSchema = z
     // Complexity rules apply when creating or changing a password, not when logging in.
     password: z
       .string()
-      .trim()
       .min(LIMITS.auth.passwordInput.min)
       .max(LIMITS.auth.passwordInput.max),
     captchaToken,
