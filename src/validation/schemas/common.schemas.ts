@@ -109,11 +109,6 @@ export function requiredNumber(bounds: NumberBounds): z.ZodType<number> {
   return z.number().min(bounds.min).max(bounds.max);
 }
 
-/** Number of a partial JSON-body update; `null` explicitly clears the column. */
-export function patchNumber(bounds: NumberBounds): z.ZodType<number | null | undefined> {
-  return z.union([z.number().min(bounds.min).max(bounds.max), z.null()]).optional();
-}
-
 /** Integer input where an empty value means "not provided". */
 export function optionalInt(bounds: NumberBounds): z.ZodType<number | undefined> {
   return z.preprocess(

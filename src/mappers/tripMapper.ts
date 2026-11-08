@@ -66,32 +66,6 @@ export function toTripMetadataInput(ownerId: string, request: TripWriteRequest):
   };
 }
 
-export function toTripDayDto(
-  row: TripDayRecord,
-  states: SocialStates,
-  imageBaseUrl: string | null,
-  permissions: ResourcePermissions,
-): TripDay {
-  return {
-    id: row.id,
-    dayNumber: row.dayNumber,
-    title: row.title,
-    images: row.images.map((image) => toSocialImageDto(image, states, imageBaseUrl)),
-    points: row.points.map((point) => toPointDto(point, states, imageBaseUrl, permissions)),
-    permissions,
-    social: states.get(SOCIAL_TARGET_TYPE.DAY, row.id),
-  };
-}
-
-export function toTripDayDtoList(
-  rows: TripDayRecord[],
-  states: SocialStates,
-  imageBaseUrl: string | null,
-  permissions: ResourcePermissions,
-): TripDay[] {
-  return rows.map((row) => toTripDayDto(row, states, imageBaseUrl, permissions));
-}
-
 export function toTripGroupDay(
   row: TripDayRecord,
   states: SocialStates,

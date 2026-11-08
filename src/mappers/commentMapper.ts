@@ -38,23 +38,3 @@ export function toCommentDto(
     updatedAt: toIsoString(row.updatedAt),
   };
 }
-
-export function toCommentListResponse(
-  rows: CommentRecord[],
-  actor: TripActor | null,
-  page: number,
-  limit: number,
-  total: number,
-  reportedCommentIds: ReadonlySet<number>,
-): CommentListResponse {
-  return { items: toCommentDtoList(rows, actor, reportedCommentIds), page, limit, total };
-}
-
-/** Batch mapping of one comment page against the viewer's report state. */
-export function toCommentDtoList(
-  rows: CommentRecord[],
-  actor: TripActor | null,
-  reportedCommentIds: ReadonlySet<number>,
-): CommentDto[] {
-  return rows.map((row) => toCommentDto(row, actor, reportedCommentIds.has(row.id)));
-}

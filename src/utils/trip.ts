@@ -218,28 +218,3 @@ export function parseTripEditBody(body: unknown): TripEditRequest {
     lng,
   };
 }
-
-export function parseDayUpdateBody(body: unknown): DayUpdateRequest {
-  const record = asRecord(body, 'Request body');
-  rejectOwnershipAndParentFields(record, 'Day');
-
-  if (record['dayNumber'] !== undefined) {
-    throw ApiError.validation('"dayNumber" cannot be changed here; use the day reorder endpoint.');
-  }
-
-  const request: DayUpdateRequest = {};
-  if (record['title'] !== undefined)
-    request.title = requireTrimmedString(record['title'], 'title', MAX_TITLE_LENGTH);
-  if (record['description'] !== undefined) {
-    request.description = optionalString(
-      record['description'],
-      'description',
-      MAX_DESCRIPTION_LENGTH,
-    );
-  }
-
-  if (record['title'] === undefined && record['description'] === undefined) {
-    throw ApiError.validation('Provide at least one of: title, description.');
-  }
-  return request;
-}

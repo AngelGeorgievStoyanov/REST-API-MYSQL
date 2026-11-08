@@ -1,11 +1,5 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": [
-    "src/index.ts",
-    "src/migration/run-main.ts",
-    "src/db/cloneTestDatabase.ts"
-  ],
-  "project": [
-    "src/**/*.ts"
-  ]
+  "entry": ["src/index.ts", "src/migration/run-main.ts", "src/db/cloneTestDatabase.ts"],
+  "project": ["src/**/*.ts"]
 }

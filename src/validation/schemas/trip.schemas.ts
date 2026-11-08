@@ -76,16 +76,6 @@ export const tripListQuerySchema = z
   })
   .strict();
 
-export const dayUpdateSchema = z
-  .object({
-    title: patchText(LIMITS.trip.title),
-    description: patchText(LIMITS.trip.description),
-  })
-  .strict()
-  .refine((body) => body.title !== undefined || body.description !== undefined, {
-    message: 'Provide at least one of "title" or "description".',
-  });
-
 export const dayReorderSchema = z
   .object({
     days: z

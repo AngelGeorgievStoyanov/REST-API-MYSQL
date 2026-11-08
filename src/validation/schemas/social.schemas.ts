@@ -48,7 +48,6 @@ export const commentBodySchema = z
     comment: trimmedString(LIMITS.comment.comment),
   })
   .strict();
-export const replyCreateBodySchema = commentBodySchema;
 
 export const reportBodySchema = z
   .object({

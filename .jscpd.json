@@ -1,9 +1,7 @@
 {
   "minTokens": 50,
   "minLines": 5,
-  "reporters": [
-    "console"
-  ],
+  "reporters": ["console"],
   "ignore": [
     "**/node_modules/**",
     "**/build/**",

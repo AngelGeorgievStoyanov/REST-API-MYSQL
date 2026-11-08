@@ -81,12 +81,6 @@ export function asRecord(value: unknown, what: string): Record<string, unknown> 
   return value as Record<string, unknown>;
 }
 
-export function asArray(value: unknown, field: string): unknown[] {
-  if (value === undefined || value === null) return [];
-  if (!Array.isArray(value)) throw ApiError.validation(`"${field}" must be an array.`);
-  return value;
-}
-
 export const CLIENT_OWNERSHIP_FIELDS = ['_ownerId', '_ownerTripId', 'ownerId', 'userId'];
 const PARENT_FIELDS = ['tripId', 'dayId'];
 
