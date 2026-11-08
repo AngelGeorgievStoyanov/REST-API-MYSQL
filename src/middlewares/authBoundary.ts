@@ -104,5 +104,5 @@ async function authenticate(req: Request, next: NextFunction, required: boolean,
 function bearerValue(header: string | undefined): string | null {
     if (!header?.startsWith('Bearer ')) return null;
 
-    return header.slice('Bearer '.length).trim();
+    return header.slice('Bearer '.length);
 }
