@@ -3,7 +3,7 @@ import { type SOCIAL_TARGET_TYPE } from '../constants/social';
 /** `target_types.name` of a resource that can carry social state. */
 export type SocialTargetType = (typeof SOCIAL_TARGET_TYPE)[keyof typeof SOCIAL_TARGET_TYPE];
 
-export interface SocialCommentsState {
+interface SocialCommentsState {
   count: number;
 }
 
@@ -21,10 +21,6 @@ export interface SocialTargetRef {
   targetId: number;
 }
 
-export type ReportTargetType = SocialTargetType;
-
-export type ReportTargetRef = SocialTargetRef;
-
 /** Social state lookup of one request, produced by the social state service. */
 export interface SocialStates {
   get(targetType: SocialTargetType, targetId: number): SocialState;
@@ -36,4 +32,3 @@ export interface SocialTargetContext extends SocialTargetRef {
   tripGroupOwnerId: string | null;
 }
 
-export type AnySocialTargetRef = SocialTargetRef;
