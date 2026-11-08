@@ -22,7 +22,7 @@ function toPermissions(role: string): Permissions | undefined {
   return { isManager, isAdmin };
 }
 
-export function toProfileDto(user: AuthUserRecord): ProfileDto {
+function toProfileDto(user: AuthUserRecord): ProfileDto {
   const dto: ProfileDto = {
     email: user.email,
     firstName: user.firstName,
