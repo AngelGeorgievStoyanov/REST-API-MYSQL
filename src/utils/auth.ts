@@ -121,7 +121,7 @@ export function readCookie(cookieHeader: string | undefined, name: string): stri
             // whitespace instead of silently changing the token before verification.
             try {
                 const decoded = decodeURIComponent(raw);
-                return /\\s/.test(decoded) ? null : decoded;
+                return /\s/.test(decoded) ? null : decoded;
             } catch (error) {
                 if (error instanceof URIError) return null;
                 throw error;
