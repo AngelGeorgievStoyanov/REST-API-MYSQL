@@ -4,7 +4,7 @@ import { type SocialStates } from '../model/social';
 import { thumbnailFileName } from '../storage/imageFileStorage';
 
 /** `images.filePath` stores a bare filename; legacy rows may already hold a URL. */
-export function toImageUrl(filePath: string, baseUrl: string | null): string {
+function toImageUrl(filePath: string, baseUrl: string | null): string {
   if (/^https?:\/\//i.test(filePath)) return filePath;
 
   return baseUrl ? `${baseUrl}/${filePath}` : filePath;
