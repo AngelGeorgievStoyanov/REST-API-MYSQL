@@ -26,6 +26,10 @@ export interface AuthUserDto {
   role: string;
   status: string;
   emailVerified: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+  countOfLogs: number | null;
+  lastTimeLogin: string | null;
 }
 
 /** Internal authenticated account record; password hashes never reach the API mapper output. */
@@ -38,6 +42,10 @@ export interface AuthUserRecord {
   role: string;
   status: string;
   emailVerifiedAt: Date | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  countOfLogs: bigint | null;
+  lastTimeLogin: string | null;
 }
 
 /** Identity of the authenticated actor, always resolved from the database row. */
