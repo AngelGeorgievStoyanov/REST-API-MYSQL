@@ -42,6 +42,10 @@ export interface AuthUserRecord {
   role: string;
   status: string;
   emailVerifiedAt: Date | null;
+}
+
+/** Additional fields selected only for administrative user views. */
+export interface AdminAuthUserRecord extends AuthUserRecord {
   createdAt: Date | null;
   updatedAt: Date | null;
   countOfLogs: bigint | null;
