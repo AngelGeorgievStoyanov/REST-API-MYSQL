@@ -1,5 +1,5 @@
 import { type Prisma, type PrismaClient, type UserRole, UserStatus } from '@prisma/client';
-import { type AuthUserRecord } from '../model/auth';
+import { type AdminAuthUserRecord, type AuthUserRecord } from '../model/auth';
 
 /** Fields an administrator may change on another account. */
 export interface AdminUserUpdate {
@@ -27,6 +27,10 @@ const authUserSelect = {
   role: true,
   status: true,
   emailVerifiedAt: true,
+} satisfies Prisma.UserSelect;
+
+const adminUserSelect = {
+  ...authUserSelect,
   createdAt: true,
   updatedAt: true,
   countOfLogs: true,
@@ -103,12 +107,12 @@ export class AuthUserRepository {
   }
 
   /** Administrative account page, ordered by email for a stable answer. */
-  async listPage(skip: number, take: number): Promise<AuthUserRecord[]> {
+  async listPage(skip: number, take: number): Promise<AdminAuthUserRecord[]> {
     return this.prisma.user.findMany({
       orderBy: [{ email: 'asc' }, { id: 'asc' }],
       skip,
       take,
-      select: authUserSelect,
+      select: adminUserSelect,
     });
   }
 
@@ -116,8 +120,8 @@ export class AuthUserRepository {
     return this.prisma.user.count();
   }
 
-  async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AuthUserRecord> {
-    return this.prisma.user.update({ where: { id: userId }, data, select: authUserSelect });
+  async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AdminAuthUserRecord> {
+    return this.prisma.user.update({ where: { id: userId }, data, select: adminUserSelect });
   }
 
   async updateProfile(userId: string, data: ProfileUpdate): Promise<AuthUserRecord> {
