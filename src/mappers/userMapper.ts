@@ -1,6 +1,7 @@
 import {
   type AuthActor,
   type AuthSessionDto,
+  type AdminAuthUserRecord,
   type AuthUserDto,
   type AuthUserRecord,
   type AuthUserResponse,
@@ -35,7 +36,7 @@ function toProfileDto(user: AuthUserRecord): ProfileDto {
   return dto;
 }
 
-export function toAuthUserDto(user: AuthUserRecord): AuthUserDto {
+export function toAuthUserDto(user: AdminAuthUserRecord): AuthUserDto {
   return {
     id: user.id,
     email: user.email,
@@ -55,7 +56,7 @@ export function toAuthUserResponse(user: AuthUserRecord): AuthUserResponse {
   return { user: toProfileDto(user) };
 }
 
-export function toAuthUserDtoList(users: AuthUserRecord[]): AuthUserDto[] {
+export function toAuthUserDtoList(users: AdminAuthUserRecord[]): AuthUserDto[] {
   return users.map(toAuthUserDto);
 }
 
