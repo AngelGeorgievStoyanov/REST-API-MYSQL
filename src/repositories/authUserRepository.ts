@@ -27,6 +27,10 @@ const authUserSelect = {
   role: true,
   status: true,
   emailVerifiedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  countOfLogs: true,
+  lastTimeLogin: true,
 } satisfies Prisma.UserSelect;
 
 export class AuthUserRepository {
