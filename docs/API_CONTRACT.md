@@ -499,7 +499,11 @@ The auth/profile endpoints return `ProfileDto` (inside `{ "user": ... }` and ins
   "lastName": "<string>",
   "role": "user" | "admin" | "manager",
   "status": "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
-  "emailVerified": true | false
+  "emailVerified": true | false,
+  "createdAt": "<ISO 8601 datetime>" | null,
+  "updatedAt": "<ISO 8601 datetime>" | null,
+  "countOfLogs": <number> | null,
+  "lastTimeLogin": "<ISO 8601 datetime>" | null
 }
 ```
 
@@ -1673,7 +1677,8 @@ Admin pagination query (strict, shared by all admin list endpoints):
 
 - Response `200`: `AuthUserDto`.
 - Errors: unknown user -> `404 NOT_FOUND`; email already used by another account -> `409 CONFLICT` ("Another account already uses this email address.").
-- Identity/credential/verification columns (`id`, `hashedPassword`, `imageFile`, `verifyEmail`, `emailVerifiedAt`, `createdAt`) are not settable through this endpoint; the strict schema rejects every undeclared field.
+- Identity/credential/verification columns (`id`, `hashedPassword`, `imageFile`, `verifyEmail`, `emailVerifiedAt`, `createdAt`, `updatedAt`, `countOfLogs`, `lastTimeLogin`) are not settable through this endpoint; the strict schema rejects every undeclared field.
+- The admin `AuthUserDto` exposes `createdAt`, `updatedAt`, `countOfLogs`, and `lastTimeLogin` as read-only account activity metadata. Dates are ISO 8601 strings; nullable database values are returned as `null`.
 
 ### 16.3 DELETE `/admin/users/:userId`
 
