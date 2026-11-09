@@ -44,6 +44,10 @@ export function toAuthUserDto(user: AuthUserRecord): AuthUserDto {
     role: user.role,
     status: user.status,
     emailVerified: user.emailVerifiedAt !== null,
+    createdAt: user.createdAt?.toISOString() ?? null,
+    updatedAt: user.updatedAt?.toISOString() ?? null,
+    countOfLogs: user.countOfLogs === null ? null : Number(user.countOfLogs),
+    lastTimeLogin: user.lastTimeLogin,
   };
 }
 
