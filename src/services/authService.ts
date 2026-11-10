@@ -218,7 +218,7 @@ export class AuthService {
     }
 
     bucket.attempts += 1;
-    if (bucket.attempts >= LOGIN_LOCKOUT_MAX_ATTEMPTS) {
+    if (bucket.attempts === LOGIN_LOCKOUT_MAX_ATTEMPTS) {
       bucket.blockedUntil = now + LOGIN_LOCKOUT_WINDOW_MS;
       // The lockout event is logged once, at the threshold—not on every failure.
       await this.recordFailedLogin(email, context);
