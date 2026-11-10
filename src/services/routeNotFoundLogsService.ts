@@ -17,6 +17,7 @@ export interface RouteNotFoundLogEvent {
   params: unknown;
   clientIp: string;
   actorId?: string | undefined;
+  requestEmail?: string | null;
 }
 
 export class RouteNotFoundLogsService {
@@ -37,6 +38,7 @@ export class RouteNotFoundLogsService {
       params: event.params,
       clientIp: event.clientIp,
       actorId: event.actorId,
+      requestEmail: event.requestEmail,
     };
 
     await this.routeNotFoundLogsRepository.create(record);
