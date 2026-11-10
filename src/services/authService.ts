@@ -198,9 +198,11 @@ export class AuthService {
     // A successful credential check resets this email's consecutive failures.
     loginFailures.delete(email);
     this.assertAccountUsable(user);
+
+    const session = await this.issueSession(user);
     await this.users.touchLogin(user.id, new Date());
 
-    return this.issueSession(user);
+    return session;
   }
 
   /**
