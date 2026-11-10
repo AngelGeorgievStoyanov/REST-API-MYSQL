@@ -35,7 +35,14 @@ export class ReportRepository {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip,
       take,
-      select: { id: true, targetTypeId: true, targetId: true, reason: true, createdAt: true },
+      select: {
+        id: true,
+        userId: true,
+        targetTypeId: true,
+        targetId: true,
+        reason: true,
+        createdAt: true,
+      },
     });
   }
 
