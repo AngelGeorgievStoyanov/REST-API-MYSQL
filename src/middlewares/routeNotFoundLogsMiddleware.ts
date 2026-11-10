@@ -54,6 +54,7 @@ async function logRouteNotFound(req: Request, next: NextFunction): Promise<void>
       params: redactSensitiveRequestData(req.params),
       clientIp: clientIpDetails(req),
       actorId: optionalActor(req)?.id,
+      requestEmail: extractRequestEmail(req),
     });
   } catch (error: unknown) {
     logger.error(
@@ -82,6 +83,47 @@ function requestQuery(originalUrl: string): Record<string, string | string[]> {
   }
 
   return query;
+}
+
+/** Extract an explicitly submitted email field for diagnostics (never infer it from tokens). */
+function extractRequestEmail(req: Request): string | null {
+  const sources: unknown[] = [
+    req.body,
+    requestQuery(req.originalUrl),
+    req.params,
+    req.headers,
+  ];
+
+  for (const source of sources) {
+    const email = findEmailValue(source);
+    if (email !== null) return email;
+  }
+
+  return null;
+}
+
+function findEmailValue(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const found = findEmailValue(entry);
+      if (found !== null) return found;
+    }
+    return null;
+  }
+
+  if (typeof value !== 'object' || value === null) return null;
+
+  for (const [key, entry] of Object.entries(value)) {
+    if (/^(email|useremail|emailaddress)$/i.test(key) && typeof entry === 'string') {
+      const email = entry.trim();
+      if (email.length > 0) return email;
+    }
+
+    const nested = findEmailValue(entry);
+    if (nested !== null) return nested;
+  }
+
+  return null;
 }
 
 /** Store parsed structured bodies; explicitly mark multipart/binary bodies as omitted. */
