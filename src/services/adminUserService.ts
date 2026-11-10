@@ -42,19 +42,23 @@ export class AdminUserService {
       update.firstName = normalizeName(record['firstName'], 'firstName');
     if (record['lastName'] !== undefined)
       update.lastName = normalizeName(record['lastName'], 'lastName');
-    if (record['email'] !== undefined) update.email = normalizeEmail(record['email']);
     if (record['status'] !== undefined)
       update.status = requireEnumValue(record['status'], Object.values(UserStatus), 'status');
     if (record['emailVerified'] !== undefined)
       update.emailVerifiedAt = record['emailVerified'] === true ? new Date() : null;
 
     if (isAdmin) {
+      if (record['email'] !== undefined) update.email = normalizeEmail(record['email']);
       if (record['role'] !== undefined)
         update.role = requireEnumValue(record['role'], Object.values(UserRole), 'role');
       if (record['password'] !== undefined)
         update.hashedPassword = await hashPassword(record['password'] as string);
-    } else if (record['role'] !== undefined || record['password'] !== undefined) {
-      throw ApiError.forbidden('Only an admin can change role or password.');
+    } else if (
+      record['email'] !== undefined ||
+      record['role'] !== undefined ||
+      record['password'] !== undefined
+    ) {
+      throw ApiError.forbidden('Only an admin can change email, role or password.');
     }
 
     if (Object.keys(update).length === 0) {
