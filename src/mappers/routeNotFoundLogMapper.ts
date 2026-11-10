@@ -3,8 +3,8 @@ import { type RouteNotFoundLogDto, type RouteNotFoundLogSummary } from '../model
 function toRouteNotFoundLogDto(row: RouteNotFoundLogSummary): RouteNotFoundLogDto {
   return {
     ...row,
-    reqUrl: null,
-    reqHeaders: null,
+    reqUrl: row.reqUrl,
+    reqHeaders: row.reqHeaders,
     reqQuery: null,
     reqBody: null,
     reqParams: null,
