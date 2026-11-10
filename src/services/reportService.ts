@@ -46,9 +46,9 @@ export class ReportService {
   }
 
   /**
-   * Administrative report queue: reports persisted through `POST /reports`,
-   * newest first. Role authorization happens on the route; listing never
-   * mutates, resolves or hides the reported content.
+   * Administrative report queue: reports persisted through POST /reports,
+   * newest first. Role authorization happens on the route. Target summaries
+   * are fetched in batches and mapped to a safe, type-specific API shape.
    */
   async list(query: unknown): Promise<AdminPage<AdminReportDto>> {
     const pagination = parseAdminPagination(query);
@@ -58,12 +58,21 @@ export class ReportService {
       this.targetTypes.loadAllNames(),
     ]);
 
-    const items = rows.map((row) => {
+    const targetRefs = rows.map((row) => {
       const targetType = names.get(row.targetTypeId);
       if (!targetType || !isReportTargetType(targetType)) {
         throw ApiError.internal('The target type of this report is unknown.');
       }
-      return toAdminReportDto(row, targetType);
+      return { targetType, targetId: row.targetId };
+    });
+
+    const targetSummaries = await this.targets.findAdminTargets(targetRefs);
+    const items = rows.map((row, index) => {
+      const targetRef = targetRefs[index];
+      if (!targetRef) throw ApiError.internal('The report target could not be resolved.');
+
+      const target = targetSummaries.get(`${targetRef.targetType}:${row.targetId}`) ?? null;
+      return toAdminReportDto(row, targetRef.targetType, target);
     });
 
     return toAdminPageDto(items, total, pagination.page, pagination.pageSize);
