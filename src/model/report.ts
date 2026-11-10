@@ -1,7 +1,7 @@
 import { type SocialTargetRef, type SocialTargetType } from './social';
 
-/** Safe, type-specific summary of the content referenced by an admin report. */
-export type AdminReportTargetDto =
+/** Safe, type-specific read model of the content referenced by an admin report. */
+export type AdminReportTargetRecord =
   | {
       type: 'tripGroup';
       id: number;
@@ -42,6 +42,11 @@ export type AdminReportTargetDto =
       targetId: number;
       parentCommentId: number | null;
     }
+  | null;
+
+/** Safe API representation of a reported target (never a raw database row). */
+export type AdminReportTargetDto =
+  | Exclude<AdminReportTargetRecord, null>
   | null;
 
 /** DTO of the administrative report queue (one `reports` row). */
