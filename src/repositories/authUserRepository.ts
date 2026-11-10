@@ -98,12 +98,14 @@ export class AuthUserRepository {
     });
   }
 
+  /** Atomically records each successful login without losing concurrent increments. */
   async touchLogin(userId: string, at: Date): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { lastTimeLogin: at.toISOString() },
-      select: { id: true },
-    });
+    await this.prisma.$executeRaw`
+      UPDATE users
+      SET countOfLogs = COALESCE(countOfLogs, 0) + 1,
+          lastTimeLogin = ${at.toISOString()}
+      WHERE id = ${userId}
+    `;
   }
 
   /** Administrative account page, ordered by email for a stable answer. */
