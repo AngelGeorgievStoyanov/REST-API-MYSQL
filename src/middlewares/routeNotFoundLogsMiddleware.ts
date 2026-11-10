@@ -143,7 +143,7 @@ function serverIpv4(): string {
 function safeRequestPath(originalUrl: string): string {
   const pathname = originalUrl.split('?', 1)[0] ?? '/';
   return pathname.replace(
-    /(?:[A-Fa-f0-9]{48,}|[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{10,})/g,
+    /(?:[A-Fa-f0-9]{48,}|[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})/g,
     '[REDACTED]',
   );
 }
