@@ -23,8 +23,8 @@ import {
 } from '../validation/schemas/admin.schemas';
 
 /**
- * Administrative surface. Every operation is guarded by the account role of the
- * database row; the role restrictions mirror the legacy handlers they replace.
+ * Administrative surface. Authorization and business rules live in services;
+ * this controller only validates, delegates, and sends HTTP responses.
  */
 const adminController = express.Router();
 
@@ -38,7 +38,7 @@ adminController.get(
   validateRequest({ query: adminPaginationQuerySchema }),
   adminOrModerator,
   asyncHandler(async (req, res) => {
-    res.status(200).json(await adminUserService.listUsers(req.query));
+    res.status(200).json(await adminUserService.listUsers(actorFrom(req), req.query));
   }),
 );
 
@@ -66,7 +66,7 @@ adminController.delete(
   validateRequest({ params: userIdParams }),
   adminOrModerator,
   asyncHandler(async (req, res) => {
-    await adminUserService.deleteUser(routeParam(req.params['userId']));
+    await adminUserService.deleteUser(actorFrom(req), routeParam(req.params['userId']));
     res.status(204).send();
   }),
 );
