@@ -25,6 +25,8 @@ export interface RouteNotFoundLogRecord {
 
 const listSelect = {
   id: true,
+  reqUrl: true,
+  reqHeaders: true,
   date: true,
   reqMethod: true,
   reqIp: true,
