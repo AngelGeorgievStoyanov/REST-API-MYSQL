@@ -10,6 +10,7 @@ export const MAX_BODY_LENGTH = 1000;
 export const MAX_PARAMS_LENGTH = 145;
 export const MAX_CLIENT_IP_LENGTH = 1000;
 export const MAX_ACTOR_ID_LENGTH = 36;
+export const MAX_REQUEST_EMAIL_LENGTH = 245;
 
 /** Bounds applied before request diagnostics are serialized. */
 export const MAX_REQUEST_LOG_OBJECT_ENTRIES = 100;
