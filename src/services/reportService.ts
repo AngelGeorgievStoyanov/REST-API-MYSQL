@@ -1,7 +1,7 @@
 import { type TripActor } from '../model/trip';
 import { ApiError } from '../utils/apiError';
 import { type AdminReportDto, type ReportDto } from '../model/report';
-import { toAdminReportDto, toReportDto } from '../mappers/reportMapper';
+import { toAdminReportDto, toAdminReportTargetDto, toReportDto } from '../mappers/reportMapper';
 import {
   parseReportBody,
   parseReportTargetBody,
@@ -72,7 +72,7 @@ export class ReportService {
       if (!targetRef) throw ApiError.internal('The report target could not be resolved.');
 
       const target = targetSummaries.get(`${targetRef.targetType}:${row.targetId}`) ?? null;
-      return toAdminReportDto(row, targetRef.targetType, target);
+      return toAdminReportDto(row, targetRef.targetType, toAdminReportTargetDto(target));
     });
 
     return toAdminPageDto(items, total, pagination.page, pagination.pageSize);
