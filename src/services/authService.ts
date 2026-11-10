@@ -3,6 +3,8 @@ import type { AuthConfig } from '../config/auth';
 import { type CaptchaService } from './captchaService';
 import {
   ABSENT_USER_PASSWORD_HASH,
+  LOGIN_LOCKOUT_MAX_ATTEMPTS,
+  LOGIN_LOCKOUT_WINDOW_MS,
   EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
   PASSWORD_RESET_TOKEN_TTL_SECONDS,
 } from '../constants/auth';
@@ -65,6 +67,15 @@ export interface LoginContext {
   ip: string;
   userAgent: string;
 }
+
+interface LoginFailureBucket {
+  windowStartedAt: number;
+  attempts: number;
+  blockedUntil: number | null;
+}
+
+/** Process-local legacy lockout state, keyed by normalized email. */
+const loginFailures = new Map<string, LoginFailureBucket>();
 
 export class AuthService {
   constructor(
@@ -160,23 +171,63 @@ export class AuthService {
       VALIDATION_LIMITS.auth.passwordInput.max,
     );
 
+    const now = Date.now();
+    pruneExpiredLoginFailures(now);
+
+    const failureBucket = loginFailures.get(email);
+    if (failureBucket?.blockedUntil !== null && failureBucket?.blockedUntil !== undefined) {
+      if (failureBucket.blockedUntil > now) throw ApiError.invalidCredentials();
+      loginFailures.delete(email);
+    } else if (
+      failureBucket !== undefined &&
+      now - failureBucket.windowStartedAt >= LOGIN_LOCKOUT_WINDOW_MS
+    ) {
+      loginFailures.delete(email);
+    }
+
     const user = await this.users.findByEmail(email);
     const passwordMatches = await verifyPassword(
       password,
       user?.hashedPassword ?? ABSENT_USER_PASSWORD_HASH,
     );
     if (!user || !passwordMatches) {
-      await this.recordFailedLogin(email, context);
+      await this.registerFailedLogin(email, context, now);
       throw ApiError.invalidCredentials();
     }
 
+    // A successful credential check resets this email's consecutive failures.
+    loginFailures.delete(email);
     this.assertAccountUsable(user);
     await this.users.touchLogin(user.id, new Date());
 
     return this.issueSession(user);
   }
 
-  /** A failed attempt is recorded best effort: observability must never change the answer. */
+  /**
+   * Tracks failures per normalized email and writes one FailedLog row when the
+   * fifth invalid credential is reached. Earlier failures are not persisted.
+   */
+  private async registerFailedLogin(
+    email: string,
+    context: LoginContext,
+    now: number,
+  ): Promise<void> {
+    let bucket = loginFailures.get(email);
+    if (bucket === undefined || now - bucket.windowStartedAt >= LOGIN_LOCKOUT_WINDOW_MS) {
+      bucket = { windowStartedAt: now, attempts: 0, blockedUntil: null };
+    }
+
+    bucket.attempts += 1;
+    if (bucket.attempts >= LOGIN_LOCKOUT_MAX_ATTEMPTS) {
+      bucket.blockedUntil = now + LOGIN_LOCKOUT_WINDOW_MS;
+      // The lockout event is logged once, at the threshold—not on every failure.
+      await this.recordFailedLogin(email, context);
+    }
+
+    loginFailures.set(email, bucket);
+  }
+
+  /** A failed lockout event is recorded best effort; logging never changes auth. */
   private async recordFailedLogin(email: string, context: LoginContext): Promise<void> {
     try {
       await this.failedLogs.create({
@@ -476,4 +527,15 @@ function registrationAccepted(): MessageResponse {
   return toMessageResponse(
     'If the address can be registered, verification instructions will be sent.',
   );
+}
+
+
+/** Expired process-local lockout buckets are swept on each login request. */
+function pruneExpiredLoginFailures(now: number): void {
+  for (const [email, bucket] of loginFailures) {
+    const expired = bucket.blockedUntil !== null
+      ? bucket.blockedUntil <= now
+      : now - bucket.windowStartedAt >= LOGIN_LOCKOUT_WINDOW_MS;
+    if (expired) loginFailures.delete(email);
+  }
 }
