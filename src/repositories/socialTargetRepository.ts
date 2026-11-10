@@ -215,7 +215,7 @@ export class SocialTargetRepository {
 
     for (const image of images) {
       const tripGroupId = image.trip?.tripGroupId ?? image.point?.trip.tripGroupId;
-      if (tripGroupId === undefined || tripGroupId === null) continue;
+      if (tripGroupId === undefined) continue;
 
       result.set(adminTargetKey(SOCIAL_TARGET_TYPE.IMAGE, image.id), {
         type: 'image',
