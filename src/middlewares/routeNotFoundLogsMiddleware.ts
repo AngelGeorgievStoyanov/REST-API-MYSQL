@@ -7,6 +7,8 @@ import { ApiError } from '../utils/apiError';
 import { redactSensitiveRequestData } from '../utils/sensitiveRequestData';
 import {
   MAX_CLIENT_IP_LENGTH,
+  MAX_REQUEST_LOG_NESTING_DEPTH,
+  MAX_REQUEST_LOG_OBJECT_ENTRIES,
   REQUEST_BODY_OMITTED_MARKER,
 } from '../constants/routeNotFoundLogs';
 
@@ -102,10 +104,11 @@ function extractRequestEmail(req: Request): string | null {
   return null;
 }
 
-function findEmailValue(value: unknown): string | null {
+function findEmailValue(value: unknown, depth = 0): string | null {
+  if (depth >= MAX_REQUEST_LOG_NESTING_DEPTH) return null;
   if (Array.isArray(value)) {
     for (const entry of value) {
-      const found = findEmailValue(entry);
+      const found = findEmailValue(entry, depth + 1);
       if (found !== null) return found;
     }
     return null;
@@ -113,13 +116,13 @@ function findEmailValue(value: unknown): string | null {
 
   if (typeof value !== 'object' || value === null) return null;
 
-  for (const [key, entry] of Object.entries(value)) {
+  for (const [key, entry] of Object.entries(value).slice(0, MAX_REQUEST_LOG_OBJECT_ENTRIES)) {
     if (/^(email|useremail|emailaddress)$/i.test(key) && typeof entry === 'string') {
       const email = entry.trim();
       if (email.length > 0) return email;
     }
 
-    const nested = findEmailValue(entry);
+    const nested = findEmailValue(entry, depth + 1);
     if (nested !== null) return nested;
   }
 
