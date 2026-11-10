@@ -1670,13 +1670,14 @@ Admin pagination query (strict, shared by all admin list endpoints):
 
 ### 16.2 PUT `/admin/users/:userId`
 
-- Role: `admin` or `manager` on the route. Assigning `role` or `password` additionally requires the `admin` role: a `manager` request whose body contains `role` or `password` is rejected with `403 FORBIDDEN` ("Only an admin can change role or password."). `firstName`, `lastName`, `email`, `status` and `emailVerified` are assignable by both roles.
+- Role: `admin` or `manager` on the route. Assigning `email`, `role` or `password` additionally requires the `admin` role: a `manager` request whose body contains any of these fields is rejected with `403 FORBIDDEN` ("Only an admin can change email, role or password."). `firstName`, `lastName`, `status` and `emailVerified` are assignable by both roles.
 - Path params (strict): `{ userId: UUID }`.
 - Body (strict): `{ firstName?, lastName?, email?, role?, status?, emailVerified?, password? }` (at least one required).
 
+  - `email` is trimmed, lowercased and pattern-checked (admin only).
   - `role` enum: `user` | `admin` | `manager` (admin only).
   - `status` enum: `PENDING_VERIFICATION` | `ACTIVE` | `SUSPENDED` | `DEACTIVATED`.
-  - `email` is trimmed, lowercased and pattern-checked; a `emailVerified` boolean is stored as `emailVerifiedAt` (`true` -> now, `false` -> `null`).
+  - `emailVerified` boolean is stored as `emailVerifiedAt` (`true` -> now, `false` -> `null`).
   - `password` follows the account password policy (8..72 bytes) and is stored hashed.
 
 - Response `200`: `AuthUserDto`.
