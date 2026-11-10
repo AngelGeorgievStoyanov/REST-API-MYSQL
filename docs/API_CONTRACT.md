@@ -1683,7 +1683,7 @@ Admin pagination query (strict, shared by all admin list endpoints):
   - `password` follows the account password policy (8..72 bytes) and is stored hashed.
 
 - Response `200`: `AuthUserDto`.
-- Errors: unknown user -> `404 NOT_FOUND`; email already used by another account -> `409 CONFLICT` ("Another account already uses this email address.").
+- Errors: unknown user -> `404 NOT_FOUND`; manager target role is not `user` -> `403 FORBIDDEN`; manager submits `email`, `role` or `password` -> `403 FORBIDDEN`; email already used by another account -> `409 CONFLICT` ("Another account already uses this email address.").
 - Identity/credential/verification columns (`id`, `hashedPassword`, `imageFile`, `verifyEmail`, `emailVerifiedAt`, `createdAt`, `updatedAt`, `countOfLogs`, `lastTimeLogin`) are not settable through this endpoint; the strict schema rejects every undeclared field.
 - The admin `AuthUserDto` exposes `createdAt`, `updatedAt`, `countOfLogs`, and `lastTimeLogin` as read-only account activity metadata. `createdAt` and `updatedAt` are ISO 8601 strings; `lastTimeLogin` is returned as stored. Nullable database values are returned as `null`.
 
