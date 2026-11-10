@@ -20,11 +20,12 @@ import { type AdminUserUpdate, type AuthUserRepository } from '../repositories/a
 export class AdminUserService {
   constructor(private readonly users: AuthUserRepository) {}
 
-  async listUsers(query: unknown): Promise<AdminPage<AuthUserDto>> {
+  async listUsers(actor: TripActor, query: unknown): Promise<AdminPage<AuthUserDto>> {
     const pagination = parseAdminPagination(query);
+    const roleFilter = actor.role === UserRole.MANAGER ? UserRole.USER : undefined;
     const [rows, total] = await Promise.all([
-      this.users.listPage(pagination.skip, pagination.pageSize),
-      this.users.countUsers(),
+      this.users.listPage(pagination.skip, pagination.pageSize, roleFilter),
+      this.users.countUsers(roleFilter),
     ]);
 
     return toAdminPageDto(toAuthUserDtoList(rows), total, pagination.page, pagination.pageSize);
@@ -32,10 +33,13 @@ export class AdminUserService {
 
   async updateUser(actor: TripActor, rawUserId: string, body: unknown): Promise<AuthUserDto> {
     const userId = requireTrimmedString(rawUserId, 'userId', MAX_USER_ID_LENGTH);
+    const existing = await this.requireUser(userId);
+    this.assertManagerTargetIsUser(actor, existing);
+
     const record = asRecord(body, 'Request body');
     rejectClientControlledFields(record, CLIENT_CONTROLLED_USER_FIELDS, 'Request body');
 
-    const isAdmin = actor.role === 'admin';
+    const isAdmin = actor.role === UserRole.ADMIN;
     const update: AdminUserUpdate = {};
 
     if (record['firstName'] !== undefined)
@@ -67,7 +71,6 @@ export class AdminUserService {
       );
     }
 
-    const existing = await this.requireUser(userId);
     if (update.email && existing.email !== update.email) {
       const collision = await this.users.findByEmail(update.email);
       if (collision) throw ApiError.conflict('Another account already uses this email address.');
@@ -77,9 +80,10 @@ export class AdminUserService {
   }
 
   /** The database refuses the delete while the account still owns content. */
-  async deleteUser(rawUserId: string): Promise<void> {
+  async deleteUser(actor: TripActor, rawUserId: string): Promise<void> {
     const userId = requireTrimmedString(rawUserId, 'userId', MAX_USER_ID_LENGTH);
-    await this.requireUser(userId);
+    const existing = await this.requireUser(userId);
+    this.assertManagerTargetIsUser(actor, existing);
 
     try {
       await this.users.remove(userId);
@@ -88,6 +92,12 @@ export class AdminUserService {
         throw ApiError.conflict('The account still owns trips, days, points or comments.');
       }
       throw error;
+    }
+  }
+
+  private assertManagerTargetIsUser(actor: TripActor, target: AuthUserRecord): void {
+    if (actor.role === UserRole.MANAGER && target.role !== UserRole.USER) {
+      throw ApiError.forbidden('Managers can only manage users with the user role.');
     }
   }
 
