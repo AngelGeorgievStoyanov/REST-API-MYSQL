@@ -507,6 +507,10 @@ The auth/profile endpoints return `ProfileDto` (inside `{ "user": ... }` and ins
 }
 ```
 
+- `countOfLogs` counts successful credential-based logins. It increases atomically by one for each successful login; failed attempts and refresh-token rotations do not increment it.
+- `lastTimeLogin` is the ISO 8601 timestamp of the most recent successful credential-based login and is updated together with the counter.
+- Existing NULL counters are treated as zero on the first successful login.
+
 ---
 
 ## 7. Config Endpoints
