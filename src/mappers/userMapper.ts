@@ -1,3 +1,5 @@
+import { toImageDto } from './imageMapper';
+import { getImageBaseUrl } from '../utils/image';
 import {
   type AuthActor,
   type AuthSessionDto,
@@ -45,6 +47,7 @@ export function toAuthUserDto(user: AdminAuthUserRecord): AuthUserDto {
     role: user.role,
     status: user.status,
     emailVerified: user.emailVerifiedAt !== null,
+    profileImage: user.profileImage ? toImageDto(user.profileImage, getImageBaseUrl()) : null,
     createdAt: user.createdAt?.toISOString() ?? null,
     updatedAt: user.updatedAt?.toISOString() ?? null,
     countOfLogs: user.countOfLogs === null ? null : Number(user.countOfLogs),
