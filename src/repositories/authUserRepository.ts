@@ -139,7 +139,13 @@ export class AuthUserRepository {
   }
 
   async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AdminAuthUserRecord> {
-    return this.prisma.user.update({ where: { id: userId }, data, select: adminUserSelect });
+    const row = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: adminUserSelect,
+    });
+
+    return { ...row, profileImage: row.images[0] ?? null };
   }
 
   async updateProfile(userId: string, data: ProfileUpdate): Promise<AuthUserRecord> {
