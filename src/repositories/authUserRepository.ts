@@ -120,22 +120,24 @@ export class AuthUserRepository {
     take: number,
     role?: UserRole,
   ): Promise<AdminAuthUserRecord[]> {
-    return this.prisma.user.findMany({
+    const rows = await this.prisma.user.findMany({
       ...(role ? { where: { role } } : {}),
       orderBy: [{ email: 'asc' }, { id: 'asc' }],
       skip,
       take,
       select: adminUserSelect,
-    }).then((rows) =>
-      rows.map((row) => ({
-        ...row,
-        profileImage: row.images[0] ?? null,
-      })),
-    );
+    });
+
+    return rows.map((row) => ({
+      ...row,
+      profileImage: row.images[0] ?? null,
+    }));
   }
 
   async countUsers(role?: UserRole): Promise<number> {
-    return this.prisma.user.count(role ? { where: { role } } : {});
+    return role
+      ? this.prisma.user.count({ where: { role } })
+      : this.prisma.user.count();
   }
 
   async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AdminAuthUserRecord> {
