@@ -1832,14 +1832,27 @@ Response:
 ```text
 {
   "id": 0,
+  "userId": "<reporter-user-id>",
   "targetType": "tripGroup" | "trip" | "point" | "image" | "comment",
   "targetId": 0,
+  "target": {
+    // Discriminated summary; exact fields depend on targetType.
+    // tripGroup: { type, id, title, destination }
+    // trip: { type, id, tripGroupId, dayNumber, title, description }
+    // point: { type, id, tripId, tripGroupId, name, description, lat, lng }
+    // image: { type, id, tripGroupId, tripId, pointId }
+    // comment: { type, id, comment, authorName, targetTypeId, targetId, parentCommentId }
+  } | null,
   "reason": null | "<string>",
   "createdAt": null | "<iso>"
 }
 ```
 
-The initial report queue intentionally keeps the DTO minimal. The backend must not expose internal database models or arbitrary report-related columns merely because they exist in the database.
+- `userId` identifies the user who submitted the report.
+- `target` is a safe, type-specific summary resolved by the backend, not a raw database record.
+- If the referenced content no longer exists or cannot be resolved, `target` is `null`; `targetType` and `targetId` remain available.
+- Target summaries include only the fields needed to identify the reported content. They do not expose owner records, storage file paths, or arbitrary database columns.
+- Target summaries are loaded in batches for the current page; the endpoint does not issue one target query per report.
 
 ### 16.11 DELETE `/admin/reports/:reportId`
 
