@@ -7,6 +7,7 @@ import { ApiError } from '../utils/apiError';
 import { redactSensitiveRequestData } from '../utils/sensitiveRequestData';
 import {
   MAX_CLIENT_IP_LENGTH,
+  MAX_REQUEST_LOG_ARRAY_ENTRIES,
   MAX_REQUEST_LOG_NESTING_DEPTH,
   MAX_REQUEST_LOG_OBJECT_ENTRIES,
   REQUEST_BODY_OMITTED_MARKER,
@@ -107,7 +108,7 @@ function extractRequestEmail(req: Request): string | null {
 function findEmailValue(value: unknown, depth = 0): string | null {
   if (depth >= MAX_REQUEST_LOG_NESTING_DEPTH) return null;
   if (Array.isArray(value)) {
-    for (const entry of value) {
+    for (const entry of value.slice(0, MAX_REQUEST_LOG_ARRAY_ENTRIES)) {
       const found = findEmailValue(entry, depth + 1);
       if (found !== null) return found;
     }
