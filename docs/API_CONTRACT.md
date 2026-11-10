@@ -1691,6 +1691,9 @@ Admin pagination query (strict, shared by all admin list endpoints):
 
 - Role: `admin` or `manager`.
 - Response `200`: `AdminPage<FailedLogDto>` (newest first).
+- Login policy: invalid credentials are counted per normalized email. Five failures within a 10-minute window trigger a 10-minute lockout; one FailedLog row is written when the threshold is reached. Earlier failures and requests during the active lockout do not create rows. A successful credential check clears the email's failure state.
+- The lockout map is process-local (not shared across API instances and reset on process restart). Expired entries are swept on each login request; there is no scheduled cleanup job. The separate IP-based auth rate limiter remains active.
+- FailedLog rows are persistent history and are not automatically pruned. Admin/Manager can delete selected rows through `DELETE /admin/failed-login-logs`.
 
 `FailedLogDto`:
 
@@ -1721,6 +1724,8 @@ Admin pagination query (strict, shared by all admin list endpoints):
 
 - Role: `admin` or `manager`.
 - Response `200`: `AdminPage<RouteNotFoundLogDto>` (newest first).
+- Scope: records unmatched endpoints only after a request has entered one of the explicitly instrumented resource routers. The final API v1 fallback does not log arbitrary unknown paths, so nonexistent API roots and random scanner paths are not added to this table.
+- `reqUrl` contains the actual request pathname (including the API prefix), without its query string. Token-like path segments are redacted. `reqHeaders` contains only the allowlisted `content-type` and `x-hacktrip-client` headers. Query, body and params are deliberately not stored/exposed to avoid leaking credentials, tokens, cookies or personal data.
 
 `RouteNotFoundLogDto`:
 
@@ -1728,9 +1733,9 @@ Admin pagination query (strict, shared by all admin list endpoints):
 {
   "id": 0,
   "date": null | "<string>",
-  "reqUrl": null,
+  "reqUrl": null | "<string>",
   "reqMethod": null | "<string>",
-  "reqHeaders": null,
+  "reqHeaders": null | "<JSON string>",
   "reqQuery": null,
   "reqBody": null,
   "reqParams": null,
