@@ -109,8 +109,13 @@ export class AuthUserRepository {
   }
 
   /** Administrative account page, ordered by email for a stable answer. */
-  async listPage(skip: number, take: number): Promise<AdminAuthUserRecord[]> {
+  async listPage(
+    skip: number,
+    take: number,
+    role?: UserRole,
+  ): Promise<AdminAuthUserRecord[]> {
     return this.prisma.user.findMany({
+      where: role ? { role } : undefined,
       orderBy: [{ email: 'asc' }, { id: 'asc' }],
       skip,
       take,
@@ -118,8 +123,8 @@ export class AuthUserRepository {
     });
   }
 
-  async countUsers(): Promise<number> {
-    return this.prisma.user.count();
+  async countUsers(role?: UserRole): Promise<number> {
+    return this.prisma.user.count({ where: role ? { role } : undefined });
   }
 
   async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AdminAuthUserRecord> {
