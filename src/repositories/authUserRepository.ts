@@ -35,6 +35,12 @@ const adminUserSelect = {
   updatedAt: true,
   countOfLogs: true,
   lastTimeLogin: true,
+  images: {
+    where: { tripId: null, pointId: null },
+    orderBy: { id: 'desc' },
+    take: 1,
+    select: { id: true, filePath: true },
+  },
 } satisfies Prisma.UserSelect;
 
 export class AuthUserRepository {
@@ -120,7 +126,12 @@ export class AuthUserRepository {
       skip,
       take,
       select: adminUserSelect,
-    });
+    }).then((rows) =>
+      rows.map((row) => ({
+        ...row,
+        profileImage: row.images[0] ?? null,
+      })),
+    );
   }
 
   async countUsers(role?: UserRole): Promise<number> {
