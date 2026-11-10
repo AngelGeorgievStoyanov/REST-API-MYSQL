@@ -1,3 +1,5 @@
+import type { ImageDto, ImageRecord } from './image';
+
 /** Permissions for the authenticated caller, surfaced on self-profile responses. */
 export interface Permissions {
   isManager: boolean;
@@ -26,7 +28,7 @@ export interface AuthUserDto {
   role: string;
   status: string;
   emailVerified: boolean;
-  profileImage: import('./image').ImageDto | null;
+  profileImage: ImageDto | null;
   createdAt: string | null;
   updatedAt: string | null;
   countOfLogs: number | null;
@@ -47,7 +49,7 @@ export interface AuthUserRecord {
 
 /** Additional fields selected only for administrative user views. */
 export interface AdminAuthUserRecord extends AuthUserRecord {
-  profileImage: import('./image').ImageRecord | null;
+  profileImage: ImageRecord | null;
   createdAt: Date | null;
   updatedAt: Date | null;
   countOfLogs: bigint | null;
