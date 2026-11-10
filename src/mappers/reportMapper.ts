@@ -2,6 +2,7 @@ import {
   type CreatedReportRecord,
   type AdminReportRecord,
   type AdminReportDto,
+  type AdminReportTargetDto,
   type ReportDto,
   type ReportTargetType,
 } from '../model/report';
@@ -22,15 +23,18 @@ export function toReportDto(
   };
 }
 
-/** Minimal DTO of the administrative report queue; no internal columns leak. */
+/** Maps only the explicitly approved fields for the administrative report queue. */
 export function toAdminReportDto(
   report: AdminReportRecord,
   targetType: ReportTargetType,
+  target: AdminReportTargetDto,
 ): AdminReportDto {
   return {
     id: report.id,
+    userId: report.userId,
     targetType,
     targetId: report.targetId,
+    target,
     reason: report.reason,
     createdAt: toIsoString(report.createdAt),
   };
