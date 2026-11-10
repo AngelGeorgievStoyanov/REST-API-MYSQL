@@ -1730,8 +1730,9 @@ Admin pagination query (strict, shared by all admin list endpoints):
 - `reqQuery` stores query parameters as JSON. Repeated query keys are preserved as arrays.
 - `reqBody` stores parsed object/array bodies as JSON. Multipart and binary bodies are not stored; a body-present omission marker is stored instead. Unstructured string bodies are also represented by an omission marker.
 - `reqParams` stores the Express route params object as JSON.
+- `reqUserEmail` stores the first non-empty `email`, `userEmail` or `emailAddress` value found in the request body, query, route params or headers (in that order). It is empty when the request contains no such field. The email is stored separately so it remains available even when the diagnostic body/query is truncated.
 - Sensitive values are redacted recursively by field name (passwords, tokens, secrets, authorization, cookies, API keys, credentials, private keys, sessions and signatures). The field name remains in the log with the value `[REDACTED]`, so the Admin can see that the request contained that field.
-- Request diagnostics are bounded by the existing live database column widths: URL 145, headers 1000, query 145, body 1000, params 145 characters. Values exceeding a column limit end with `...[TRUNCATED]`. These limits are not a reason to silently omit the fields.
+- Request diagnostics are bounded by the existing live database column widths: URL 145, headers 1000, query 145, body 1000, params 145, request email 245 characters. Values exceeding a column limit end with `...[TRUNCATED]`. These limits are not a reason to silently omit the fields.
 - Scope remains router-local: arbitrary unknown API roots and random scanner paths that never enter an instrumented router are not logged.
 
 `RouteNotFoundLogDto`:
