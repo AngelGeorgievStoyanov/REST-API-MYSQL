@@ -338,9 +338,9 @@ Authorization model:
 | POST/DELETE `/favorites`                       | NO                                | YES                                                   | —     | —                          | —     |
 | POST `/reports`                                | NO                                | YES                                                   | —     | —                          | —     |
 | DELETE `/reports`                              | NO                                | YES                                                   | —     | YES                        | YES   |
-| GET `/admin/users`                             | NO                                | NO                                                    | NO    | YES                        | YES   |
-| PUT `/admin/users/:userId`                     | NO                                | NO                                                    | NO    | PARTIAL (no role/password) | YES   |
-| DELETE `/admin/users/:userId`                  | NO                                | NO                                                    | NO    | YES                        | YES   |
+| GET `/admin/users`                             | NO                                | NO                                                    | NO    | YES (user-role records only) | YES (all roles) |
+| PUT `/admin/users/:userId`                     | NO                                | NO                                                    | NO    | PARTIAL (user targets; no email/role/password) | YES (all targets/fields) |
+| DELETE `/admin/users/:userId`                  | NO                                | NO                                                    | NO    | PARTIAL (user targets only) | YES (all roles) |
 | GET/DELETE `/admin/failed-login-logs`          | NO                                | NO                                                    | NO    | YES                        | YES   |
 | GET `/admin/route-not-found-logs`              | NO                                | NO                                                    | NO    | YES                        | YES   |
 | GET `/admin/images/cloud`                      | NO                                | NO                                                    | NO    | YES                        | YES   |
@@ -1659,6 +1659,8 @@ Admin pagination query (strict, shared by all admin list endpoints):
 ### 16.1 GET `/admin/users`
 
 - Role: `admin` or `manager`.
+- `admin` receives users of all roles (`user`, `manager`, `admin`). `manager` receives only records whose database role is `user`.
+- The role filter is applied in the database before pagination; `pagination.total` and `totalPages` count only records visible to the requesting role.
 - Response `200`: `AdminPage<AuthUserDto>` (ordered by email asc).
 
 ```text
@@ -1670,7 +1672,7 @@ Admin pagination query (strict, shared by all admin list endpoints):
 
 ### 16.2 PUT `/admin/users/:userId`
 
-- Role: `admin` or `manager` on the route. Assigning `email`, `role` or `password` additionally requires the `admin` role: a `manager` request whose body contains any of these fields is rejected with `403 FORBIDDEN` ("Only an admin can change email, role or password."). `firstName`, `lastName`, `status` and `emailVerified` are assignable by both roles.
+- Role: `admin` or `manager` on the route. `admin` may update any target account and assign all fields. `manager` may update only a target whose current database role is `user`; attempts to update a `manager` or `admin` target are rejected with `403 FORBIDDEN`. Managers may assign only `firstName`, `lastName`, `status` and `emailVerified`; a request containing `email`, `role` or `password` is rejected with `403 FORBIDDEN` ("Only an admin can change email, role or password.").
 - Path params (strict): `{ userId: UUID }`.
 - Body (strict): `{ firstName?, lastName?, email?, role?, status?, emailVerified?, password? }` (at least one required).
 
@@ -1687,10 +1689,10 @@ Admin pagination query (strict, shared by all admin list endpoints):
 
 ### 16.3 DELETE `/admin/users/:userId`
 
-- Role: `admin` or `manager`.
+- Role: `admin` or `manager`. `admin` may delete targets of any role; `manager` may delete only targets whose current database role is `user`. Attempts by a manager to delete a `manager` or `admin` target are rejected with `403 FORBIDDEN`.
 - Path params (strict): `{ userId: UUID }`.
 - Response `204` (empty).
-- Error: user still owns trips/days/points/comments -> `409 CONFLICT` ("The account still owns trips, days, points or comments.").
+- Errors: unknown user -> `404 NOT_FOUND`; manager target role is not `user` -> `403 FORBIDDEN`; user still owns trips/days/points/comments -> `409 CONFLICT` ("The account still owns trips, days, points or comments.").
 
 ### 16.4 GET `/admin/failed-login-logs`
 
@@ -2122,9 +2124,9 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | DELETE | `/favorites`                                | Auth                | query `tripGroupId` or `targetType,targetId`                                                                                   | 204                                       | 400, 401, 403, 404           |
 | POST   | `/reports`                                  | Auth                | `{ targetType, targetId, reason? }`                                                                                            | 201 `ReportDto`                           | 400, 401, 403, 404, 409      |
 | DELETE | `/reports`                                  | Auth                | query `targetType,targetId`                                                                                                    | 204                                       | 400, 401, 403, 404           |
-| GET    | `/admin/users`                              | admin/manager       | query `page,pageSize`                                                                                                          | 200 `AdminPage<AuthUserDto>`              | 400, 401, 403                |
-| PUT    | `/admin/users/:userId`                      | admin/manager       | param `userId`; body `{ firstName?, lastName?, email?, role?, status?, emailVerified?, password? }` (role/password admin-only) | 200 `AuthUserDto`                         | 400, 401, 403, 404, 409      |
-| DELETE | `/admin/users/:userId`                      | admin/manager       | param `userId`                                                                                                                 | 204                                       | 400, 401, 403, 404, 409      |
+| GET    | `/admin/users`                              | admin/manager       | query `page,pageSize`; manager sees only role `user`                                                                           | 200 `AdminPage<AuthUserDto>`              | 400, 401, 403                |
+| PUT    | `/admin/users/:userId`                      | admin/manager       | param `userId`; manager targets role `user` only; sensitive fields admin-only                                                   | 200 `AuthUserDto`                         | 400, 401, 403, 404, 409      |
+| DELETE | `/admin/users/:userId`                      | admin/manager       | param `userId`; manager targets role `user` only                                                                               | 204                                       | 400, 401, 403, 404, 409      |
 | GET    | `/admin/failed-login-logs`                  | admin/manager       | query `page,pageSize`                                                                                                          | 200 `AdminPage<FailedLogDto>`             | 400, 401, 403                |
 | DELETE | `/admin/failed-login-logs`                  | admin/manager       | body `{ ids }`                                                                                                                 | 200 `{ deleted }`                         | 400, 401, 403                |
 | GET    | `/admin/route-not-found-logs`               | admin/manager       | query `page,pageSize`                                                                                                          | 200 `AdminPage<RouteNotFoundLogDto>`      | 400, 401, 403                |
