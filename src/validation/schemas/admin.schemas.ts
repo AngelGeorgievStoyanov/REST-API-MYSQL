@@ -13,10 +13,9 @@ const adminEmail = trimmedString({
 });
 
 /**
- * Partial update of another account. Identity, credentials and verification state
- * are not part of the schema, so they cannot be assigned through it.
- * `role`, `status`, and `password` are accepted by the schema but filtered
- * server-side: managers cannot assign them.
+ * Partial update of another account. The schema validates the shared request
+ * shape; role-specific field permissions and target-role authorization belong
+ * to AdminUserService.
  */
 export const adminUserUpdateSchema = z
   .object({
