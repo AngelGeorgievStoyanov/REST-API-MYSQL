@@ -90,6 +90,9 @@ function requestBody(req: Request): unknown {
   if (body === undefined || body === null) return undefined;
 
   const contentType = req.headers['content-type']?.toLowerCase() ?? '';
+  if (Buffer.isBuffer(body) || ArrayBuffer.isView(body)) {
+    return { _bodyPresent: true, _bodyOmitted: REQUEST_BODY_OMITTED_MARKER };
+  }
   if (
     contentType.includes('multipart/form-data') ||
     contentType.includes('application/octet-stream') ||
