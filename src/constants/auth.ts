@@ -40,6 +40,10 @@ export const ABSENT_USER_PASSWORD_HASH =
  */
 export const AUTH_RATE_LIMIT_PRUNE_THRESHOLD = 1000;
 
+/** Legacy per-email login lockout: five invalid credentials within ten minutes. */
+export const LOGIN_LOCKOUT_MAX_ATTEMPTS = 5;
+export const LOGIN_LOCKOUT_WINDOW_MS = 10 * 60 * 1000;
+
 /**
  * Fallback defaults of the Auth configuration, used when the corresponding
  * `ACCESS_TOKEN_EXPIRES_IN` / `REFRESH_TOKEN_EXPIRES_IN` / `AUTH_RATE_LIMIT_*`
