@@ -7,7 +7,7 @@ import {
 const SENSITIVE_FIELD =
   /(password|passwd|pwd|token|secret|authorization|cookie|api.?key|credential|private.?key|client.?secret|session|signature|^sig$)/i;
 const URL_VALUE_FIELD = /(url|uri|referer|referrer|redirect|callback|return)/i;
-const BEARER_VALUE = /\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi;
+const BEARER_VALUE = /\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi;
 const JWT_VALUE = /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\b/g;
 
 /**
