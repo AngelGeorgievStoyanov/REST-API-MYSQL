@@ -22,7 +22,7 @@ export class AdminUserService {
 
   async listUsers(actor: TripActor, query: unknown): Promise<AdminPage<AuthUserDto>> {
     const pagination = parseAdminPagination(query);
-    const roleFilter = actor.role === UserRole.MANAGER ? UserRole.USER : undefined;
+    const roleFilter = actor.role === UserRole.manager ? UserRole.user : undefined;
     const [rows, total] = await Promise.all([
       this.users.listPage(pagination.skip, pagination.pageSize, roleFilter),
       this.users.countUsers(roleFilter),
@@ -39,7 +39,7 @@ export class AdminUserService {
     const record = asRecord(body, 'Request body');
     rejectClientControlledFields(record, CLIENT_CONTROLLED_USER_FIELDS, 'Request body');
 
-    const isAdmin = actor.role === UserRole.ADMIN;
+    const isAdmin = actor.role === UserRole.admin;
     const update: AdminUserUpdate = {};
 
     if (record['firstName'] !== undefined)
@@ -96,7 +96,7 @@ export class AdminUserService {
   }
 
   private assertManagerTargetIsUser(actor: TripActor, target: AuthUserRecord): void {
-    if (actor.role === UserRole.MANAGER && target.role !== UserRole.USER) {
+    if (actor.role === UserRole.manager && target.role !== UserRole.user) {
       throw ApiError.forbidden('Managers can only manage users with the user role.');
     }
   }
