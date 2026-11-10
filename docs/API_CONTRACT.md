@@ -500,6 +500,7 @@ The auth/profile endpoints return `ProfileDto` (inside `{ "user": ... }` and ins
   "role": "user" | "admin" | "manager",
   "status": "PENDING_VERIFICATION" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED",
   "emailVerified": true | false,
+  "profileImage": ImageDto | null,
   "createdAt": "<ISO 8601 datetime>" | null,
   "updatedAt": "<ISO 8601 datetime>" | null,
   "countOfLogs": <number> | null,
@@ -1685,7 +1686,7 @@ Admin pagination query (strict, shared by all admin list endpoints):
 - Response `200`: `AuthUserDto`.
 - Errors: unknown user -> `404 NOT_FOUND`; manager target role is not `user` -> `403 FORBIDDEN`; manager submits `email`, `role` or `password` -> `403 FORBIDDEN`; email already used by another account -> `409 CONFLICT` ("Another account already uses this email address.").
 - Identity/credential/verification columns (`id`, `hashedPassword`, `imageFile`, `verifyEmail`, `emailVerifiedAt`, `createdAt`, `updatedAt`, `countOfLogs`, `lastTimeLogin`) are not settable through this endpoint; the strict schema rejects every undeclared field.
-- The admin `AuthUserDto` exposes `createdAt`, `updatedAt`, `countOfLogs`, and `lastTimeLogin` as read-only account activity metadata. `createdAt` and `updatedAt` are ISO 8601 strings; `lastTimeLogin` is returned as stored. Nullable database values are returned as `null`.
+- The admin `AuthUserDto` exposes `profileImage` as the latest image owned by the user and not attached to a trip or point (or `null` when absent), plus `createdAt`, `updatedAt`, `countOfLogs`, and `lastTimeLogin` as read-only account activity metadata. `createdAt` and `updatedAt` are ISO 8601 strings; `lastTimeLogin` is returned as stored. Nullable database values are returned as `null`.
 
 ### 16.3 DELETE `/admin/users/:userId`
 
