@@ -37,8 +37,8 @@ export class RouteNotFoundLogsService {
       body: event.body,
       params: event.params,
       clientIp: event.clientIp,
-      actorId: event.actorId,
-      requestEmail: event.requestEmail,
+      ...(event.actorId !== undefined ? { actorId: event.actorId } : {}),
+      ...(event.requestEmail !== undefined ? { requestEmail: event.requestEmail } : {}),
     };
 
     await this.routeNotFoundLogsRepository.create(record);
