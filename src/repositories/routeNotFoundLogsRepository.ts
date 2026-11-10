@@ -7,6 +7,7 @@ import {
   MAX_HEADERS_LENGTH,
   MAX_METHOD_LENGTH,
   MAX_PARAMS_LENGTH,
+  MAX_REQUEST_EMAIL_LENGTH,
   MAX_QUERY_LENGTH,
   MAX_URL_LENGTH,
   REQUEST_LOG_TRUNCATION_MARKER,
@@ -22,6 +23,7 @@ export interface RouteNotFoundLogRecord {
   params: unknown;
   clientIp: string;
   actorId?: string | undefined;
+  requestEmail?: string | null;
 }
 
 const listSelect = {
@@ -53,10 +55,8 @@ export class RouteNotFoundLogsRepository {
         reqBody: serialize(record.body, MAX_BODY_LENGTH),
         reqParams: serialize(record.params, MAX_PARAMS_LENGTH),
         reqIp: truncate(record.clientIp, MAX_CLIENT_IP_LENGTH),
-        // `reqUserEmail` stays empty on purpose: the modern flow records the
-        // actor id from the auth boundary and never the actor email.
         reqUserId: truncate(record.actorId ?? '', MAX_ACTOR_ID_LENGTH),
-        reqUserEmail: '',
+        reqUserEmail: truncate(record.requestEmail ?? '', MAX_REQUEST_EMAIL_LENGTH),
         createdAt: new Date(),
       },
     });
