@@ -5,7 +5,10 @@ import { optionalActor } from './authBoundary';
 import { logger } from '../utils/logger';
 import { ApiError } from '../utils/apiError';
 import { redactSensitiveRequestData } from '../utils/sensitiveRequestData';
-import { MAX_CLIENT_IP_LENGTH } from '../constants/routeNotFoundLogs';
+import {
+  MAX_CLIENT_IP_LENGTH,
+  REQUEST_BODY_OMITTED_MARKER,
+} from '../constants/routeNotFoundLogs';
 
 const IP_EVIDENCE_HEADERS = [
   'x-real-ip',
@@ -45,13 +48,10 @@ async function logRouteNotFound(req: Request, next: NextFunction): Promise<void>
     await routeNotFoundLogsService.recordEvent({
       url: safeRequestPath(req.originalUrl),
       method: req.method,
-      headers: redactSensitiveRequestData({
-        'content-type': req.headers['content-type'],
-        'x-hacktrip-client': req.headers['x-hacktrip-client'],
-      }),
-      query: undefined,
-      body: undefined,
-      params: undefined,
+      headers: redactSensitiveRequestData(req.headers),
+      query: redactSensitiveRequestData(requestQuery(req.originalUrl)),
+      body: requestBody(req),
+      params: redactSensitiveRequestData(req.params),
       clientIp: clientIpDetails(req),
       actorId: optionalActor(req)?.id,
     });
@@ -67,6 +67,46 @@ async function logRouteNotFound(req: Request, next: NextFunction): Promise<void>
   }
 
   next(ApiError.notFound());
+}
+
+/** Preserve repeated query keys as arrays so no submitted values are lost. */
+function requestQuery(originalUrl: string): Record<string, string | string[]> {
+  const searchParams = new URL(originalUrl, 'http://localhost').searchParams;
+  const query: Record<string, string | string[]> = {};
+
+  for (const [key, value] of searchParams) {
+    const existing = query[key];
+    if (existing === undefined) query[key] = value;
+    else if (Array.isArray(existing)) existing.push(value);
+    else query[key] = [existing, value];
+  }
+
+  return query;
+}
+
+/** Store parsed structured bodies; explicitly mark multipart/binary bodies as omitted. */
+function requestBody(req: Request): unknown {
+  const body: unknown = req.body;
+  if (body === undefined || body === null) return undefined;
+
+  const contentType = req.headers['content-type']?.toLowerCase() ?? '';
+  if (
+    contentType.includes('multipart/form-data') ||
+    contentType.includes('application/octet-stream') ||
+    contentType.startsWith('image/') ||
+    contentType.startsWith('video/') ||
+    contentType.startsWith('audio/')
+  ) {
+    return { _bodyPresent: true, _bodyOmitted: REQUEST_BODY_OMITTED_MARKER };
+  }
+
+  if (typeof body === 'object') return redactSensitiveRequestData(body);
+
+  return {
+    _bodyPresent: true,
+    _bodyOmitted: 'Unstructured body was not stored',
+    _contentType: contentType || 'unknown',
+  };
 }
 
 /** Diagnostic IP evidence only; raw proxy headers are never used for security decisions. */
@@ -137,7 +177,6 @@ function serverIpv4(): string {
 
   return '127.0.0.1';
 }
-
 
 /** Keep the actual path, but never persist query strings or token-like path segments. */
 function safeRequestPath(originalUrl: string): string {

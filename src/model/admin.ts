@@ -34,9 +34,12 @@ export interface RouteNotFoundLogDto {
 export interface RouteNotFoundLogSummary {
   id: number;
   reqUrl: string | null;
-  reqHeaders: string | null;
-  date: string | null;
   reqMethod: string | null;
+  reqHeaders: string | null;
+  reqQuery: string | null;
+  reqBody: string | null;
+  reqParams: string | null;
+  date: string | null;
   reqIp: string | null;
   reqUserId: string | null;
   reqUserEmail: string | null;

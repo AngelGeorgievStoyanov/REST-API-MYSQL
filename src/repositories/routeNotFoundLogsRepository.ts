@@ -9,6 +9,7 @@ import {
   MAX_PARAMS_LENGTH,
   MAX_QUERY_LENGTH,
   MAX_URL_LENGTH,
+  REQUEST_LOG_TRUNCATION_MARKER,
 } from '../constants/routeNotFoundLogs';
 
 /** One route-not-found event as accepted by the repository. */
@@ -26,9 +27,12 @@ export interface RouteNotFoundLogRecord {
 const listSelect = {
   id: true,
   reqUrl: true,
-  reqHeaders: true,
-  date: true,
   reqMethod: true,
+  reqHeaders: true,
+  reqQuery: true,
+  reqBody: true,
+  reqParams: true,
+  date: true,
   reqIp: true,
   reqUserId: true,
   reqUserEmail: true,
@@ -76,7 +80,10 @@ export class RouteNotFoundLogsRepository {
 }
 
 function truncate(value: string, maxLength: number): string {
-  return value.length > maxLength ? value.substring(0, maxLength) : value;
+  if (value.length <= maxLength) return value;
+
+  const suffix = REQUEST_LOG_TRUNCATION_MARKER;
+  return `${value.substring(0, maxLength - suffix.length)}${suffix}`;
 }
 
 function serialize(value: unknown, maxLength: number): string {

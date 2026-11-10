@@ -1725,7 +1725,14 @@ Admin pagination query (strict, shared by all admin list endpoints):
 - Role: `admin` or `manager`.
 - Response `200`: `AdminPage<RouteNotFoundLogDto>` (newest first).
 - Scope: records unmatched endpoints only after a request has entered one of the explicitly instrumented resource routers. The final API v1 fallback does not log arbitrary unknown paths, so nonexistent API roots and random scanner paths are not added to this table.
-- `reqUrl` contains the actual request pathname (including the API prefix), without its query string. Token-like path segments are redacted. `reqHeaders` contains only the allowlisted `content-type` and `x-hacktrip-client` headers. Query, body and params are deliberately not stored/exposed to avoid leaking credentials, tokens, cookies or personal data.
+- `reqUrl` contains the actual request pathname (including the API prefix), without its query string. Token-like path segments are redacted.
+- `reqHeaders` stores the parsed request headers as a JSON string. Sensitive header values are replaced with `[REDACTED]`; the header names remain visible.
+- `reqQuery` stores query parameters as JSON. Repeated query keys are preserved as arrays.
+- `reqBody` stores parsed object/array bodies as JSON. Multipart and binary bodies are not stored; a body-present omission marker is stored instead. Unstructured string bodies are also represented by an omission marker.
+- `reqParams` stores the Express route params object as JSON.
+- Sensitive values are redacted recursively by field name (passwords, tokens, secrets, authorization, cookies, API keys, credentials, private keys, sessions and signatures). The field name remains in the log with the value `[REDACTED]`, so the Admin can see that the request contained that field.
+- Request diagnostics are bounded by the existing live database column widths: URL 145, headers 1000, query 145, body 1000, params 145 characters. Values exceeding a column limit end with `...[TRUNCATED]`. These limits are not a reason to silently omit the fields.
+- Scope remains router-local: arbitrary unknown API roots and random scanner paths that never enter an instrumented router are not logged.
 
 `RouteNotFoundLogDto`:
 
@@ -1736,16 +1743,16 @@ Admin pagination query (strict, shared by all admin list endpoints):
   "reqUrl": null | "<string>",
   "reqMethod": null | "<string>",
   "reqHeaders": null | "<JSON string>",
-  "reqQuery": null,
-  "reqBody": null,
-  "reqParams": null,
+  "reqQuery": null | "<JSON string>",
+  "reqBody": null | "<JSON string>",
+  "reqParams": null | "<JSON string>",
   "reqIp": null | "<string>",
   "reqUserId": null | "<uuid>",
   "reqUserEmail": null | "<string>"
 }
 ```
 
-> The detail fields (`reqUrl`, `reqHeaders`, `reqQuery`, `reqBody`, `reqParams`) are always `null` in the response: only the summary columns are returned.
+> The list endpoint now returns the stored diagnostic detail fields. Sensitive values are represented by `[REDACTED]`; the presence and name of each sensitive field remain visible.
 
 ### 16.7 GET `/admin/images/cloud`
 

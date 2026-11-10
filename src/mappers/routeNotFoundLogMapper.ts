@@ -5,9 +5,9 @@ function toRouteNotFoundLogDto(row: RouteNotFoundLogSummary): RouteNotFoundLogDt
     ...row,
     reqUrl: row.reqUrl,
     reqHeaders: row.reqHeaders,
-    reqQuery: null,
-    reqBody: null,
-    reqParams: null,
+    reqQuery: row.reqQuery,
+    reqBody: row.reqBody,
+    reqParams: row.reqParams,
   };
 }
 
