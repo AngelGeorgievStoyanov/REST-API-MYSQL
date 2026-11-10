@@ -1,6 +1,6 @@
 import { type PrismaClient } from '@prisma/client';
 import { SOCIAL_TARGET_TYPE } from '../constants/social';
-import { type AdminReportTargetDto, type ReportTargetRef } from '../model/report';
+import { type AdminReportTargetRecord, type ReportTargetRef } from '../model/report';
 import { type SocialTargetContext, type SocialTargetType } from '../model/social';
 import { ApiError } from '../utils/apiError';
 import { type TargetTypeRepository } from './targetTypeRepository';
@@ -122,7 +122,7 @@ export class SocialTargetRepository {
    */
   async findAdminTargets(
     targets: ReportTargetRef[],
-  ): Promise<Map<string, AdminReportTargetDto>> {
+  ): Promise<Map<string, Exclude<AdminReportTargetRecord, null>>> {
     const idsFor = (targetType: SocialTargetType): number[] =>
       targets.filter((target) => target.targetType === targetType).map((target) => target.targetId);
 
@@ -178,7 +178,7 @@ export class SocialTargetRepository {
       }),
     ]);
 
-    const result = new Map<string, AdminReportTargetDto>();
+    const result = new Map<string, Exclude<AdminReportTargetRecord, null>>();
 
     for (const group of groups) {
       result.set(adminTargetKey(SOCIAL_TARGET_TYPE.TRIP_GROUP, group.id), {
