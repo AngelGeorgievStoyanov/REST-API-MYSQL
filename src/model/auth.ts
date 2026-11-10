@@ -26,6 +26,7 @@ export interface AuthUserDto {
   role: string;
   status: string;
   emailVerified: boolean;
+  profileImage: import('./image').ImageDto | null;
   createdAt: string | null;
   updatedAt: string | null;
   countOfLogs: number | null;
@@ -46,6 +47,7 @@ export interface AuthUserRecord {
 
 /** Additional fields selected only for administrative user views. */
 export interface AdminAuthUserRecord extends AuthUserRecord {
+  profileImage: import('./image').ImageRecord | null;
   createdAt: Date | null;
   updatedAt: Date | null;
   countOfLogs: bigint | null;
