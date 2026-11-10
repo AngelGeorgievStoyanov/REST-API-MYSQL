@@ -121,7 +121,7 @@ export class AuthUserRepository {
     role?: UserRole,
   ): Promise<AdminAuthUserRecord[]> {
     return this.prisma.user.findMany({
-      where: role ? { role } : undefined,
+      ...(role ? { where: { role } } : {}),
       orderBy: [{ email: 'asc' }, { id: 'asc' }],
       skip,
       take,
@@ -135,7 +135,7 @@ export class AuthUserRepository {
   }
 
   async countUsers(role?: UserRole): Promise<number> {
-    return this.prisma.user.count({ where: role ? { role } : undefined });
+    return this.prisma.user.count(role ? { where: { role } } : {});
   }
 
   async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AdminAuthUserRecord> {
