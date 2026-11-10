@@ -43,7 +43,7 @@ async function runRouteNotFoundLogging(req: Request, next: NextFunction): Promis
 async function logRouteNotFound(req: Request, next: NextFunction): Promise<void> {
   try {
     await routeNotFoundLogsService.recordEvent({
-      url: req.baseUrl,
+      url: safeRequestPath(req.originalUrl),
       method: req.method,
       headers: redactSensitiveRequestData({
         'content-type': req.headers['content-type'],
@@ -60,7 +60,7 @@ async function logRouteNotFound(req: Request, next: NextFunction): Promise<void>
       {
         err: error,
         method: req.method,
-        url: req.baseUrl,
+        url: safeRequestPath(req.originalUrl),
       },
       'Route-not-found log failed',
     );
@@ -136,4 +136,14 @@ function serverIpv4(): string {
   }
 
   return '127.0.0.1';
+}
+
+
+/** Keep the actual path, but never persist query strings or token-like path segments. */
+function safeRequestPath(originalUrl: string): string {
+  const pathname = originalUrl.split('?', 1)[0] ?? '/';
+  return pathname.replace(
+    /(?:[A-Fa-f0-9]{48,}|[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{10,})/g,
+    '[REDACTED]',
+  );
 }
