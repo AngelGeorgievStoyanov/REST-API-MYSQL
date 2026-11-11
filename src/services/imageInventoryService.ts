@@ -37,6 +37,7 @@ export class ImageInventoryService {
     let databaseHasMore = true;
 
     while (missing.length < targetCount && databaseHasMore) {
+      // eslint-disable-next-line no-await-in-loop -- scan DB pages sequentially to preserve filtered pagination.
       const rows = await this.images.listImageRecordsPage(skip, scanBatchSize);
       databaseHasMore = rows.length === scanBatchSize;
       skip += rows.length;
@@ -44,6 +45,7 @@ export class ImageInventoryService {
       // fan out into 200 simultaneous storage requests.
       for (let index = 0; index < rows.length; index += 10) {
         const batch = rows.slice(index, index + 10);
+        // eslint-disable-next-line no-await-in-loop -- process small GCS batches sequentially to cap request concurrency.
         const checks = await Promise.all(batch.map(async (row) => {
           const objectPath = toStorageObjectPath(row.filePath, baseUrl);
           if (!objectPath) return null;
@@ -85,6 +87,7 @@ export class ImageInventoryService {
         continue;
       }
       try {
+        // eslint-disable-next-line no-await-in-loop -- sequential generation keeps memory and GCS load bounded.
         const objectPath = toStorageObjectPath(row.filePath, getImageBaseUrl());
         const status = objectPath
           ? await this.storage.generateThumbnail(objectPath)
