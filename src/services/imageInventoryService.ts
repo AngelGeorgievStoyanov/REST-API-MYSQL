@@ -1,10 +1,12 @@
 import { type AdminPage } from '../model/admin';
-import { type ImageInventoryComparison } from '../model/image';
+import { type GenerateThumbnailsResponse, type ImageInventoryComparison, type MissingThumbnailPageDto } from '../model/image';
 import { type ImageRepository } from '../repositories/imageRepository';
 import { type ImageInventoryStorage, thumbnailFileName } from '../storage/imageFileStorage';
 import { toAdminCursorPageDto, toAdminPageDto } from '../mappers/adminMapper';
 import { toImageInventoryComparison } from '../mappers/imageInventoryMapper';
 import { parseAdminPagination } from '../utils/adminPagination';
+import { getImageBaseUrl } from '../utils/image';
+import { toImageDto } from '../mappers/imageMapper';
 
 /** The difference between the flat GCS bucket and the `images` table. */
 
@@ -13,6 +15,82 @@ export class ImageInventoryService {
     private readonly images: ImageRepository,
     private readonly storage: ImageInventoryStorage,
   ) {}
+
+  /**
+   * Scan database rows in stable batches and return only rows whose original
+   * object exists in GCS while the derived thumbnail sidecar is absent.
+   * Pagination applies to the filtered result, not the raw database rows.
+   */
+  async missingThumbnails(query: unknown): Promise<MissingThumbnailPageDto> {
+    const pagination = parseAdminPagination(query);
+    const pageStart = (pagination.page - 1) * pagination.pageSize;
+    const targetCount = pageStart + pagination.pageSize + 1;
+    const scanBatchSize = 100;
+    const missing: Array<{ id: number; filePath: string }> = [];
+    let skip = 0;
+    let databaseHasMore = true;
+
+    while (missing.length < targetCount && databaseHasMore) {
+      const rows = await this.images.listImageRecordsPage(skip, scanBatchSize);
+      databaseHasMore = rows.length === scanBatchSize;
+      skip += rows.length;
+      const checks = await Promise.all(rows.map(async (row) => {
+        const [originalExists, thumbnailExists] = await Promise.all([
+          this.storage.exists(row.filePath),
+          this.storage.exists(thumbnailFileName(row.filePath)),
+        ]);
+        return originalExists && !thumbnailExists ? row : null;
+      }));
+      for (const row of checks) if (row) missing.push(row);
+      if (rows.length === 0) databaseHasMore = false;
+    }
+
+    const selected = missing.slice(pageStart, pageStart + pagination.pageSize);
+    const baseUrl = getImageBaseUrl();
+    return {
+      items: selected.map((row) => toImageDto(row, baseUrl)),
+      pagination: {
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        hasNext: missing.length > pageStart + pagination.pageSize,
+      },
+    };
+  }
+
+  /** Generates thumbnails only for explicitly selected database image IDs. */
+  async generateThumbnails(ids: number[]): Promise<GenerateThumbnailsResponse> {
+    const rows = await this.images.findByIds(ids);
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const results: GenerateThumbnailsResponse['results'] = [];
+
+    for (const imageId of ids) {
+      const row = byId.get(imageId);
+      if (!row) {
+        results.push({ imageId, status: 'not_found' });
+        continue;
+      }
+      try {
+        const status = await this.storage.generateThumbnail(row.filePath);
+        results.push({ imageId, status });
+      } catch {
+        results.push({ imageId, status: 'failed' });
+      }
+    }
+
+    const count = (status: GenerateThumbnailsResponse['results'][number]['status']) =>
+      results.filter((result) => result.status === status).length;
+
+    return {
+      results,
+      summary: {
+        generated: count('generated'),
+        alreadyExists: count('already_exists'),
+        originalMissing: count('original_missing'),
+        notFound: count('not_found'),
+        failed: count('failed'),
+      },
+    };
+  }
 
   async cloudImages(query: unknown): Promise<AdminPage<string>> {
     const pagination = parseAdminPagination(query);
