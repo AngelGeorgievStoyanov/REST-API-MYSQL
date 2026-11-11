@@ -34,3 +34,32 @@ export interface ImageInventoryComparison {
 export interface SocialImageDto extends ImageDto {
   social: SocialState;
 }
+
+
+/** Admin queue item: a database image whose original exists in GCS but thumbnail does not. */
+export interface MissingThumbnailImageDto extends ImageDto {}
+
+export interface MissingThumbnailPageDto {
+  items: MissingThumbnailImageDto[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    hasNext: boolean;
+  };
+}
+
+export interface GenerateThumbnailResult {
+  imageId: number;
+  status: 'generated' | 'already_exists' | 'original_missing' | 'not_found' | 'failed';
+}
+
+export interface GenerateThumbnailsResponse {
+  results: GenerateThumbnailResult[];
+  summary: {
+    generated: number;
+    alreadyExists: number;
+    originalMissing: number;
+    notFound: number;
+    failed: number;
+  };
+}
