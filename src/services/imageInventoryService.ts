@@ -87,8 +87,8 @@ export class ImageInventoryService {
         continue;
       }
       try {
-        // eslint-disable-next-line no-await-in-loop -- sequential generation keeps memory and GCS load bounded.
         const objectPath = toStorageObjectPath(row.filePath, getImageBaseUrl());
+        // eslint-disable-next-line no-await-in-loop -- sequential generation keeps memory and GCS load bounded.
         const status = objectPath
           ? await this.storage.generateThumbnail(objectPath)
           : 'original_missing';
