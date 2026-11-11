@@ -101,6 +101,15 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     );
     if (dupGroupDay !== null) inputs.push({ stmt: 'UNIQUE trips(tripGroupId, dayNumber)', n: dupGroupDay });
   }
+  // These legacy trip fields are required by the final Prisma model. Check them
+  // before activation so MySQL never fails midway through ALTER ... NOT NULL.
+  for (const column of ['transport', 'typeOfPeople']) {
+    const nulls = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} WHERE ${qi(column)} IS NULL`);
+    inputs.push(nulls === null
+      ? { stmt: `trips.${column} NOT NULL ready`, pending: `trips.${column} column missing (ddl phase not applied yet)` }
+      : { stmt: `trips.${column} NOT NULL ready`, n: nulls });
+  }
+
   // trips.dayNumber is NOT NULL in the target schema (V6): a NULL ordinal blocks
   // the NOT NULL activation, exactly like trips.tripGroupId / points.tripId above.
   const dayNumberNull = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} WHERE ${qi('dayNumber')} IS NULL`);
