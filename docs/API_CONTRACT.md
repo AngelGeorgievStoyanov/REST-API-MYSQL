@@ -2715,3 +2715,30 @@ The following currently implemented capabilities are part of this API contract. 
 17. **Existing endpoints continue to follow the authentication, security, image, comment, trip, schema, and DTO rules defined in this contract unless a specific section states otherwise.**
 18. **Keep the endpoint inventory, schemas, DTOs, and security rules aligned with the implemented backend when they evolve.
 19. **`GET /auth/session` is the only new session-presence probe: it is read-only, returns only `hasSession`, and must not rotate or expose refresh/access tokens or user identity.**
+
+
+## Admin image thumbnail maintenance
+
+All routes below are mounted under `/api/v1/admin` and require the existing admin/moderator authentication boundary (currently Admin and Manager), plus the admin rate limiter.
+
+### List images missing thumbnails
+
+`GET /images/missing-thumbnails?page=1&pageSize=50`
+
+Returns database-backed images only when the original object exists in the primary GCS image bucket and the expected `_thumb.webp` sidecar does not exist. The database is the source of truth: GCS-only orphan objects are not included. Each item uses the normal `ImageDto` shape (`id`, `url`, `thumbnailUrl`); for this queue, `url` is used as the preview source because the thumbnail is absent. Pagination is applied to the filtered result and exposes `hasNext`.
+
+### Generate selected thumbnails
+
+`POST /images/generate-thumbnails`
+
+Request body:
+
+```json
+{
+  "imageIds": [12, 18, 25]
+}
+```
+
+The body is strict, requires 1–100 unique positive image IDs, and does not accept client-supplied object paths. The backend resolves every ID through the images table, rechecks the original and thumbnail objects in GCS, and creates only a missing thumbnail using the configured 400×300 WebP recipe. GCS creation uses `ifGenerationMatch: 0`, so concurrent requests cannot overwrite an existing thumbnail.
+
+The response contains a per-image status (`generated`, `already_exists`, `original_missing`, `not_found`, or `failed`) and summary counts. One failed image does not prevent processing the other selected images. The client should refresh the missing-thumbnail list after the operation.
