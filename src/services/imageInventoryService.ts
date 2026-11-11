@@ -34,14 +34,20 @@ export class ImageInventoryService {
       const rows = await this.images.listImageRecordsPage(skip, scanBatchSize);
       databaseHasMore = rows.length === scanBatchSize;
       skip += rows.length;
-      const checks = await Promise.all(rows.map(async (row) => {
-        const [originalExists, thumbnailExists] = await Promise.all([
-          this.storage.exists(row.filePath),
-          this.storage.exists(thumbnailFileName(row.filePath)),
-        ]);
-        return originalExists && !thumbnailExists ? row : null;
-      }));
-      for (const row of checks) if (row) missing.push(row);
+      // Limit concurrent GCS metadata requests; scanning 100 DB rows must not
+      // fan out into 200 simultaneous storage requests.
+      for (let index = 0; index < rows.length; index += 10) {
+        const batch = rows.slice(index, index + 10);
+        const checks = await Promise.all(batch.map(async (row) => {
+          const [originalExists, thumbnailExists] = await Promise.all([
+            this.storage.exists(row.filePath),
+            this.storage.exists(thumbnailFileName(row.filePath)),
+          ]);
+          return originalExists && !thumbnailExists ? row : null;
+        }));
+        for (const row of checks) if (row) missing.push(row);
+        if (missing.length >= targetCount) break;
+      }
       if (rows.length === 0) databaseHasMore = false;
     }
 
