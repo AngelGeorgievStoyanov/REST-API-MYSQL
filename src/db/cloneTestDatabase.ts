@@ -1,4 +1,6 @@
 import dotenv = require('dotenv');
+import fs = require('fs');
+import path = require('path');
 import mysql = require('mysql');
 
 import { DEFAULT_MYSQL_PORT, MAX_TCP_PORT, MIN_TCP_PORT } from '../constants/database';
@@ -53,7 +55,7 @@ export function helpText(): string {
   return [
     'Clone/reset the test database from the current source database.',
     '',
-    '  npm run db:clone-test                 DROP + CREATE target, then copy source',
+    '  npm run db:clone-test                 DROP + CREATE target, clone source, create lookup tables + seed',
     '  npm run db:clone-test:dry-run         read-only: print the SQL that would run',
     '  npm run db:clone-test -- --confirm    required for non-localhost servers',
     '  npm run db:clone-test -- --help       this text',
@@ -68,7 +70,9 @@ export function helpText(): string {
     'equal to the source (ignoring case and `-`/`_`) is refused. Tables are',
     'recreated from SHOW CREATE TABLE, so columns, primary keys, unique keys,',
     'indexes, CHECK constraints, foreign keys and table options are preserved;',
-    'the data is copied server-side with INSERT ... SELECT.',
+    'the data is copied server-side with INSERT ... SELECT. After the clone, the',
+    'four lookup/service tables are created when absent and prisma/seed.sql is',
+    'applied to the target, independent of which source database was selected.',
     '',
     'Exit codes: 0 = completed (warnings possible), 1 = unexpected error or',
     '            verification mismatch, 2 = guard/preflight refusal.',
@@ -508,6 +512,7 @@ function printBaseDryRun(cfg: CloneConfig, targetExists: boolean): void {
       '   -- read once the source database is reachable',
   );
   console.log('  CREATE TABLE / INSERT ... SELECT for every source table (see --dry-run with a reachable source)');
+  console.log('  Apply missing lookup/service table DDL + prisma/seed.sql to target');
   console.log('  SET SESSION FOREIGN_KEY_CHECKS = 1;');
 }
 
@@ -547,6 +552,7 @@ async function printDryRun(
     console.log(indent((await createTriggerStatement(conn, cfg, trigger)) + ';', '  '));
   }
   console.log('  SET SESSION FOREIGN_KEY_CHECKS = 1;');
+  console.log('  -- after clone verification: create missing lookup/service tables and execute prisma/seed.sql');
   console.log(
     `PLAN-TOTAL source rows=${totalRows} tables=${plan.tables.length} views=${plan.views.length} triggers=${plan.triggers.length}`,
   );
@@ -642,6 +648,157 @@ async function copyViewsAndTriggers(
   }
 }
 
+const LOOKUP_TABLES = ['select_types', 'select_options', 'service_types', 'service_configs'] as const;
+
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | '`' | null = null;
+  let escaped = false;
+
+  for (let i = 0; i < sql.length; i += 1) {
+    const char = sql[i] ?? '';
+    if (quote !== null) {
+      current += char;
+      if (escaped) escaped = false;
+      else if (char === '\\\\') escaped = true;
+      else if (char === quote) {
+        if (sql[i + 1] === quote) {
+          current += sql[i + 1];
+          i += 1;
+        } else quote = null;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      current += char;
+    } else if (char === ';') {
+      if (current.trim() !== '') statements.push(current.trim());
+      current = '';
+    } else current += char;
+  }
+  if (current.trim() !== '') statements.push(current.trim());
+  return statements;
+}
+
+function stripLeadingSqlComments(statement: string): string {
+  return statement.replace(/^(?:\\s*--[^\\r\\n]*(?:\\r?\\n|$))+/g, '').trim();
+}
+
+async function targetTableExists(
+  conn: mysql.Connection,
+  db: string,
+  table: string,
+): Promise<boolean> {
+  const rows = await q<Row[]>(
+    conn,
+    "SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND TABLE_TYPE = 'BASE TABLE'",
+    [db, table],
+  );
+  return num(rows[0]?.['c']) > 0;
+}
+
+async function targetForeignKeyExists(
+  conn: mysql.Connection,
+  db: string,
+  table: string,
+  constraint: string,
+): Promise<boolean> {
+  const rows = await q<Row[]>(
+    conn,
+    "SELECT COUNT(*) AS c FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
+    [db, table, constraint],
+  );
+  return num(rows[0]?.['c']) > 0;
+}
+
+/** Build the lookup schema from the checked-in Prisma migration, then seed only the target DB. */
+export async function ensureLookupTablesAndSeed(
+  conn: mysql.Connection,
+  cfg: CloneConfig,
+): Promise<void> {
+  const migrationPath = path.resolve(
+    __dirname,
+    '../../prisma/migrations/20260927140000_create_selects_and_service_configs/migration.sql',
+  );
+  const seedPath = path.resolve(__dirname, '../../prisma/seed.sql');
+  if (!fs.existsSync(migrationPath)) throw new Error(`Lookup migration not found: ${migrationPath}`);
+  if (!fs.existsSync(seedPath)) throw new Error(`Database seed not found: ${seedPath}`);
+
+  await q(conn, `USE ${qi(cfg.targetDb)}`);
+  console.log('[seed] ensuring lookup/service table schema from Prisma migration');
+
+  for (const rawStatement of splitSqlStatements(fs.readFileSync(migrationPath, 'utf8'))) {
+    const statement = stripLeadingSqlComments(rawStatement);
+    const createMatch = statement.match(/^CREATE\\s+TABLE\\s+`([^\`]+)`/i);
+    const foreignKeyMatch = statement.match(
+      /^ALTER\\s+TABLE\\s+`([^\`]+)`\\s+ADD\\s+CONSTRAINT\\s+`([^\`]+)`/i,
+    );
+
+    if (createMatch) {
+      const table = createMatch[1] ?? '';
+      if (!(await targetTableExists(conn, cfg.targetDb, table))) {
+        await q(conn, statement);
+        console.log(`[seed:ddl] created ${table}`);
+      } else {
+        console.log(`[seed:ddl] already exists ${table}`);
+      }
+      continue;
+    }
+
+    if (foreignKeyMatch) {
+      const table = foreignKeyMatch[1] ?? '';
+      const constraint = foreignKeyMatch[2] ?? '';
+      if (!(await targetForeignKeyExists(conn, cfg.targetDb, table, constraint))) {
+        if (!(await targetTableExists(conn, cfg.targetDb, table))) {
+          throw new Error(`Cannot add ${constraint}: target table ${table} is missing.`);
+        }
+        await q(conn, statement);
+        console.log(`[seed:ddl] added foreign key ${constraint}`);
+      } else {
+        console.log(`[seed:ddl] already exists foreign key ${constraint}`);
+      }
+    }
+  }
+
+  for (const table of LOOKUP_TABLES) {
+    if (!(await targetTableExists(conn, cfg.targetDb, table))) {
+      throw new Error(`Required lookup table was not created: ${table}`);
+    }
+  }
+
+  console.log('[seed] applying prisma/seed.sql to target database');
+  for (const statement of splitSqlStatements(fs.readFileSync(seedPath, 'utf8'))) {
+    await q(conn, statement);
+  }
+
+  const minimumRows: Array<[string, number]> = [
+    ['select_types', 3],
+    ['select_options', 192],
+    ['service_types', 5],
+    ['service_configs', 20],
+  ];
+  for (const [table, minimum] of minimumRows) {
+    const count = await rowCount(conn, cfg.targetDb, table);
+    if (count < minimum) {
+      throw new Error(`Seed verification failed for ${table}: expected at least ${minimum}, found ${count}.`);
+    }
+    console.log(`[seed:verify] ${table}: ${count} rows`);
+  }
+
+  const requiredForeignKeys = [
+    ['select_options', 'fk_select_options_type'],
+    ['service_configs', 'fk_service_configs_type'],
+  ] as const;
+  for (const [table, constraint] of requiredForeignKeys) {
+    if (!(await targetForeignKeyExists(conn, cfg.targetDb, table, constraint))) {
+      throw new Error(`Seed verification failed: missing foreign key ${constraint} on ${table}.`);
+    }
+  }
+  console.log('[seed] lookup/service schema and seed verified');
+}
+
 export async function executeClone(
   conn: mysql.Connection,
   cfg: CloneConfig,
@@ -666,19 +823,21 @@ export async function executeClone(
   console.log('EXEC SET SESSION FOREIGN_KEY_CHECKS = 1;');
 
   const mismatches = await verifyClone(conn, cfg, plan);
-  for (const warning of warnings) console.log('WARN ' + warning);
-
   if (mismatches.length > 0) {
     console.error('CLONE_MISMATCH');
     for (const mismatch of mismatches) console.error('  - ' + mismatch);
     process.exitCode = 1;
     return;
   }
+
+  await ensureLookupTablesAndSeed(conn, cfg);
+  for (const warning of warnings) console.log('WARN ' + warning);
+
   console.log(
-    `CLONE_DONE \`${cfg.targetDb}\` is a clean copy of \`${cfg.sourceDb}\` ` +
-      `(tables=${plan.tables.length} rows=${copiedRows} warnings=${warnings.length}).`,
+    `CLONE_DONE \`${cfg.targetDb}\` is a ready test database cloned from \`${cfg.sourceDb}\` ` +
+      `(sourceTables=${plan.tables.length} sourceRows=${copiedRows} warnings=${warnings.length}).`,
   );
-  console.log('Point DATABASE_URL at the target database before running migration tests.');
+  console.log('Lookup/service tables and seed data are ready. Point DATABASE_URL at the target database before running migration tests.');
 }
 
 export async function verifyClone(
