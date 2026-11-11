@@ -125,4 +125,5 @@ export const gcsImageFileStorage: ImageFileStorage & ImageInventoryStorage = {
   },
   listPage: listPageFromGcs,
   exists: existsInGcs,
+  generateThumbnail: generateThumbnailInGcs,
 };
