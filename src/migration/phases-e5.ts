@@ -24,6 +24,57 @@ async function indexExists(prisma: PrismaClient, db: string, table: string, name
   return rows.length > 0;
 }
 
+/**
+ * MySQL requires identical character set and collation for string FK columns.
+ * Legacy user IDs keep the collation of the original users._id column, while
+ * some newly-created FK columns inherit the target database default. Align
+ * every users FK column to the actual final users.id definition before adding
+ * constraints. Existing nullability and VARCHAR(36) shape are preserved.
+ */
+async function alignUserForeignKeyCollations(prisma: PrismaClient, db: string): Promise<number> {
+  const userRows = (await prisma.$queryRawUnsafe(
+    `SELECT CHARACTER_SET_NAME AS characterSet, COLLATION_NAME AS collation
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'id'`,
+  )) as Array<{ characterSet: string | null; collation: string | null }>;
+  const userColumn = userRows[0];
+  const characterSet = String(userColumn?.characterSet || '');
+  const collation = String(userColumn?.collation || '');
+  if (!/^[a-z0-9_]+$/i.test(characterSet) || !/^[a-z0-9_]+$/i.test(collation)) {
+    throw new Error('Cannot safely resolve users.id character set/collation for user foreign keys.');
+  }
+
+  let altered = 0;
+  const userForeignKeys = FKS.filter(([, , , refTable]) => refTable === 'users');
+  for (const [, table, column] of userForeignKeys) {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT COLUMN_TYPE AS columnType, CHARACTER_SET_NAME AS characterSet,
+              COLLATION_NAME AS collation, IS_NULLABLE AS isNullable
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}'
+         AND COLUMN_NAME = '${esc(column)}'`,
+    )) as Array<{ columnType: string; characterSet: string | null; collation: string | null; isNullable: string }>;
+    const current = rows[0];
+    if (!current) {
+      throw new Error(`Cannot align missing user FK column ${table}.${column}.`);
+    }
+    if (String(current.columnType).toLowerCase() !== 'varchar(36)') {
+      throw new Error(
+        `Unexpected type for user FK column ${table}.${column}: ${current.columnType}; expected VARCHAR(36).`,
+      );
+    }
+    if (current.characterSet === characterSet && current.collation === collation) continue;
+
+    const nullable = String(current.isNullable).toUpperCase() === 'YES';
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, table)} MODIFY COLUMN ${qi(column)}
+       VARCHAR(36) CHARACTER SET ${characterSet} COLLATE ${collation} ${nullable ? 'NULL' : 'NOT NULL'}`,
+    );
+    altered++;
+  }
+  return altered;
+}
+
 
 /** The exact final FK set: [name, table, column, refTable, refColumn, onDelete].
  *  Empty refColumn = the live `users` key column. ON UPDATE stays at the MySQL
@@ -197,6 +248,11 @@ export async function phaseActivate(prisma: PrismaClient, db: string, runId: num
     );
     c.migrated++;
   }
+
+  // All string FKs to users.id must use the referenced column's exact
+  // charset/collation. This also covers new tables created with the database
+  // default and is idempotent on reruns.
+  c.migrated += await alignUserForeignKeyCollations(prisma, db);
 
   // 4. Polymorphic comments: targetTypeId/targetId narrowed to NOT NULL once
   //    the data is complete.
