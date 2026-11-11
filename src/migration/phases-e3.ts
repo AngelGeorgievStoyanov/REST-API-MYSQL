@@ -59,7 +59,7 @@ export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId
   }
   try {
     const orphans = toCount((await prisma.$queryRawUnsafe(
-      `SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} t JOIN ${qtable(db, 'migration_state')} s ON s.${qi('entity')} = 'TripGroup' AND s.${qi('legacy_key')} = t.${qi('tripGroupId')} WHERE t.${qi('legacyId')} IS NOT NULL AND t.${qi('tripGroupNewId')} IS NULL AND s.${qi('new_id')} > 0`,
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} t JOIN ${qtable(db, 'migration_state')} s ON s.${qi('entity')} = 'TripGroup' AND s.${qi('legacy_key')} COLLATE utf8mb4_0900_ai_ci = t.${qi('tripGroupId')} COLLATE utf8mb4_0900_ai_ci WHERE t.${qi('legacyId')} IS NOT NULL AND t.${qi('tripGroupNewId')} IS NULL AND s.${qi('new_id')} > 0`,
     )) as Array<Record<string, unknown>>);
     if (dryRun) {
       c.migrated = orphans === 0 ? 1 : 0;
