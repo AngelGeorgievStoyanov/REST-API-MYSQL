@@ -26,6 +26,24 @@ export class ImageRepository {
     return this.prisma.image.count();
   }
 
+  /** Bounded, stable scan used by the admin thumbnail maintenance tool. */
+  async listImageRecordsPage(skip: number, take: number): Promise<ImageRow[]> {
+    return this.prisma.image.findMany({
+      orderBy: { id: 'asc' },
+      skip,
+      take,
+      select: { id: true, filePath: true },
+    });
+  }
+
+  async findByIds(ids: number[]): Promise<ImageRow[]> {
+    if (ids.length === 0) return [];
+    return this.prisma.image.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, filePath: true },
+    });
+  }
+
   async findPathsForCloudObjects(objectPaths: string[]): Promise<string[]> {
     if (objectPaths.length === 0) return [];
 
