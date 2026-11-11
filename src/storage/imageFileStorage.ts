@@ -1,4 +1,4 @@
-import { BUCKET_NAME, THUMBNAIL_SUFFIX } from '../constants/imageStorage';
+import { BUCKET_NAME, IMAGE_THUMBNAIL, THUMBNAIL_SUFFIX } from '../constants/imageStorage';
 import { type File, type GetFilesOptions } from '@google-cloud/storage';
 
 /** A thumbnail is the `_thumb.webp` sidecar of its original in the flat bucket. */
@@ -17,6 +17,8 @@ export interface ImageInventoryStorage {
   /** Object names currently present in the bucket. */
   listPage(page: number, pageSize: number): Promise<{ items: string[]; hasNext: boolean }>;
   exists(filePath: string): Promise<boolean>;
+  /** Creates a missing thumbnail from a database-owned original object. */
+  generateThumbnail(filePath: string): Promise<'generated' | 'already_exists' | 'original_missing'>;
 }
 
 /**
@@ -67,6 +69,50 @@ async function existsInGcs(filePath: string): Promise<boolean> {
   const { gcsClient } = await import('../clients/googleCloudStorage');
   const [exists] = await gcsClient.bucket(BUCKET_NAME).file(filePath).exists();
   return exists;
+}
+
+async function generateThumbnailInGcs(
+  filePath: string,
+): Promise<'generated' | 'already_exists' | 'original_missing'> {
+  const [{ gcsClient }, sharpModule] = await Promise.all([
+    import('../clients/googleCloudStorage'),
+    import('sharp'),
+  ]);
+  const bucket = gcsClient.bucket(BUCKET_NAME);
+  const original = bucket.file(filePath);
+  const thumbnail = bucket.file(thumbnailFileName(filePath));
+  const [[originalExists], [thumbnailExists]] = await Promise.all([
+    original.exists(),
+    thumbnail.exists(),
+  ]);
+
+  if (!originalExists) return 'original_missing';
+  if (thumbnailExists) return 'already_exists';
+
+  const [buffer] = await original.download();
+  const thumbnailBuffer = await sharpModule.default(buffer)
+    .rotate()
+    .resize({
+      width: IMAGE_THUMBNAIL.width,
+      height: IMAGE_THUMBNAIL.height,
+      fit: IMAGE_THUMBNAIL.fit,
+      withoutEnlargement: true,
+    })
+    .webp({ quality: IMAGE_THUMBNAIL.quality })
+    .toBuffer();
+
+  try {
+    await thumbnail.save(thumbnailBuffer, {
+      preconditionOpts: { ifGenerationMatch: 0 },
+      metadata: { contentType: 'image/webp' },
+    });
+    return 'generated';
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && Number(Reflect.get(error, 'code')) === 412) {
+      return 'already_exists';
+    }
+    throw error;
+  }
 }
 
 export const gcsImageFileStorage: ImageFileStorage & ImageInventoryStorage = {
