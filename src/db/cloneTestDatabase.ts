@@ -683,9 +683,8 @@ function splitSqlStatements(sql: string): string[] {
 }
 
 function stripLeadingSqlComments(statement: string): string {
-  return statement.replace(/^(?:\\s*--[^\\r\\n]*(?:\\r?\\n|$))+/g, '').trim();
-    /^(?:\s*--[^\r\n]*(?:\r?\n|$))+/g, '').trim();
-
+  return statement.replace(/^(?:\s*--[^\r\n]*(?:\r?\n|$))+/g, '').trim();
+}
 async function targetTableExists(
   conn: mysql.Connection,
   db: string,
