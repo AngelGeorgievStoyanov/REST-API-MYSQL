@@ -37,7 +37,7 @@ export interface SocialImageDto extends ImageDto {
 
 
 /** Admin queue item: a database image whose original exists in GCS but thumbnail does not. */
-export interface MissingThumbnailImageDto extends ImageDto {}
+export type MissingThumbnailImageDto = ImageDto;
 
 export interface MissingThumbnailPageDto {
   items: MissingThumbnailImageDto[];
