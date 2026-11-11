@@ -70,7 +70,9 @@ export class ImageInventoryService {
   /** Generates thumbnails only for explicitly selected database image IDs. */
   async generateThumbnails(ids: number[]): Promise<GenerateThumbnailsResponse> {
     const rows = await this.images.findByIds(ids);
-    const byId = new Map(rows.map((row) => [row.id, row]));
+    const byId = new Map<number, (typeof rows)[number]>(
+      rows.map((row) => [row.id, row] as const),
+    );
     const results: GenerateThumbnailsResponse['results'] = [];
 
     for (const imageId of ids) {
