@@ -661,7 +661,7 @@ function splitSqlStatements(sql: string): string[] {
     if (quote !== null) {
       current += char;
       if (escaped) escaped = false;
-      else if (char === '\\\\') escaped = true;
+      else if (char === '\\') escaped = true;
       else if (char === quote) {
         if (sql[i + 1] === quote) {
           current += sql[i + 1];
@@ -684,7 +684,7 @@ function splitSqlStatements(sql: string): string[] {
 
 function stripLeadingSqlComments(statement: string): string {
   return statement.replace(/^(?:\\s*--[^\\r\\n]*(?:\\r?\\n|$))+/g, '').trim();
-}
+    /^(?:\s*--[^\r\n]*(?:\r?\n|$))+/g, '').trim();
 
 async function targetTableExists(
   conn: mysql.Connection,
@@ -731,9 +731,9 @@ export async function ensureLookupTablesAndSeed(
 
   for (const rawStatement of splitSqlStatements(fs.readFileSync(migrationPath, 'utf8'))) {
     const statement = stripLeadingSqlComments(rawStatement);
-    const createMatch = statement.match(/^CREATE\\s+TABLE\\s+`([^\`]+)`/i);
+    const createMatch = statement.match(/^CREATE\s+TABLE\s+`([^`]+)`/i);
     const foreignKeyMatch = statement.match(
-      /^ALTER\\s+TABLE\\s+`([^\`]+)`\\s+ADD\\s+CONSTRAINT\\s+`([^\`]+)`/i,
+      /^ALTER\s+TABLE\s+`([^`]+)`\s+ADD\s+CONSTRAINT\s+`([^`]+)`/i,
     );
 
     if (createMatch) {
