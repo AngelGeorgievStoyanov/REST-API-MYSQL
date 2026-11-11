@@ -20,6 +20,7 @@ import {
   adminPaginationQuerySchema,
   adminUserUpdateSchema,
   failedLogDeleteSchema,
+  generateThumbnailsSchema,
 } from '../validation/schemas/admin.schemas';
 
 /**
@@ -129,6 +130,27 @@ adminController.get(
   adminOrModerator,
   asyncHandler(async (req, res) => {
     res.status(200).json(await imageInventoryService.compare(req.query));
+  }),
+);
+
+/** Database-backed queue of originals that exist in GCS but lack thumbnails. */
+adminController.get(
+  '/images/missing-thumbnails',
+  adminLimiter,
+  validateRequest({ query: adminPaginationQuerySchema }),
+  adminOrModerator,
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await imageInventoryService.missingThumbnails(req.query));
+  }),
+);
+
+adminController.post(
+  '/images/generate-thumbnails',
+  adminLimiter,
+  validateRequest({ body: generateThumbnailsSchema }),
+  adminOrModerator,
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await imageInventoryService.generateThumbnails(req.body.imageIds));
   }),
 );
 
