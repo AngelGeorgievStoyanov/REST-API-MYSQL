@@ -37,6 +37,7 @@ export class ImageInventoryService {
     let databaseHasMore = true;
 
     while (missing.length < targetCount && databaseHasMore) {
+      // eslint-disable-next-line no-await-in-loop -- fetch pages sequentially to preserve stable offset pagination.
       const rows = await this.images.listImageRecordsPage(skip, scanBatchSize);
       databaseHasMore = rows.length === scanBatchSize;
       skip += rows.length;
@@ -87,10 +88,12 @@ export class ImageInventoryService {
       }
       try {
         const objectPath = toStorageObjectPath(row.filePath, getImageBaseUrl());
+        if (!objectPath) {
+          results.push({ imageId, status: 'original_missing' });
+          continue;
+        }
         // eslint-disable-next-line no-await-in-loop -- sequential generation keeps memory and GCS load bounded.
-        const status = objectPath
-          ? await this.storage.generateThumbnail(objectPath)
-          : 'original_missing';
+        const status = await this.storage.generateThumbnail(objectPath);
         results.push({ imageId, status });
       } catch {
         results.push({ imageId, status: 'failed' });
