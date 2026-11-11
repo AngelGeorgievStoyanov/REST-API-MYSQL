@@ -6,7 +6,7 @@
  * the logs tables and resume gaps.
  */
 import { type PrismaClient } from '@prisma/client';
-import { type DbExecutor, esc, inTx, isUuid, qi, qtable, toCount } from './db';
+import { type DbExecutor, dbCollation, esc, inTx, isUuid, qi, qtable, toCount } from './db';
 import { lookupState, lookupStateOrPending, quarantineDryAware, recordState, resolvePlaceholder } from './state';
 import { type Counters } from './types';
 
@@ -61,6 +61,7 @@ async function legacyOrder(exec: DbExecutor, db: string, table: PkTable): Promis
 
 export async function phasePkswap(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
   const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
+  const collation = await dbCollation(prisma, db);
   if (dryRun) {
     // Read-only rehearsal: report what WOULD be assigned.
     for (const table of PK_TABLES) {
@@ -93,7 +94,7 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
     const stillHasUuid = await hasColumn(prisma, db, table, '_id');
     if (stillHasUuid) {
       const orphaned = (await prisma.$queryRawUnsafe(
-        `SELECT t.${qi('legacyId')} AS k FROM ${qtable(db, table)} t LEFT JOIN ${qtable(db, 'migration_state')} s ON s.${qi('entity')} = '${entity}' AND s.${qi('legacy_key')} = t.${qi('legacyId')} WHERE t.${qi('legacyId')} IS NOT NULL AND s.${qi('legacy_key')} IS NULL`,
+        `SELECT t.${qi('legacyId')} AS k FROM ${qtable(db, table)} t LEFT JOIN ${qtable(db, 'migration_state')} s ON s.${qi('entity')} = '${entity}' AND s.${qi('legacy_key')} COLLATE ${collation} = t.${qi('legacyId')} COLLATE ${collation} WHERE t.${qi('legacyId')} IS NOT NULL AND s.${qi('legacy_key')} IS NULL`,
       )) as Array<{ k: unknown }>;
       for (const r of orphaned) {
         const k = String(r.k ?? '');
@@ -171,7 +172,7 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
       }
       await prisma.$executeRawUnsafe(
         `UPDATE ${qtable(db, table)} t JOIN ${qtable(db, 'migration_state')} s ` +
-          `ON s.${qi('entity')} = '${entity}' AND s.${qi('legacy_key')} = t.${qi('legacyId')} ` +
+          `ON s.${qi('entity')} = '${entity}' AND s.${qi('legacy_key')} COLLATE ${collation} = t.${qi('legacyId')} COLLATE ${collation} ` +
           `SET t.${qi('id')} = s.${qi('new_id')} WHERE t.${qi('legacyId')} IS NOT NULL AND s.${qi('new_id')} > 0`,
       );
       const unmapped = toCount((await prisma.$queryRawUnsafe(
@@ -200,7 +201,7 @@ export async function phasePkswap(prisma: PrismaClient, db: string, runId: numbe
         // quarantined orphan (they have no legacyId and are in no keys).
         await prisma.$executeRawUnsafe(
           `UPDATE ${qtable(db, table)} t JOIN ${qtable(db, 'migration_state')} s ` +
-            `ON s.${qi('entity')} = '${entity}' AND s.${qi('legacy_key')} = t.${qi('legacyId')} ` +
+            `ON s.${qi('entity')} = '${entity}' AND s.${qi('legacy_key')} COLLATE ${collation} = t.${qi('legacyId')} COLLATE ${collation} ` +
             `SET t.${qi('id')} = s.${qi('new_id')} WHERE t.${qi('id')} IS NULL AND s.${qi('new_id')} > 0`,
         );
         const stillNull = toCount((await prisma.$queryRawUnsafe(
