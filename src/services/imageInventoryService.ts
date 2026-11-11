@@ -175,7 +175,7 @@ function sortUnique(values: string[]): string[] {
  * canonical Google Cloud Storage host for this bucket; never fetch arbitrary URLs.
  */
 function toStorageObjectPath(filePath: string, baseUrl: string | null): string | null {
-  if (!/^https?:\\/\\//i.test(filePath)) return filePath;
+  if (!/^https?:\/\//i.test(filePath)) return filePath;
 
   if (baseUrl && filePath.startsWith(`${baseUrl}/`)) {
     return filePath.slice(baseUrl.length + 1);
@@ -188,7 +188,7 @@ function toStorageObjectPath(filePath: string, baseUrl: string | null): string |
       return url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : null;
     }
     if (url.hostname === `${BUCKET_NAME}.storage.googleapis.com`) {
-      return url.pathname.replace(/^\\//, '');
+      return url.pathname.replace(/^\//, '');
     }
   } catch {
     return null;
