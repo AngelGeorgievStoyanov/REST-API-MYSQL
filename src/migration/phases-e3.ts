@@ -5,7 +5,7 @@
  * TripGroup:finalized state marker.
  */
 import { type PrismaClient } from '@prisma/client';
-import { esc, qi, qtable, toCount } from './db';
+import { dbCollation, esc, qi, qtable, toCount } from './db';
 import { isStateUnavailable, lookupState, recordState } from './state';
 import { type Counters } from './types';
 
@@ -58,8 +58,9 @@ export async function phaseGroupfinalize(prisma: PrismaClient, db: string, runId
     return c;
   }
   try {
+    const collation = await dbCollation(prisma, db);
     const orphans = toCount((await prisma.$queryRawUnsafe(
-      `SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} t JOIN ${qtable(db, 'migration_state')} s ON s.${qi('entity')} = 'TripGroup' AND s.${qi('legacy_key')} COLLATE utf8mb4_0900_ai_ci = t.${qi('tripGroupId')} COLLATE utf8mb4_0900_ai_ci WHERE t.${qi('legacyId')} IS NOT NULL AND t.${qi('tripGroupNewId')} IS NULL AND s.${qi('new_id')} > 0`,
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} t JOIN ${qtable(db, 'migration_state')} s ON s.${qi('entity')} = 'TripGroup' AND s.${qi('legacy_key')} COLLATE ${collation} = t.${qi('tripGroupId')} COLLATE ${collation} WHERE t.${qi('legacyId')} IS NOT NULL AND t.${qi('tripGroupNewId')} IS NULL AND s.${qi('new_id')} > 0`,
     )) as Array<Record<string, unknown>>);
     if (dryRun) {
       c.migrated = orphans === 0 ? 1 : 0;
