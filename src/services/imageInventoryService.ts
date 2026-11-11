@@ -8,6 +8,7 @@ import {
   type MissingThumbnailPageDto,
 } from '../model/image';
 import { type ImageRepository } from '../repositories/imageRepository';
+import { BUCKET_NAME } from '../constants/imageStorage';
 import { type ImageInventoryStorage, thumbnailFileName } from '../storage/imageFileStorage';
 import { parseAdminPagination } from '../utils/adminPagination';
 import { getImageBaseUrl } from '../utils/image';
@@ -30,6 +31,7 @@ export class ImageInventoryService {
     const pageStart = (pagination.page - 1) * pagination.pageSize;
     const targetCount = pageStart + pagination.pageSize + 1;
     const scanBatchSize = 100;
+    const baseUrl = getImageBaseUrl();
     const missing: Array<{ id: number; filePath: string }> = [];
     let skip = 0;
     let databaseHasMore = true;
@@ -43,9 +45,11 @@ export class ImageInventoryService {
       for (let index = 0; index < rows.length; index += 10) {
         const batch = rows.slice(index, index + 10);
         const checks = await Promise.all(batch.map(async (row) => {
+          const objectPath = toStorageObjectPath(row.filePath, baseUrl);
+          if (!objectPath) return null;
           const [originalExists, thumbnailExists] = await Promise.all([
-            this.storage.exists(row.filePath),
-            this.storage.exists(thumbnailFileName(row.filePath)),
+            this.storage.exists(objectPath),
+            this.storage.exists(thumbnailFileName(objectPath)),
           ]);
           return originalExists && !thumbnailExists ? row : null;
         }));
@@ -56,7 +60,6 @@ export class ImageInventoryService {
     }
 
     const selected = missing.slice(pageStart, pageStart + pagination.pageSize);
-    const baseUrl = getImageBaseUrl();
     return {
       items: selected.map((row) => toImageDto(row, baseUrl)),
       pagination: {
@@ -82,7 +85,10 @@ export class ImageInventoryService {
         continue;
       }
       try {
-        const status = await this.storage.generateThumbnail(row.filePath);
+        const objectPath = toStorageObjectPath(row.filePath, getImageBaseUrl());
+        const status = objectPath
+          ? await this.storage.generateThumbnail(objectPath)
+          : 'original_missing';
         results.push({ imageId, status });
       } catch {
         results.push({ imageId, status: 'failed' });
@@ -160,4 +166,33 @@ export class ImageInventoryService {
 
 function sortUnique(values: string[]): string[] {
   return [...new Set(values)].sort();
+}
+
+
+/**
+ * Older rows may contain the public GCS URL instead of the object name.
+ * Resolve only URLs that belong to this configured image base URL or the
+ * canonical Google Cloud Storage host for this bucket; never fetch arbitrary URLs.
+ */
+function toStorageObjectPath(filePath: string, baseUrl: string | null): string | null {
+  if (!/^https?:\\/\\//i.test(filePath)) return filePath;
+
+  if (baseUrl && filePath.startsWith(`${baseUrl}/`)) {
+    return filePath.slice(baseUrl.length + 1);
+  }
+
+  try {
+    const url = new URL(filePath);
+    if (url.hostname === 'storage.googleapis.com') {
+      const prefix = `/${BUCKET_NAME}/`;
+      return url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : null;
+    }
+    if (url.hostname === `${BUCKET_NAME}.storage.googleapis.com`) {
+      return url.pathname.replace(/^\\//, '');
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
