@@ -37,7 +37,6 @@ export class ImageInventoryService {
     let databaseHasMore = true;
 
     while (missing.length < targetCount && databaseHasMore) {
-      // eslint-disable-next-line no-await-in-loop -- scan DB pages sequentially to preserve filtered pagination.
       const rows = await this.images.listImageRecordsPage(skip, scanBatchSize);
       databaseHasMore = rows.length === scanBatchSize;
       skip += rows.length;
