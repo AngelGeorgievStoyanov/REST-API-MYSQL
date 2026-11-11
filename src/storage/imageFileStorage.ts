@@ -1,4 +1,4 @@
-import { BUCKET_NAME, IMAGE_THUMBNAIL, THUMBNAIL_SUFFIX } from '../constants/imageStorage';
+import { BUCKET_NAME, IMAGE_THUMBNAIL, MAX_IMAGE_PIXELS, THUMBNAIL_SUFFIX } from '../constants/imageStorage';
 import { type File, type GetFilesOptions } from '@google-cloud/storage';
 
 /** A thumbnail is the `_thumb.webp` sidecar of its original in the flat bucket. */
@@ -90,7 +90,7 @@ async function generateThumbnailInGcs(
   if (thumbnailExists) return 'already_exists';
 
   const [buffer] = await original.download();
-  const thumbnailBuffer = await sharpModule.default(buffer)
+  const thumbnailBuffer = await sharpModule.default(buffer, { limitInputPixels: MAX_IMAGE_PIXELS })
     .rotate()
     .resize({
       width: IMAGE_THUMBNAIL.width,
