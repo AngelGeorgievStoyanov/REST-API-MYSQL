@@ -150,7 +150,8 @@ adminController.post(
   validateRequest({ body: generateThumbnailsSchema }),
   adminOrModerator,
   asyncHandler(async (req, res) => {
-    res.status(200).json(await imageInventoryService.generateThumbnails(req.body.imageIds));
+    const { imageIds } = generateThumbnailsSchema.parse(req.body);
+    res.status(200).json(await imageInventoryService.generateThumbnails(imageIds));
   }),
 );
 
