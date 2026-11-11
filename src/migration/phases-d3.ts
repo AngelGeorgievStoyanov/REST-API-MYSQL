@@ -5,7 +5,7 @@
  * the final database has none; polymorphic target columns carry no FK).
  */
 import { type PrismaClient } from '@prisma/client';
-import { columnExists, columnType, qi, qtable, toCount, userKeyColumn } from './db';
+import { columnExists, columnType, dbCollation, qi, qtable, toCount, userKeyColumn } from './db';
 
 export interface ConstraintCheck { statement: string; ok: boolean; detail: string; }
 
@@ -25,6 +25,7 @@ function pushCheck(checks: ConstraintCheck[], input: CheckInput): void {
 
 export async function phaseConstraints(prisma: PrismaClient, db: string): Promise<{ checks: ConstraintCheck[] }> {
   const checks: ConstraintCheck[] = [];
+  const collation = await dbCollation(prisma, db);
   const count = async (sql: string): Promise<number> => toCount((await prisma.$queryRawUnsafe(sql)) as Array<Record<string, unknown>>);
   const isMissingObject = (e: unknown): boolean => {
     const msg = (e as Error).message;
@@ -44,7 +45,7 @@ export async function phaseConstraints(prisma: PrismaClient, db: string): Promis
     const userKey = (await userKeyColumn(prisma, db)) || '_id';
     try {
       return await count(
-        `SELECT COUNT(*) AS c FROM ${qtable(db, table)} t LEFT JOIN ${qtable(db, 'users')} u ON u.${qi(userKey)} = t.${qi(col)} WHERE t.${qi(col)} IS NOT NULL AND u.${qi(userKey)} IS NULL`,
+        `SELECT COUNT(*) AS c FROM ${qtable(db, table)} t LEFT JOIN ${qtable(db, 'users')} u ON u.${qi(userKey)} COLLATE ${collation} = t.${qi(col)} COLLATE ${collation} WHERE t.${qi(col)} IS NOT NULL AND u.${qi(userKey)} IS NULL`,
       );
     } catch (e) {
       if (isMissingObject(e)) return null;
