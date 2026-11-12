@@ -84,6 +84,13 @@ adminController.post(
   adminLimiter,
   validateRequest({ params: userIdParams }),
   adminOrModerator,
+  asyncHandler(async (req, _res, next) => {
+    await adminUserService.assertCanManageUser(
+      actorFrom(req),
+      routeParam(req.params['userId']),
+    );
+    next();
+  }),
   imageUpload,
   asyncHandler(async (req, res) => {
     res
