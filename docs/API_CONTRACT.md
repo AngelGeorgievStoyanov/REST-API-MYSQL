@@ -1435,7 +1435,7 @@ Mounted at `/api/v1/images`.
 
 ### 11.2 Image upload contract (all image uploads)
 
-Applies to `POST /auth/me/image`, `POST /trips/:tripGroupId/days/:tripId/images`, and `POST /points/:pointId/images`.
+Applies to `POST /auth/me/image`, `POST /admin/users/:userId/image`, `POST /trips/:tripGroupId/days/:tripId/images`, and `POST /points/:pointId/images`.
 
 - Multipart field name: `file`.
 - Exactly one binary part per request; no text fields are part of the contract (`files: 1`, `fields: 0`, `parts: 1`).
@@ -1687,6 +1687,31 @@ Admin pagination query (strict, shared by all admin list endpoints):
 - Errors: unknown user -> `404 NOT_FOUND`; manager target role is not `user` -> `403 FORBIDDEN`; manager submits `email`, `role` or `password` -> `403 FORBIDDEN`; email already used by another account -> `409 CONFLICT` ("Another account already uses this email address.").
 - Identity/credential/verification columns (`id`, `hashedPassword`, `imageFile`, `verifyEmail`, `emailVerifiedAt`, `createdAt`, `updatedAt`, `countOfLogs`, `lastTimeLogin`) are not settable through this endpoint; the strict schema rejects every undeclared field.
 - The admin `AuthUserDto` exposes `profileImage` as the latest image owned by the user and not attached to a trip or point (or `null` when absent), plus `createdAt`, `updatedAt`, `countOfLogs`, and `lastTimeLogin` as read-only account activity metadata. `createdAt` and `updatedAt` are ISO 8601 strings; `lastTimeLogin` is returned as stored. Nullable database values are returned as `null`.
+
+### 16.2.1 GET `/admin/users/:userId/image`
+
+- Role: `admin` or `manager`. Admin may access any target user; manager may access only a target whose current database role is `user`.
+- Path params (strict): `{ userId: UUID }`.
+- Response `200`: `ImageDto` or `null` when the target user has no profile image.
+- Errors: unknown user -> `404 NOT_FOUND`; manager target role is not `user` -> `403 FORBIDDEN`.
+
+### 16.2.2 POST `/admin/users/:userId/image`
+
+- Role and target scope: same as `GET /admin/users/:userId/image`.
+- Path params (strict): `{ userId: UUID }`.
+- Multipart: field `file`, exactly one file and no text fields; follows the shared image-upload contract in §11.2.
+- The target-user authorization check runs before the upload middleware stores the file.
+- Response `201`: `ImageDto`.
+- The existing profile image is replaced using the same profile-image service behavior as `POST /auth/me/image`; the frontend must treat profile-image management as a separate operation from `PUT /admin/users/:userId`.
+- Errors: unknown user -> `404 NOT_FOUND`; manager target role is not `user` -> `403 FORBIDDEN`; invalid/unsupported upload -> `400 VALIDATION_ERROR`.
+
+### 16.2.3 DELETE `/admin/users/:userId/image`
+
+- Role and target scope: same as `GET /admin/users/:userId/image`.
+- Path params (strict): `{ userId: UUID }`.
+- Response `204` (empty).
+- Removes the target user's profile image and its thumbnail using the existing profile-image service.
+- Errors: unknown user -> `404 NOT_FOUND`; manager target role is not `user` -> `403 FORBIDDEN`.
 
 ### 16.3 DELETE `/admin/users/:userId`
 
@@ -2147,6 +2172,11 @@ Base path: `/api/v1`. "Public" = public bearer token (anonymous read); "Auth" = 
 | GET    | `/admin/images/cloud`                       | admin/manager       | query `page,pageSize`                                                                                                       | 200 `AdminPage<string>` (cursor)          | 400, 401, 403                |
 | GET    | `/admin/images/database`                    | admin/manager       | query `page,pageSize`                                                                                                       | 200 `AdminPage<string>`                   | 400, 401, 403                |
 | GET    | `/admin/images/orphans`                     | admin/manager       | query `page,pageSize`                                                                                                       | 200 `ImageInventoryComparison`            | 400, 401, 403                |
+| GET    | `/admin/users/:userId/image`                 | admin/manager       | param `userId`; manager target role `user` only                                                                             | 200 `ImageDto` or null                   | 400, 401, 403, 404           |
+| POST   | `/admin/users/:userId/image`                 | admin/manager       | param `userId`; multipart `file`; manager target role `user` only                                                          | 201 `ImageDto`                            | 400, 401, 403, 404           |
+| DELETE | `/admin/users/:userId/image`                 | admin/manager       | param `userId`; manager target role `user` only                                                                             | 204                                       | 400, 401, 403, 404           |
+| GET    | `/admin/images/missing-thumbnails`          | admin/manager       | query `page,pageSize`                                                                                                       | 200 `MissingThumbnailPageDto`            | 400, 401, 403                |
+| POST   | `/admin/images/generate-thumbnails`         | admin/manager       | body `{ imageIds }` (1–100 unique positive IDs)                                                                              | 200 `GenerateThumbnailsResponse`         | 400, 401, 403                |
 | GET    | `/admin/reports`                            | admin/manager       | query `page,pageSize`                                                                                                       | 200 `AdminPage<AdminReportDto>`           | 400, 401, 403                |
 | DELETE | `/admin/reports/:reportId`                  | admin/manager       | param `reportId`                                                                                                            | 204                                       | 400, 401, 403, 404           |
 
@@ -2715,6 +2745,16 @@ The following currently implemented capabilities are part of this API contract. 
 17. **Existing endpoints continue to follow the authentication, security, image, comment, trip, schema, and DTO rules defined in this contract unless a specific section states otherwise.**
 18. **Keep the endpoint inventory, schemas, DTOs, and security rules aligned with the implemented backend when they evolve.
 19. **`GET /auth/session` is the only new session-presence probe: it is read-only, returns only `hasSession`, and must not rotate or expose refresh/access tokens or user identity.**
+
+## Admin profile image management
+
+The three `/admin/users/:userId/image` routes above use the same underlying profile-image operations as the authenticated user's own profile-image routes. They are separate from `PUT /admin/users/:userId`:
+
+- Fetch the target user's profile image with `GET`.
+- Upload/replace it with `POST` using the shared one-file multipart upload contract.
+- Delete it with `DELETE`.
+- Admin may manage any target account. Manager may manage only targets whose current role is `user`.
+- Profile image changes do not form part of the admin user-details update payload.
 
 ## Admin image thumbnail maintenance
 
