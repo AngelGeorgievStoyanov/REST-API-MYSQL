@@ -1,0 +1,11 @@
+node_modules/
+build/
+dist/
+coverage/
+src/migration/
+src/db/
+prisma/
+uploads/
+package-lock.json
+.git/
+AGENTS.md

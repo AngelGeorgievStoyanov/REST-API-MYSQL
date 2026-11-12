@@ -1,0 +1,15 @@
+{
+  "minTokens": 50,
+  "minLines": 5,
+  "reporters": ["console"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/build/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/src/migration/**",
+    "**/src/db/**",
+    "**/*.d.ts",
+    "**/*.min.js"
+  ]
+}

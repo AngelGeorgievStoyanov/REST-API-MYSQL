@@ -1,229 +1,233 @@
-import { IdType } from "../interface/user-repository";
+import { type ImageRecord, type SocialImageDto } from './image';
+import { type SocialState } from './social';
 
+/**
+ * Persistence notes for these DTOs (prisma/schema.prisma is the source of truth):
+ *  - one Trip = one `trip_groups` row; one Day = one `trips` row of that group;
+ *  - a Day's points = `points` rows of that `trips` row, images = `images`;
+ *  - `trips.typeOfPeople` / `trips.transport` store the dynamic-config select key;
+ *  - `trips.currency` stores the select key (e.g. "EUR"); currency display name comes from select_options;
+ *  - Prisma ids are INT autoincrement, so API ids are numbers.
+ */
 
-export enum Transport {
-    Car, Bus, Aircraft, 'Another type'
+/** Authenticated caller. Always derived from the JWT, never from the request body. */
+export interface TripActor {
+  id: string;
+  role: string;
 }
 
-export enum TypeOfPeople {
-    Family, 'Family with children', Friends, 'Another type'
+/** Server-side computed edit/delete rights of one resource for the requesting actor. */
+export interface ResourcePermissions {
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
-export enum CurrencyCode {
-    AED = 'AED', // UAE Dirham
-    AFN = 'AFN', // Afghan Afghani
-    ALL = 'ALL', // Albanian Lek
-    AMD = 'AMD', // Armenian Dram
-    ANG = 'ANG', // Netherlands Antillean Guilder
-    AOA = 'AOA', // Angolan Kwanza
-    ARS = 'ARS', // Argentine Peso
-    AUD = 'AUD', // Australian Dollar
-    AWG = 'AWG', // Aruban Florin
-    AZN = 'AZN', // Azerbaijani Manat
-    BAM = 'BAM', // Bosnia-Herzegovina Convertible Mark
-    BBD = 'BBD', // Barbadian Dollar
-    BDT = 'BDT', // Bangladeshi Taka
-    BGN = 'BGN', // Bulgarian Lev
-    BHD = 'BHD', // Bahraini Dinar
-    BIF = 'BIF', // Burundian Franc
-    BMD = 'BMD', // Bermudian Dollar
-    BND = 'BND', // Brunei Dollar
-    BOB = 'BOB', // Bolivian Boliviano
-    BOV = 'BOV', // Bolivian Mvdol
-    BRL = 'BRL', // Brazilian Real
-    BSD = 'BSD', // Bahamian Dollar
-    BTN = 'BTN', // Bhutanese Ngultrum
-    BWP = 'BWP', // Botswanan Pula
-    BYN = 'BYN', // Belarusian Ruble
-    BZD = 'BZD', // Belize Dollar
-    CAD = 'CAD', // Canadian Dollar
-    CDF = 'CDF', // Congolese Franc
-    CHE = 'CHE', // WIR Euro
-    CHF = 'CHF', // Swiss Franc
-    CHW = 'CHW', // WIR Franc
-    CLF = 'CLF', // Chilean Unit of Account (UF)
-    CLP = 'CLP', // Chilean Peso
-    CNY = 'CNY', // Chinese Yuan
-    COP = 'COP', // Colombian Peso
-    COU = 'COU', // Unidad de Valor Real
-    CRC = 'CRC', // Costa Rican Colón
-    CUC = 'CUC', // Cuban Convertible Peso
-    CUP = 'CUP', // Cuban Peso
-    CVE = 'CVE', // Cape Verdean Escudo
-    CZK = 'CZK', // Czech Koruna
-    DJF = 'DJF', // Djiboutian Franc
-    DKK = 'DKK', // Danish Krone
-    DOP = 'DOP', // Dominican Peso
-    DZD = 'DZD', // Algerian Dinar
-    EGP = 'EGP', // Egyptian Pound
-    ERN = 'ERN', // Eritrean Nakfa
-    ETB = 'ETB', // Ethiopian Birr
-    EUR = 'EUR', // Euro
-    FJD = 'FJD', // Fijian Dollar
-    FKP = 'FKP', // Falkland Islands Pound
-    FOK = 'FOK', // Faroese Króna
-    GBP = 'GBP', // British Pound Sterling
-    GEL = 'GEL', // Georgian Lari
-    GGP = 'GGP', // Guernsey Pound
-    GHS = 'GHS', // Ghanaian Cedi
-    GIP = 'GIP', // Gibraltar Pound
-    GMD = 'GMD', // Gambian Dalasi
-    GNF = 'GNF', // Guinean Franc
-    GTQ = 'GTQ', // Guatemalan Quetzal
-    GYD = 'GYD', // Guyanese Dollar
-    HKD = 'HKD', // Hong Kong Dollar
-    HNL = 'HNL', // Honduran Lempira
-    HRK = 'HRK', // Croatian Kuna
-    HTG = 'HTG', // Haitian Gourde
-    HUF = 'HUF', // Hungarian Forint
-    IDR = 'IDR', // Indonesian Rupiah
-    ILS = 'ILS', // Israeli New Shekel
-    IMP = 'IMP', // Isle of Man Pound
-    INR = 'INR', // Indian Rupee
-    IQD = 'IQD', // Iraqi Dinar
-    IRR = 'IRR', // Iranian Rial
-    ISK = 'ISK', // Icelandic Króna
-    JEP = 'JEP', // Jersey Pound
-    JMD = 'JMD', // Jamaican Dollar
-    JOD = 'JOD', // Jordanian Dinar
-    JPY = 'JPY', // Japanese Yen
-    KES = 'KES', // Kenyan Shilling
-    KGS = 'KGS', // Kyrgyzstani Som
-    KHR = 'KHR', // Cambodian Riel
-    KID = 'KID', // Kiribati Dollar
-    KMF = 'KMF', // Comorian Franc
-    KRW = 'KRW', // South Korean Won
-    KWD = 'KWD', // Kuwaiti Dinar
-    KYD = 'KYD', // Cayman Islands Dollar
-    KZT = 'KZT', // Kazakhstani Tenge
-    LAK = 'LAK', // Laotian Kip
-    LBP = 'LBP', // Lebanese Pound
-    LKR = 'LKR', // Sri Lankan Rupee
-    LRD = 'LRD', // Liberian Dollar
-    LSL = 'LSL', // Lesotho Loti
-    LYD = 'LYD', // Libyan Dinar
-    MAD = 'MAD', // Moroccan Dirham
-    MDL = 'MDL', // Moldovan Leu
-    MGA = 'MGA', // Malagasy Ariary
-    MKD = 'MKD', // Macedonian Denar
-    MMK = 'MMK', // Myanmar Kyat
-    MNT = 'MNT', // Mongolian Tugrik
-    MOP = 'MOP', // Macanese Pataca
-    MRU = 'MRU', // Mauritanian Ouguiya
-    MUR = 'MUR', // Mauritian Rupee
-    MVR = 'MVR', // Maldivian Rufiyaa
-    MWK = 'MWK', // Malawian Kwacha
-    MXN = 'MXN', // Mexican Peso
-    MXV = 'MXV', // Mexican Unidad de Inversion (UDI)
-    MYR = 'MYR', // Malaysian Ringgit
-    MZN = 'MZN', // Mozambican Metical
-    NAD = 'NAD', // Namibian Dollar
-    NGN = 'NGN', // Nigerian Naira
-    NIO = 'NIO', // Nicaraguan Córdoba
-    NOK = 'NOK', // Norwegian Krone
-    NPR = 'NPR', // Nepalese Rupee
-    NZD = 'NZD', // New Zealand Dollar
-    OMR = 'OMR', // Omani Rial
-    PAB = 'PAB', // Panamanian Balboa
-    PEN = 'PEN', // Peruvian Sol
-    PGK = 'PGK', // Papua New Guinean Kina
-    PHP = 'PHP', // Philippine Peso
-    PKR = 'PKR', // Pakistani Rupee
-    PLN = 'PLN', // Polish Złoty
-    PYG = 'PYG', // Paraguayan Guaraní
-    QAR = 'QAR', // Qatari Riyal
-    RON = 'RON', // Romanian Leu
-    RSD = 'RSD', // Serbian Dinar
-    RUB = 'RUB', // Russian Ruble
-    RWF = 'RWF', // Rwandan Franc
-    SAR = 'SAR', // Saudi Riyal
-    SBD = 'SBD', // Solomon Islands Dollar
-    SCR = 'SCR', // Seychellois Rupee
-    SDG = 'SDG', // Sudanese Pound
-    SEK = 'SEK', // Swedish Krona
-    SGD = 'SGD', // Singapore Dollar
-    SHP = 'SHP', // Saint Helena Pound
-    SLL = 'SLL', // Sierra Leonean Leone
-    SOS = 'SOS', // Somali Shilling
-    SRD = 'SRD', // Surinamese Dollar
-    SSP = 'SSP', // South Sudanese Pound
-    STN = 'STN', // São Tomé and Príncipe Dobra
-    SVC = 'SVC', // Salvadoran Colón
-    SYP = 'SYP', // Syrian Pound
-    SZL = 'SZL', // Swazi Lilangeni
-    THB = 'THB', // Thai Baht
-    TJS = 'TJS', // Tajikistani Somoni
-    TMT = 'TMT', // Turkmenistani Manat
-    TND = 'TND', // Tunisian Dinar
-    TOP = 'TOP', // Tongan Pa'anga
-    TRY = 'TRY', // Turkish Lira
-    TTD = 'TTD', // Trinidad and Tobago Dollar
-    TWD = 'TWD', // New Taiwan Dollar
-    TZS = 'TZS', // Tanzanian Shilling
-    UAH = 'UAH', // Ukrainian Hryvnia
-    UGX = 'UGX', // Ugandan Shilling
-    USD = 'USD', // United States Dollar
-    USN = 'USN', // United States Dollar (Next day)
-    USS = 'USS', // United States Dollar (Same day)
-    UYI = 'UYI', // Uruguayan Peso en Unidades Indexadas (URUIURUI)
-    UYU = 'UYU', // Uruguayan Peso
-    UYW = 'UYW', // Unidad Previsional
-    UZS = 'UZS', // Uzbekistan Som
-    VES = 'VES', // Venezuelan Bolívar Soberano
-    VND = 'VND', // Vietnamese Đồng
-    VUV = 'VUV', // Vanuatu Vatu
-    WST = 'WST', // Samoan Tala
-    XAF = 'XAF', // CFA Franc BEAC
-    XAG = 'XAG', // Silver Ounce
-    XAU = 'XAU', // Gold Ounce
-    XBA = 'XBA', // European Composite Unit (EURCO)
-    XBB = 'XBB', // European Monetary Unit (E.M.U.-6)
-    XBC = 'XBC', // European Unit of Account 9 (E.U.A.-9)
-    XBD = 'XBD', // European Unit of Account 17 (E.U.A.-17)
-    XCD = 'XCD', // East Caribbean Dollar
-    XDR = 'XDR', // Special Drawing Rights
-    XOF = 'XOF', // CFA Franc BCEAO
-    XPD = 'XPD', // Palladium Ounce
-    XPF = 'XPF', // CFP Franc
-    XPT = 'XPT', // Platinum Ounce
-    XSU = 'XSU', // Sucre
-    XTS = 'XTS', // Testing Currency Code
-    XUA = 'XUA', // ADB Unit of Account
-    XXX = 'XXX', // No currency
-    YER = 'YER', // Yemeni Rial
-    ZAR = 'ZAR', // South African Rand
-    ZMW = 'ZMW', // Zambian Kwacha
-    ZWL = 'ZWL', // Zimbabwean Dollar
+/** Key/name pair resolved through the dynamic config selects (`group_type` / `transport` / `currency`). */
+export interface TripSelectValue {
+  key: string;
+  name: string;
 }
 
-export class Trip {
-    _id?: IdType
-    constructor(
-        public title: string,
-        public description: string,
-        public price: number,
-        public transport: Transport = Transport.Car,
-        public countPeoples: number,
-        public typeOfPeople: TypeOfPeople = TypeOfPeople.Family,
-        public destination: string,
-        public coments: string,
-        public likes: string[],
-        public _ownerId: string,
-        public lat: number,
-        public lng: number,
-        public timeCreated: string,
-        public timeEdited: string,
-        public countEdited: number,
-        public reportTrip: string[],
-        public imageFile: string[],
-        public favorites: string[],
-        public currency: CurrencyCode.EUR,
-        public dayNumber: number,
-        public tripGroupId: string
-    ) { }
+interface TripAuthor {
+  id: string;
+  firstName: string;
+  lastName: string;
 }
 
+/** Currency resolved from select_options (currency select type). */
+export interface CurrencyDto {
+  id: number;
+  code: string;
+  name: string;
+}
 
-export interface CloudImages {
-    imageFile: string[]
+/** Application read shape returned by point/trip repositories. */
+export interface PointRecord {
+  id: number;
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
+  pointNumber: number;
+  /** Required: the day row (`trips.id`) this point belongs to. */
+  tripId: number;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  images: ImageRecord[];
+}
+
+export interface TripListDayRecord {
+  id: number;
+  title: string;
+  description: string | null;
+  transport: string | null;
+  typeOfPeople: string | null;
+  /** Required: the user-selected ordinal stored on the day row. */
+  dayNumber: number;
+  createdAt: Date | null;
+}
+
+export interface TripDayRecord extends TripListDayRecord {
+  updatedAt: Date | null;
+  price: number | null;
+  currency: string | null;
+  destination: string | null;
+  countPeoples: number;
+  lat: number | null;
+  lng: number | null;
+  images: ImageRecord[];
+  points: PointRecord[];
+}
+
+export interface TripGroupListRecord {
+  id: number;
+  createdAt: Date | null;
+  owner: TripAuthor;
+  trips: TripListDayRecord[];
+}
+
+export interface TripGroupDetailsRecord {
+  id: number;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+  owner: TripAuthor;
+  trips: TripDayRecord[];
+}
+
+export interface PointWriteInput {
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
+}
+
+export interface TripMetadataInput {
+  ownerId: string;
+  /** User-selected ordinal of the initial day row; persisted as `trips.dayNumber`. */
+  dayNumber: number;
+  title: string;
+  description: string | null;
+  price: number;
+  transport: string;
+  countPeoples: number;
+  group: string;
+  destination: string | null;
+  lat: number | null;
+  lng: number | null;
+  currency: string;
+}
+
+export interface TripPoint {
+  id: number;
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
+  pointNumber: number;
+  /** Required: the parent day row (`points.tripId` = `trips.id`). */
+  tripId: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+  images: SocialImageDto[];
+  permissions: ResourcePermissions;
+  social: SocialState;
+}
+
+/** TripGroupDay represents a single day within a trip group for the unified response. */
+export interface TripGroupDay {
+  id: number;
+  dayNumber: number;
+  title: string | null;
+  description: string | null;
+  price: number | null;
+  currency: CurrencyDto | null;
+  transport: TripSelectValue;
+  group: TripSelectValue;
+  countPeoples: number;
+  destination: string | null;
+  lat: number | null;
+  lng: number | null;
+  images: SocialImageDto[];
+  permissions: ResourcePermissions;
+  social: SocialState;
+  points: TripPoint[];
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+/** TripGroupResponse is the unified response for GET /trips, GET /trips/top, GET /trips/:tripGroupId */
+export interface TripGroupResponse {
+  id: number;
+  permissions: ResourcePermissions;
+  social: SocialState;
+  days: TripGroupDay[];
+}
+
+export type TripSort = 'newest' | 'oldest';
+
+export interface TripListQuery {
+  page: number;
+  limit: number;
+  search: string | null;
+  group: string | null;
+  transport: string | null;
+  sort: TripSort;
+}
+
+export interface TripWriteRequest {
+  /** Required user-selected ordinal of the initial day row (`trips.dayNumber`). */
+  dayNumber: number;
+  title: string;
+  description: string | null;
+  price: number;
+  transport: string;
+  countPeoples: number;
+  typeOfPeople: string;
+  destination: string | null;
+  lat: number | null;
+  lng: number | null;
+  currency: string;
+}
+
+export interface TripEditRequest {
+  /** Required day ordinal; unique within the same trip group except for this row. */
+  dayNumber: number;
+  title: string;
+  description: string | null;
+  price: number;
+  transport: string;
+  countPeoples: number;
+  typeOfPeople: string;
+  currency: string;
+  destination: string | null;
+  lat: number | null;
+  lng: number | null;
+}
+
+/** Complete day-number assignment for one trip group reorder operation. */
+export interface TripDayReorderRequest {
+  days: {
+    tripId: number;
+    dayNumber: number;
+  }[];
+}
+
+export interface PointCreateRequest {
+  /**
+   * The day the point is created in: the primary key `Trip.id` of that day
+   * row — a day row has no separate identifier. Never the trip-group id and
+   * never `trips.dayNumber`.
+   */
+  tripId: number;
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
+}
+
+export interface PointUpdateRequest {
+  name: string;
+  description: string | null;
+  lat: number;
+  lng: number;
 }

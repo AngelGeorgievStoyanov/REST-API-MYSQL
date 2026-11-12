@@ -1,0 +1,232 @@
+/**
+ * Read-only readiness report before FK/UNIQUE activation: lists the exact
+ * blockers per statement so constraints are never enabled while data cannot
+ * satisfy them. Checks cover the FINAL structure only (no verify.userId FK —
+ * the final database has none; polymorphic target columns carry no FK).
+ */
+import { type PrismaClient } from '@prisma/client';
+import { columnExists, columnType, dbCollation, qi, qtable, toCount, userKeyColumn } from './db';
+
+export interface ConstraintCheck { statement: string; ok: boolean; detail: string; }
+
+type CheckInput = { stmt: string; n: number } | { stmt: string; pending: string };
+
+function pushCheck(checks: ConstraintCheck[], input: CheckInput): void {
+  if ('pending' in input) {
+    checks.push({ statement: input.stmt, ok: false, detail: `pending — ${input.pending}` });
+    return;
+  }
+  checks.push({
+    statement: input.stmt,
+    ok: input.n === 0,
+    detail: input.n === 0 ? 'no blockers' : `${input.n} blocking row(s) — constraint must NOT be enabled yet`,
+  });
+}
+
+export async function phaseConstraints(prisma: PrismaClient, db: string): Promise<{ checks: ConstraintCheck[] }> {
+  const checks: ConstraintCheck[] = [];
+  const collation = await dbCollation(prisma, db);
+  const count = async (sql: string): Promise<number> => toCount((await prisma.$queryRawUnsafe(sql)) as Array<Record<string, unknown>>);
+  const isMissingObject = (e: unknown): boolean => {
+    const msg = (e as Error).message;
+    return msg.includes("doesn't exist") || msg.includes('Unknown column');
+  };
+  const safeCount = async (sql: string): Promise<number | null> => {
+    try {
+      return await count(sql);
+    } catch (e) {
+      // Read-only: a missing table/column degrades to `pending`, never a crash.
+      if (isMissingObject(e)) return null;
+      throw e;
+    }
+  };
+  /** Rows of `table` whose `col` is set but has no surviving user. */
+  const orphanUser = async (table: string, col: string): Promise<number | null> => {
+    const userKey = (await userKeyColumn(prisma, db)) || '_id';
+    try {
+      return await count(
+        `SELECT COUNT(*) AS c FROM ${qtable(db, table)} t LEFT JOIN ${qtable(db, 'users')} u ON u.${qi(userKey)} COLLATE ${collation} = t.${qi(col)} COLLATE ${collation} WHERE t.${qi(col)} IS NOT NULL AND u.${qi(userKey)} IS NULL`,
+      );
+    } catch (e) {
+      if (isMissingObject(e)) return null;
+      throw e;
+    }
+  };
+  /** Rows of a child table whose INT parent pointer has no parent row. */
+  const orphanInt = async (table: string, col: string, parentTable: string): Promise<number | null> =>
+    safeCount(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, table)} t LEFT JOIN ${qtable(db, parentTable)} p ON p.${qi('id')} = t.${qi(col)} WHERE t.${qi(col)} IS NOT NULL AND p.${qi('id')} IS NULL`,
+    );
+  const inputs: CheckInput[] = [];
+
+  const ownerTables: Array<[string, string]> = [];
+  for (const table of ['trips', 'points', 'comments']) {
+    const col = await columnExists(prisma, db, table, 'ownerId')
+      ? 'ownerId'
+      : (await columnExists(prisma, db, table, '_ownerId') ? '_ownerId' : '');
+    if (col === '') inputs.push({ stmt: `FK ${table}.ownerId -> users.id`, pending: `${table}.ownerId column missing (ddl phase not applied yet)` });
+    else ownerTables.push([table, col]);
+  }
+  for (const [table, col] of ownerTables) {
+    const n = await orphanUser(table, col);
+    inputs.push(n === null
+      ? { stmt: `FK ${table}.${col} -> users.id`, pending: `${table} table missing (ddl phase not applied yet)` }
+      : { stmt: `FK ${table}.${col} -> users.id`, n });
+    // Owner column is narrowed to VARCHAR(36) before the FK is added: a
+    // longer value would make that ALTER fail — a hard blocker.
+    if (n !== null) {
+      const tooLong = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, table)} WHERE LENGTH(${qi(col)}) > 36`);
+      if (tooLong !== null) inputs.push({ stmt: `${table}.${col} fits VARCHAR(36)`, n: tooLong });
+    }
+  }
+  const tgOwner = await orphanUser('trip_groups', 'ownerId');
+  inputs.push(tgOwner === null
+    ? { stmt: 'FK trip_groups.ownerId -> users.id', pending: 'trip_groups table missing (ddl phase not applied yet)' }
+    : { stmt: 'FK trip_groups.ownerId -> users.id', n: tgOwner });
+
+  const groupType = await columnType(prisma, db, 'trips', 'tripGroupId');
+  if (groupType === '') {
+    inputs.push({ stmt: 'FK trips.tripGroupId -> trip_groups.id', pending: 'trips.tripGroupId missing (ddl phase not applied yet)' });
+  } else if (!groupType.toLowerCase().includes('int')) {
+    inputs.push({ stmt: 'trips.tripGroupId finalized INT (groupfinalize applied)', n: 1 });
+  } else {
+    const n = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} WHERE ${qi('tripGroupId')} IS NULL`);
+    inputs.push(n === null
+      ? { stmt: 'FK trips.tripGroupId -> trip_groups.id', pending: 'trips.tripGroupId missing (ddl phase not applied yet)' }
+      : { stmt: 'FK trips.tripGroupId -> trip_groups.id (NULL blocks)', n });
+    const orphanGroups = await orphanInt('trips', 'tripGroupId', 'trip_groups');
+    if (orphanGroups !== null) inputs.push({ stmt: 'FK trips.tripGroupId -> trip_groups.id (orphan refs)', n: orphanGroups });
+    const dupGroupDay = await safeCount(
+      `SELECT COUNT(*) AS c FROM (SELECT ${qi('tripGroupId')}, ${qi('dayNumber')} FROM ${qtable(db, 'trips')} WHERE ${qi('tripGroupId')} IS NOT NULL GROUP BY ${qi('tripGroupId')}, ${qi('dayNumber')} HAVING COUNT(*) > 1) d`,
+    );
+    if (dupGroupDay !== null) inputs.push({ stmt: 'UNIQUE trips(tripGroupId, dayNumber)', n: dupGroupDay });
+  }
+  // These legacy trip fields are required by the final Prisma model. Check them
+  // before activation so MySQL never fails midway through ALTER ... NOT NULL.
+  for (const column of ['transport', 'typeOfPeople']) {
+    const nulls = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} WHERE ${qi(column)} IS NULL`);
+    inputs.push(nulls === null
+      ? { stmt: `trips.${column} NOT NULL ready`, pending: `trips.${column} column missing (ddl phase not applied yet)` }
+      : { stmt: `trips.${column} NOT NULL ready`, n: nulls });
+  }
+
+  // trips.dayNumber is NOT NULL in the target schema (V6): a NULL ordinal blocks
+  // the NOT NULL activation, exactly like trips.tripGroupId / points.tripId above.
+  const dayNumberNull = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'trips')} WHERE ${qi('dayNumber')} IS NULL`);
+  inputs.push(dayNumberNull === null
+    ? { stmt: 'trips.dayNumber NOT NULL ready', pending: 'trips.dayNumber column missing (ddl phase not applied yet)' }
+    : { stmt: 'trips.dayNumber NOT NULL ready', n: dayNumberNull });
+  const pointsNull = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'points')} WHERE ${qi('tripId')} IS NULL`);
+  inputs.push(pointsNull === null
+    ? { stmt: 'FK points.tripId -> trips.id', pending: 'points.tripId column missing (ddl phase not applied yet)' }
+    : { stmt: 'FK points.tripId -> trips.id (NULL blocks)', n: pointsNull });
+  for (const [column, min, max] of [
+    ['lat', -90, 90],
+    ['lng', -180, 180],
+  ] as Array<[string, number, number]>) {
+    const nulls = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, 'points')} WHERE ${qi(column)} IS NULL`);
+    inputs.push(nulls === null
+      ? { stmt: `points.${column} NOT NULL ready`, pending: `points.${column} column missing (ddl phase not applied yet)` }
+      : { stmt: `points.${column} NOT NULL ready`, n: nulls });
+    const outOfRange = await safeCount(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'points')} WHERE ${qi(column)} IS NOT NULL AND (${qi(column)} < ${min} OR ${qi(column)} > ${max})`,
+    );
+    if (outOfRange !== null) inputs.push({ stmt: `points.${column} within [${min}, ${max}]`, n: outOfRange });
+  }
+  const pointsOrphans = await orphanInt('points', 'tripId', 'trips');
+  if (pointsOrphans !== null) inputs.push({ stmt: 'FK points.tripId -> trips.id (orphan refs)', n: pointsOrphans });
+
+  // comments: targetTypeId (2 = trip) + bare targetId. No FK on targetId.
+  if (!(await columnExists(prisma, db, 'comments', 'targetId'))) {
+    inputs.push({ stmt: 'comments.targetTypeId/targetId populated', pending: 'comments.targetId column missing (ddl phase not applied yet)' });
+  } else {
+    const nullTarget = await safeCount(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'comments')} WHERE ${qi('targetTypeId')} IS NULL OR ${qi('targetId')} IS NULL`,
+    );
+    if (nullTarget !== null) inputs.push({ stmt: 'comments.targetTypeId/targetId NOT NULL ready', n: nullTarget });
+    const badType = await safeCount(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'comments')} WHERE ${qi('targetTypeId')} IS NOT NULL AND ${qi('targetTypeId')} <> 2`,
+    );
+    if (badType !== null) inputs.push({ stmt: 'comments.targetTypeId = 2 (trip) only', n: badType });
+    const badRefs = await safeCount(
+      `SELECT COUNT(*) AS c FROM ${qtable(db, 'comments')} t LEFT JOIN ${qtable(db, 'trips')} p ON p.${qi('id')} = t.${qi('targetId')} WHERE t.${qi('targetId')} IS NOT NULL AND p.${qi('id')} IS NULL`,
+    );
+    if (badRefs !== null) inputs.push({ stmt: 'comments.targetId resolves to a trips row', n: badRefs });
+  }
+
+
+
+
+  const userRefs: Array<[string, string, string]> = [
+    ['likes', 'userId', 'FK likes.userId -> users.id'],
+    ['favorites', 'userId', 'FK favorites.userId -> users.id'],
+    ['reports', 'userId', 'FK reports.userId -> users.id'],
+    ['images', 'ownerId', 'FK images.ownerId -> users.id'],
+  ];
+  for (const [table, col, stmt] of userRefs) {
+    const n = await orphanUser(table, col);
+    inputs.push(n === null
+      ? { stmt, pending: `${table} table missing (ddl phase not applied yet)` }
+      : { stmt, n });
+  }
+  const tokenChecks: Array<[string, string, string]> = [
+    ['likes', 'targetTypeId', 'likes.targetTypeId populated'],
+    ['likes', 'targetId', 'likes.targetId populated'],
+    ['reports', 'targetTypeId', 'reports.targetTypeId populated'],
+    ['reports', 'targetId', 'reports.targetId populated'],
+    ['favorites', 'targetTypeId', 'favorites.targetTypeId populated'],
+    ['favorites', 'targetId', 'favorites.targetId populated'],
+  ];
+  for (const [table, col, stmt] of tokenChecks) {
+    const n = await safeCount(`SELECT COUNT(*) AS c FROM ${qtable(db, table)} WHERE ${qi(col)} IS NULL OR ${qi(col)} = 0`);
+    inputs.push(n === null
+      ? { stmt, pending: `${table} table missing (ddl phase not applied yet)` }
+      : { stmt, n });
+  }
+  const favWrongTargetType = await safeCount(
+    `SELECT COUNT(*) AS c FROM ${qtable(db, 'favorites')} WHERE ${qi('targetTypeId')} <> 1`,
+  );
+  if (favWrongTargetType !== null) inputs.push({ stmt: 'favorites.targetTypeId = 1 (tripGroup)', n: favWrongTargetType });
+  const favOrphanGroups = await safeCount(
+    `SELECT COUNT(*) AS c FROM ${qtable(db, 'favorites')} f LEFT JOIN ${qtable(db, 'trip_groups')} g ON g.${qi('id')} = f.${qi('targetId')} WHERE f.${qi('targetId')} IS NOT NULL AND g.${qi('id')} IS NULL`,
+  );
+  if (favOrphanGroups !== null) inputs.push({ stmt: 'favorites.targetId resolves to trip_groups (targetTypeId 1)', n: favOrphanGroups });
+  const likesOrphanTrips = await safeCount(
+    `SELECT COUNT(*) AS c FROM ${qtable(db, 'likes')} k LEFT JOIN ${qtable(db, 'trips')} p ON p.${qi('id')} = k.${qi('targetId')} WHERE k.${qi('targetTypeId')} = 2 AND p.${qi('id')} IS NULL`,
+  );
+  if (likesOrphanTrips !== null) inputs.push({ stmt: 'likes.targetId resolves to a trips row (targetTypeId 2)', n: likesOrphanTrips });
+
+
+  // target_types seed: the polymorphic FKs require its five fixed rows.
+  const ttGood = await safeCount(
+    `SELECT COUNT(*) AS c FROM ${qtable(db, 'target_types')} WHERE (${qi('id')}, ${qi('name')}) IN ((1,'tripGroup'),(2,'trip'),(3,'point'),(4,'image'),(5,'comment'))`,
+  );
+  if (ttGood === null) {
+    inputs.push({ stmt: 'target_types seeded (1 tripGroup, 2 trip, 3 point, 4 image, 5 comment)', n: 5 });
+  } else {
+    inputs.push({ stmt: 'target_types seeded (1 tripGroup, 2 trip, 3 point, 4 image, 5 comment)', n: 5 - ttGood });
+    const ttTypeRefs: Array<[string, string]> = [
+      ['comments', 'targetTypeId'],
+      ['likes', 'targetTypeId'],
+      ['favorites', 'targetTypeId'],
+      ['reports', 'targetTypeId'],
+    ];
+    for (const [table, col] of ttTypeRefs) {
+      const n = await safeCount(
+        `SELECT COUNT(*) AS c FROM ${qtable(db, table)} t LEFT JOIN ${qtable(db, 'target_types')} tt ON tt.${qi('id')} = t.${qi(col)} WHERE t.${qi(col)} IS NOT NULL AND tt.${qi('id')} IS NULL`,
+      );
+      if (n !== null) inputs.push({ stmt: `${table}.${col} resolves to a target_types row`, n });
+    }
+  }
+
+  // users.email UNIQUE (final index uq_users_email).
+  const dupEmail = await safeCount(`SELECT COUNT(*) AS c FROM (SELECT LOWER(${qi('email')}) e FROM ${qtable(db, 'users')} GROUP BY e HAVING COUNT(*) > 1) d`);
+  inputs.push(dupEmail === null
+    ? { stmt: 'UNIQUE users.email', pending: 'users table missing (ddl phase not applied yet)' }
+    : { stmt: 'UNIQUE users.email', n: dupEmail });
+
+  for (const input of inputs) {
+    pushCheck(checks, input);
+  }
+  return { checks };
+}

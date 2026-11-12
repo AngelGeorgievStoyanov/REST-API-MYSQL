@@ -1,0 +1,519 @@
+// Prisma schema — current database structure + the user/auth security target.
+//
+// This file mirrors the tables, columns, indexes and foreign keys that exist in
+// the live database TODAY. On top of that it declares the user/auth security
+// target of the migration: `users.emailVerifiedAt`, the `users.status`
+// definition and the three token tables (`email_verification_tokens`,
+// `password_reset_tokens`, `refresh_tokens`). The migration tooling
+// (src/migration) applies those additions IN PLACE; nothing is generated from
+// this file and the database is not modified by it.
+//
+// ID policy:
+//  - users.id stays VARCHAR(36) UUID. It is NEVER converted to INT.
+//  - Every other primary key is INT AUTO_INCREMENT.
+//  - Column names never start with `_` (no `_id`, `_ownerId`, `_ownerTripId`).
+//  - Foreign keys to users are VARCHAR(36): ownerId, userId, reqUserId.
+//  - Resource foreign keys are INT: tripId, pointId, tripGroupId, targetTypeId.
+//
+// Polymorphic targets (comments / likes / reports):
+//  - They use `targetTypeId` -> target_types.id plus a bare `targetId` that
+//    points at trips.id / points.id / comments.id / images.id depending on
+//    the target type. Prisma cannot express a polymorphic foreign key, so
+//    `targetId` is a plain INT column with NO relation.
+//  - There are no trip_reports / comment_reports tables and no per-resource
+//    report models. `reports` + target_types covers all report targets.
+//  - NOTE: src/migration/* still references the older trip_reports /
+//    comment_reports design; that tooling will be aligned separately.
+//
+// Deletion behaviour mirrors the live FK constraints:
+//  - trip_groups -> trips, trips -> points, trips -> images, points -> images:
+//    CASCADE.
+//  - users -> trip_groups / trips / points / comments: RESTRICT.
+//  - users -> likes / favorites: CASCADE.
+//  - users -> images: SET NULL.
+//  - target_types -> comments / likes / reports, and trip_groups -> favorites:
+//    NO ACTION (live default).
+//  - Every FK is ON UPDATE NO ACTION in the live DB (Prisma defaults to
+//    Cascade), so onUpdate: NoAction is declared on every relation.
+//
+// Deliberate notes:
+//  - images has NO exactly-one-parent (CHECK) constraint in the live DB, so
+//    none is declared here.
+//  - verify.userId has an index (ix_verify_user) but NO foreign key
+//    constraint in the live DB, so it is declared as a plain VARCHAR(36)
+//    column, not as a relation.
+//  - role/status are declared as Prisma enums for client type-safety only.
+//    The live MySQL columns are VARCHAR(8)/VARCHAR(12) with defaults
+//    'user'/'ACTIVE'; the target widens `status` to VARCHAR(20) with the
+//    default PENDING_VERIFICATION (a new user is unverified until the email is
+//    confirmed). Do not generate DDL from this file.
+//  - createdAt/updatedAt are NULL-able DATETIME(3) with no DB default, so no
+//    @default(now()) is declared. @updatedAt is client-side only (no DDL).
+//  - target_types currently holds: 1 tripGroup, 2 trip, 3 point, 4 image,
+//    5 comment.
+//  - the auth token tables store only a sha256 hex `tokenHash`: the raw token
+//    never reaches the database. `expiresAt` is NOT NULL; `usedAt`/`revokedAt`
+//    mark consumption. `refresh_tokens` carries no `usedAt` (rotation revokes).
+//  - the legacy mixed `verify` table stays until the verified cleanup step
+//    after application cutover; it is not replaced destructively.
+//  - Legacy VARCHAR request/log columns (failedlogs.date, routenotfoundlogs.*)
+//    are kept as-is; they are part of the live structure.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  admin
+  manager
+}
+
+enum UserStatus {
+  // New users start unverified: the email verification flow flips this to ACTIVE.
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+model TargetType {
+  // Polymorphic target lookup table (target_types), seeded with
+  // tripGroup / trip / point / image / comment.
+  id   Int    @id @default(autoincrement())
+  name String @unique(map: "uq_target_types_name") @db.VarChar(30)
+
+  comments Comment[]
+  likes    Like[]
+  favorites Favorite[]
+  reports  Report[]
+
+  @@map("target_types")
+}
+
+model User {
+  // UUID stays UUID — never converted to INT.
+  id             String     @id @db.VarChar(36)
+  email          String     @unique(map: "uq_users_email") @db.VarChar(45)
+  firstName      String     @db.VarChar(45)
+  lastName       String     @db.VarChar(45)
+  hashedPassword String     @db.VarChar(85)
+  lastTimeLogin  String?    @db.VarChar(24)
+  countOfLogs    BigInt?
+  // Prisma enums carry no native type attribute: they exist for client
+  // type-safety only. The live columns stay VARCHAR(8)/VARCHAR(20) and no DDL
+  // is generated from this file.
+  role           UserRole   @default(user)
+  status         UserStatus @default(PENDING_VERIFICATION)
+  verifyEmail    Int?       @default(0) @db.TinyInt
+  // NULL = email not verified yet; a timestamp = verified. Set together with
+  // status = ACTIVE by the verification flow. Replaces `verifyEmail` at cutover.
+  emailVerifiedAt DateTime?
+  createdAt      DateTime?
+  updatedAt      DateTime?  @updatedAt
+
+  tripGroups TripGroup[]
+  trips      Trip[]
+  points     Point[]
+  comments   Comment[]
+  likes      Like[]
+  favorites  Favorite[]
+  reports    Report[]
+  images     Image[]
+
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  refreshTokens           RefreshToken[]
+
+  @@index([role], map: "ix_users_role")
+  @@index([status], map: "ix_users_status")
+  @@map("users")
+}
+
+model TripGroup {
+  // One group = one multi-day trip. Metadata (title, cover, dates) is derived
+  // from its day rows; the live table only holds ownership + timestamps.
+  id      Int    @id @default(autoincrement())
+  ownerId String @db.VarChar(36)
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_tg_owner")
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  trips     Trip[]
+
+  @@index([ownerId], map: "ix_tg_owner")
+  @@map("trip_groups")
+}
+
+model Trip {
+  id           Int        @id @default(autoincrement())
+  title        String     @db.VarChar(60)
+  description  String?    @db.VarChar(2000)
+  price        Float      @default(0)
+  transport    String     @db.VarChar(45)
+  countPeoples Int
+  typeOfPeople String     @db.VarChar(45)
+  destination  String?    @db.VarChar(60)
+  ownerId      String     @db.VarChar(36)
+  owner        User?      @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_trips_owner")
+  lat          Float?
+  lng          Float?
+  countEdited  Int        @default(0)
+  currency     String     @default("EUR") @db.VarChar(3)
+  // Required invariants (V6 data model): every day row belongs to exactly one
+  // trip group and carries a user-selected ordinal. The migration pipeline
+  // (src/migration) backfills these before activation and refuses NULLs.
+  dayNumber    Int
+  tripGroupId  Int
+  tripGroup    TripGroup @relation(fields: [tripGroupId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_trips_group")
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  points Point[]
+  images Image[]
+
+  @@unique([tripGroupId, dayNumber], map: "uq_trips_group_day")
+  @@index([dayNumber], map: "ix_trips_day")
+  @@index([tripGroupId], map: "ix_trips_group")
+  @@index([ownerId], map: "ix_trips_owner")
+  @@map("trips")
+}
+
+model Point {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(1050)
+  // Geographic coordinates are required numeric values.
+  lat         Float   @db.Double
+  lng         Float   @db.Double
+  // Signed INT NOT NULL: the values are always numeric and the reorder flow
+  // temporarily writes negative markers. The migration DDL normalizes the
+  // legacy VARCHAR(45) column (src/migration/ddl.ts).
+  pointNumber Int
+  ownerId     String  @db.VarChar(36)
+  owner       User    @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_points_owner")
+  countEdited Int?    @default(0)
+  // Required: every point belongs to exactly one day row (`trips.id`).
+  // Enforced by fk_points_trip after the migration's backfill + NOT NULL
+  // activation (src/migration); unattached legacy points are repaired first.
+  tripId      Int
+  trip        Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_points_trip")
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  images Image[]
+
+  @@index([ownerId], map: "ix_points_owner")
+  @@index([tripId], map: "ix_points_trip")
+  @@map("points")
+}
+
+model Comment {
+  id           Int        @id @default(autoincrement())
+  nameAuthor   String     @db.VarChar(45)
+  comment      String     @db.VarChar(1000)
+  ownerId      String     @db.VarChar(36)
+  owner        User       @relation(fields: [ownerId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_comments_owner")
+  // Polymorphic target (tripGroup / trip / point / image / comment) — see
+  // TargetType. `targetId` has no FK by design.
+  targetTypeId Int
+  targetType   TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_comments_target_type")
+  targetId     Int
+  parentCommentId Int?
+  parentComment Comment? @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_comments_parent")
+  replies Comment[] @relation("CommentReplies")
+  countEdited  Int?       @default(0)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  @@index([ownerId], map: "ix_comments_owner")
+  @@index([targetTypeId, targetId], map: "ix_comments_target")
+  @@index([parentCommentId, createdAt, id], map: "ix_comments_parent")
+  @@map("comments")
+}
+
+model Verify {
+  // Email / password-reset tokens. Keeps its INT id.
+  // `userId` is NOT a declared relation: the live table has ix_verify_user but
+  // no foreign key constraint to users.
+  id                            Int     @id @default(autoincrement())
+  verifyToken                   String  @db.VarChar(36)
+  userId                        String  @db.VarChar(36)
+  verifyTokenForgotPassword     String? @db.VarChar(36)
+  timeVerifyToken               String? @db.VarChar(24)
+  timeVerifyTokenForgotPassword String? @db.VarChar(24)
+  countForgotPassword           Int?    @default(0)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  @@index([verifyToken], map: "ix_verify_token")
+  @@index([userId], map: "ix_verify_user")
+  @@map("verify")
+}
+
+// ---------------------------------------------------------------------------
+// User/auth security tokens (migration target): only the token hash is stored,
+// the raw token never reaches the database. Every token is one-time and
+// expiring; `refresh_tokens` is revoked instead of consumed.
+// ---------------------------------------------------------------------------
+
+model EmailVerificationToken {
+  id        Int       @id @default(autoincrement())
+  userId    String    @db.VarChar(36)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_evt_user")
+  // sha256 hex of the token sent to the user.
+  tokenHash String    @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime?
+
+  @@unique([tokenHash], map: "uq_evt_token")
+  @@index([userId], map: "ix_evt_user")
+  @@index([expiresAt], map: "ix_evt_expires")
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    String    @db.VarChar(36)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_prt_user")
+  tokenHash String    @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime?
+
+  @@unique([tokenHash], map: "uq_prt_token")
+  @@index([userId], map: "ix_prt_user")
+  @@index([expiresAt], map: "ix_prt_expires")
+  @@map("password_reset_tokens")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  userId    String    @db.VarChar(36)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_rt_user")
+  tokenHash String    @db.VarChar(64)
+  expiresAt DateTime
+  createdAt DateTime?
+  revokedAt DateTime?
+
+  @@unique([tokenHash], map: "uq_rt_token")
+  @@index([userId], map: "ix_rt_user")
+  @@index([expiresAt], map: "ix_rt_expires")
+  @@map("refresh_tokens")
+}
+
+model FailedLog {
+  // Auth-observability row, keyed by email — no User FK is possible.
+  id          Int       @id @default(autoincrement())
+  date        String?   @db.VarChar(45)
+  email       String    @db.VarChar(45)
+  ip          String    @db.VarChar(45)
+  userAgent   String    @db.VarChar(145)
+  countryCode String?   @map("country_code") @db.VarChar(45)
+  countryName String?   @map("country_name") @db.VarChar(145)
+  city        String?   @db.VarChar(145)
+  postal      String?   @db.VarChar(145)
+  latitude    Float?
+  longitude   Float?
+  state       String?   @db.VarChar(45)
+  createdAt   DateTime?
+
+  @@index([email], map: "ix_failed_email")
+  @@map("failedlogs")
+}
+
+model RouteNotFoundLog {
+  // Request-observability row. `reqUserId` may reference a deleted/unknown
+  // user, so there is NO hard FK — plain nullable UUID string.
+  id           Int       @id @default(autoincrement())
+  date         String?   @db.VarChar(45)
+  reqUrl       String?   @db.VarChar(145)
+  reqMethod    String?   @db.VarChar(15)
+  reqHeaders   String?   @db.VarChar(1000)
+  reqQuery     String?   @db.VarChar(145)
+  reqBody      String?   @db.VarChar(1000)
+  reqParams    String?   @db.VarChar(145)
+  reqIp        String?   @db.VarChar(1000)
+  reqUserId    String?   @db.VarChar(36)
+  reqUserEmail String?   @db.VarChar(245)
+  createdAt    DateTime?
+
+  @@index([reqUserId], map: "ix_rnf_user")
+  @@map("routenotfoundlogs")
+}
+
+model Like {
+  // One (user, target) pair, max one like — polymorphic via targetTypeId.
+  id           Int        @id @default(autoincrement())
+  userId       String     @db.VarChar(36)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_likes_user")
+  targetTypeId Int
+  targetType   TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_likes_target_type")
+  targetId     Int
+  createdAt    DateTime?
+
+  @@unique([userId, targetTypeId, targetId], map: "uq_likes_user_target")
+  @@index([targetTypeId, targetId], map: "ix_likes_target")
+  @@index([userId], map: "ix_likes_u")
+  @@map("likes")
+}
+
+model Favorite {
+  id          Int       @id @default(autoincrement())
+  userId      String    @db.VarChar(36)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_fav_user")
+  targetTypeId Int
+  targetType TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_fav_target_type")
+  targetId Int
+  createdAt   DateTime?
+
+  @@unique([userId, targetTypeId, targetId], map: "uq_fav_user_target")
+  @@index([targetTypeId, targetId], map: "ix_fav_target")
+  @@index([userId], map: "ix_fav_u")
+  @@map("favorites")
+}
+
+model Report {
+  // One generic report table for every target type (tripGroup / trip / point /
+  // image / comment) — NOT trip_reports / comment_reports.
+  id           Int        @id @default(autoincrement())
+  userId       String     @db.VarChar(36)
+  user         User       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_user")
+  targetTypeId Int
+  targetType   TargetType @relation(fields: [targetTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_target_type")
+  targetId     Int
+  reason       String?    @db.VarChar(1000)
+  createdAt    DateTime?
+
+  @@unique([userId, targetTypeId, targetId], map: "uq_reports_user_target")
+  @@index([targetId], map: "ix_reports_target")
+  @@index([targetTypeId], map: "ix_reports_target_type")
+  @@index([userId], map: "ix_reports_user")
+  @@map("reports")
+}
+
+model Image {
+  // Flat single-bucket GCS layout: generated unique filename in `filePath`
+  // (+ `_thumb.webp` sidecar, see src/constants/imageStorage.ts).
+  // ownerId / tripId / pointId are all optional and there is NO live
+  // exactly-one-parent (CHECK) constraint.
+  id       Int     @id @default(autoincrement())
+  ownerId  String? @db.VarChar(36)
+  owner    User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_img_owner")
+  tripId   Int?
+  trip     Trip?   @relation(fields: [tripId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_img_trip")
+  pointId  Int?
+  point    Point?  @relation(fields: [pointId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_img_point")
+  filePath String  @db.VarChar(1000)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  @@index([ownerId], map: "ix_img_o")
+  @@index([pointId], map: "ix_img_p")
+  @@index([tripId], map: "ix_img_t")
+  @@map("images")
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic selects + service configuration — STRUCTURE ONLY (no API/FE wiring).
+//
+// `target_types` above is the same idea for polymorphic targets; these models
+// move the remaining hardcoded FE strings/values into rows:
+//   select_types.key   -> transport / group_type / currency
+//   select_options     -> stable `key` for the stored value, `value` for the
+//                         text the FE renders (`key` is unique per type only,
+//                         because `another_type` exists in two types)
+//   service_types.key  -> google_maps / mui / ui / visual / routing
+//   service_configs    -> typed technical configuration per service
+// ---------------------------------------------------------------------------
+
+enum ServiceConfigType {
+  string
+  number
+  boolean
+  json
+}
+
+model SelectType {
+  // One row per select category; data references the stable key.
+  id       Int     @id @default(autoincrement())
+  key      String  @unique(map: "uq_select_types_key") @db.VarChar(60)
+  name     String  @db.VarChar(120)
+  isActive Boolean @default(true)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  options SelectOption[]
+
+  @@map("select_types")
+}
+
+model SelectOption {
+  id           Int        @id @default(autoincrement())
+  selectTypeId Int
+  selectType   SelectType @relation(fields: [selectTypeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_select_options_type")
+  // Stable machine key (car / family_with_children / EUR), unique per type.
+  key          String     @db.VarChar(60)
+  // Displayed text (Car / Family with children / Euro).
+  value        String     @db.VarChar(255)
+  sortOrder    Int        @default(0)
+  isActive     Boolean    @default(true)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  // uq_select_options_type_key doubles as the FK index (leftmost prefix),
+  // so no separate index on selectTypeId is needed.
+  @@unique([selectTypeId, key], map: "uq_select_options_type_key")
+  @@unique([selectTypeId, sortOrder], map: "uq_select_options_type_sort")
+  @@map("select_options")
+}
+
+model ServiceType {
+  // Technical configuration categories — deliberately separate from the
+  // business selects above. No roles/admin settings here.
+  id       Int     @id @default(autoincrement())
+  key      String  @unique(map: "uq_service_types_key") @db.VarChar(60)
+  name     String  @db.VarChar(120)
+  isActive Boolean @default(true)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  configs ServiceConfig[]
+
+  @@map("service_types")
+}
+
+model ServiceConfig {
+  id            Int               @id @default(autoincrement())
+  serviceTypeId Int
+  serviceType   ServiceType       @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_service_configs_type")
+  key           String            @db.VarChar(60)
+  value         String            @db.VarChar(1000)
+  // string | number | boolean | json — a Prisma enum, so the generated client
+  // is type-safe. No @db native type: Prisma does not allow one on enums, and
+  // this file still must not be used to rewrite existing tables.
+  type          ServiceConfigType @default(string)
+  isActive      Boolean           @default(true)
+
+  createdAt DateTime?
+  updatedAt DateTime? @updatedAt
+
+  // uq_service_configs_type_key doubles as the FK index (leftmost prefix).
+  @@unique([serviceTypeId, key], map: "uq_service_configs_type_key")
+  @@map("service_configs")
+}

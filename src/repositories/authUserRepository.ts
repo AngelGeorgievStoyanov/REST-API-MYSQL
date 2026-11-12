@@ -1,0 +1,154 @@
+import { type Prisma, type PrismaClient, type UserRole, UserStatus } from '@prisma/client';
+import { type AdminAuthUserRecord, type AuthUserRecord } from '../model/auth';
+
+/** Fields an administrator may change on another account. */
+export interface AdminUserUpdate {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  role?: UserRole;
+  status?: UserStatus;
+  emailVerifiedAt?: Date | null;
+  hashedPassword?: string;
+}
+
+/** Fields the owner of an account may change on their own profile. */
+export interface ProfileUpdate {
+  firstName: string;
+  lastName: string;
+}
+
+const authUserSelect = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  hashedPassword: true,
+  role: true,
+  status: true,
+  emailVerifiedAt: true,
+} satisfies Prisma.UserSelect;
+
+const adminUserSelect = {
+  ...authUserSelect,
+  createdAt: true,
+  updatedAt: true,
+  countOfLogs: true,
+  lastTimeLogin: true,
+  images: {
+    where: { tripId: null, pointId: null },
+    orderBy: { id: 'desc' },
+    take: 1,
+    select: { id: true, filePath: true },
+  },
+} satisfies Prisma.UserSelect;
+
+export class AuthUserRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async findByEmail(email: string): Promise<AuthUserRecord | null> {
+    return this.prisma.user.findUnique({ where: { email }, select: authUserSelect });
+  }
+
+  async findById(userId: string): Promise<AuthUserRecord | null> {
+    return this.prisma.user.findUnique({ where: { id: userId }, select: authUserSelect });
+  }
+
+  /** New accounts start unverified; nothing else is client-controlled. */
+  async create(data: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    hashedPassword: string;
+  }): Promise<AuthUserRecord> {
+    return this.prisma.user.create({
+      data: {
+        id: data.id,
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        hashedPassword: data.hashedPassword,
+        status: UserStatus.PENDING_VERIFICATION,
+        verifyEmail: 0,
+        createdAt: new Date(),
+      },
+      select: authUserSelect,
+    });
+  }
+
+  /**
+   * `verifyEmail` is kept in sync for the legacy `/users` layer that still reads
+   * it; `emailVerifiedAt` is the authoritative field of the new flow. Only an
+   * unverified account is promoted to ACTIVE: a suspended/deactivated account
+   * stays in its state and is refused by the service.
+   */
+  async markEmailVerified(userId: string, verifiedAt: Date): Promise<AuthUserRecord> {
+    await this.prisma.user.updateMany({
+      where: { id: userId, status: UserStatus.PENDING_VERIFICATION },
+      data: { status: UserStatus.ACTIVE },
+    });
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerifiedAt: verifiedAt, verifyEmail: 1 },
+      select: authUserSelect,
+    });
+  }
+
+  async updatePassword(userId: string, hashedPassword: string): Promise<AuthUserRecord> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { hashedPassword },
+      select: authUserSelect,
+    });
+  }
+
+  /** Atomically records each successful login without losing concurrent increments. */
+  async touchLogin(userId: string, at: Date): Promise<void> {
+    await this.prisma.$executeRaw`
+      UPDATE users
+      SET countOfLogs = COALESCE(countOfLogs, 0) + 1,
+          lastTimeLogin = ${at.toISOString()}
+      WHERE id = ${userId}
+    `;
+  }
+
+  /** Administrative account page, ordered by email for a stable answer. */
+  async listPage(skip: number, take: number, role?: UserRole): Promise<AdminAuthUserRecord[]> {
+    const rows = await this.prisma.user.findMany({
+      ...(role ? { where: { role } } : {}),
+      orderBy: [{ email: 'asc' }, { id: 'asc' }],
+      skip,
+      take,
+      select: adminUserSelect,
+    });
+
+    return rows.map((row) => ({
+      ...row,
+      profileImage: row.images[0] ?? null,
+    }));
+  }
+
+  async countUsers(role?: UserRole): Promise<number> {
+    return role ? this.prisma.user.count({ where: { role } }) : this.prisma.user.count();
+  }
+
+  async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AdminAuthUserRecord> {
+    const row = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: adminUserSelect,
+    });
+
+    return { ...row, profileImage: row.images[0] ?? null };
+  }
+
+  async updateProfile(userId: string, data: ProfileUpdate): Promise<AuthUserRecord> {
+    return this.prisma.user.update({ where: { id: userId }, data, select: authUserSelect });
+  }
+
+  async remove(userId: string): Promise<void> {
+    await this.prisma.user.delete({ where: { id: userId }, select: { id: true } });
+  }
+}

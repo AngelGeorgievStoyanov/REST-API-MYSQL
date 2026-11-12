@@ -1,0 +1,417 @@
+/**
+ * Structural finalization + FK/index activation: runs the readiness report
+ * first (stops if any check is blocked), renames legacy keys, applies the
+ * exact final FK/index set, drops legacy-only columns and finally the
+ * migration control tables. Idempotent and shape-probed: reruns are no-ops.
+ */
+import { type PrismaClient } from '@prisma/client';
+import { TARGET_TYPES, columnExists, columnNullable, esc, qi, qtable, tableExists, userKeyColumn } from './db';
+import { quarantineDryAware } from './state';
+import { phaseConstraints } from './phases-d3';
+import { type Counters } from './types';
+
+async function fkExists(prisma: PrismaClient, db: string, name: string): Promise<boolean> {
+  const rows = (await prisma.$queryRawUnsafe(
+    `SELECT 1 AS ok FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = '${esc(db)}' AND CONSTRAINT_NAME = '${esc(name)}' LIMIT 1`,
+  )) as Array<{ ok: number }>;
+  return rows.length > 0;
+}
+
+async function indexExists(prisma: PrismaClient, db: string, table: string, name: string): Promise<boolean> {
+  const rows = (await prisma.$queryRawUnsafe(
+    `SELECT 1 AS ok FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}' AND INDEX_NAME = '${esc(name)}' LIMIT 1`,
+  )) as Array<{ ok: number }>;
+  return rows.length > 0;
+}
+
+/**
+ * MySQL requires identical character set and collation for string FK columns.
+ * Legacy user IDs keep the collation of the original users._id column, while
+ * some newly-created FK columns inherit the target database default. Align
+ * every users FK column to the actual final users.id definition before adding
+ * constraints. Existing nullability and VARCHAR(36) shape are preserved.
+ */
+async function alignUserForeignKeyCollations(prisma: PrismaClient, db: string): Promise<number> {
+  const userRows = (await prisma.$queryRawUnsafe(
+    `SELECT CHARACTER_SET_NAME AS characterSet, COLLATION_NAME AS collation
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'id'`,
+  )) as Array<{ characterSet: string | null; collation: string | null }>;
+  const userColumn = userRows[0];
+  const characterSet = String(userColumn?.characterSet || '');
+  const collation = String(userColumn?.collation || '');
+  if (!/^[a-z0-9_]+$/i.test(characterSet) || !/^[a-z0-9_]+$/i.test(collation)) {
+    throw new Error('Cannot safely resolve users.id character set/collation for user foreign keys.');
+  }
+
+  let altered = 0;
+  const userForeignKeys = FKS.filter(([, , , refTable]) => refTable === 'users');
+  for (const [, table, column] of userForeignKeys) {
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT COLUMN_TYPE AS columnType, CHARACTER_SET_NAME AS characterSet,
+              COLLATION_NAME AS collation, IS_NULLABLE AS isNullable
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = '${esc(db)}' AND TABLE_NAME = '${esc(table)}'
+         AND COLUMN_NAME = '${esc(column)}'`,
+    )) as Array<{ columnType: string; characterSet: string | null; collation: string | null; isNullable: string }>;
+    const current = rows[0];
+    if (!current) {
+      throw new Error(`Cannot align missing user FK column ${table}.${column}.`);
+    }
+    if (String(current.columnType).toLowerCase() !== 'varchar(36)') {
+      throw new Error(
+        `Unexpected type for user FK column ${table}.${column}: ${current.columnType}; expected VARCHAR(36).`,
+      );
+    }
+    if (current.characterSet === characterSet && current.collation === collation) continue;
+
+    const nullable = String(current.isNullable).toUpperCase() === 'YES';
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, table)} MODIFY COLUMN ${qi(column)}
+       VARCHAR(36) CHARACTER SET ${characterSet} COLLATE ${collation} ${nullable ? 'NULL' : 'NOT NULL'}`,
+    );
+    altered++;
+  }
+  return altered;
+}
+
+
+/** The exact final FK set: [name, table, column, refTable, refColumn, onDelete].
+ *  Empty refColumn = the live `users` key column. ON UPDATE stays at the MySQL
+ *  default (NO ACTION), like the live target. */
+export const FKS: Array<[string, string, string, string, string, 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'NO ACTION']> = [
+  ['fk_tg_owner', 'trip_groups', 'ownerId', 'users', '', 'RESTRICT'],
+  ['fk_trips_owner', 'trips', 'ownerId', 'users', '', 'RESTRICT'],
+  ['fk_trips_group', 'trips', 'tripGroupId', 'trip_groups', 'id', 'CASCADE'],
+  ['fk_points_owner', 'points', 'ownerId', 'users', '', 'RESTRICT'],
+  ['fk_points_trip', 'points', 'tripId', 'trips', 'id', 'CASCADE'],
+  ['fk_comments_owner', 'comments', 'ownerId', 'users', '', 'RESTRICT'],
+  ['fk_comments_target_type', 'comments', 'targetTypeId', 'target_types', 'id', 'NO ACTION'],
+  ['fk_comments_parent', 'comments', 'parentCommentId', 'comments', 'id', 'CASCADE'],
+  ['fk_likes_user', 'likes', 'userId', 'users', '', 'CASCADE'],
+  ['fk_likes_target_type', 'likes', 'targetTypeId', 'target_types', 'id', 'NO ACTION'],
+  ['fk_fav_user', 'favorites', 'userId', 'users', '', 'CASCADE'],
+  ['fk_fav_target_type', 'favorites', 'targetTypeId', 'target_types', 'id', 'NO ACTION'],
+  ['fk_reports_user', 'reports', 'userId', 'users', '', 'NO ACTION'],
+  ['fk_reports_target_type', 'reports', 'targetTypeId', 'target_types', 'id', 'NO ACTION'],
+  ['fk_img_owner', 'images', 'ownerId', 'users', '', 'SET NULL'],
+  ['fk_img_trip', 'images', 'tripId', 'trips', 'id', 'CASCADE'],
+  ['fk_img_point', 'images', 'pointId', 'points', 'id', 'CASCADE'],
+  // User/auth tokens: a deleted user must not leave usable credentials behind,
+  // so the token rows cascade with their user.
+  ['fk_evt_user', 'email_verification_tokens', 'userId', 'users', '', 'CASCADE'],
+  ['fk_prt_user', 'password_reset_tokens', 'userId', 'users', '', 'CASCADE'],
+  ['fk_rt_user', 'refresh_tokens', 'userId', 'users', '', 'CASCADE'],
+];
+
+const INDEXES: Array<[string, string, string[], boolean]> = [
+  ['uq_users_email', 'users', ['email'], true],
+  ['ix_users_role', 'users', ['role'], false],
+  ['ix_users_status', 'users', ['status'], false],
+  ['ix_tg_owner', 'trip_groups', ['ownerId'], false],
+  ['ix_trips_owner', 'trips', ['ownerId'], false],
+  ['ix_trips_group', 'trips', ['tripGroupId'], false],
+  ['ix_trips_day', 'trips', ['dayNumber'], false],
+  ['uq_trips_group_day', 'trips', ['tripGroupId', 'dayNumber'], true],
+  ['ix_points_trip', 'points', ['tripId'], false],
+  ['ix_points_owner', 'points', ['ownerId'], false],
+  ['ix_comments_owner', 'comments', ['ownerId'], false],
+  ['ix_comments_target', 'comments', ['targetTypeId', 'targetId'], false],
+  ['ix_comments_parent', 'comments', ['parentCommentId', 'createdAt', 'id'], false],
+  ['uq_likes_user_target', 'likes', ['userId', 'targetTypeId', 'targetId'], true],
+  ['ix_likes_u', 'likes', ['userId'], false],
+  ['ix_likes_target', 'likes', ['targetTypeId', 'targetId'], false],
+  ['uq_fav_user_target', 'favorites', ['userId', 'targetTypeId', 'targetId'], true],
+  ['ix_fav_u', 'favorites', ['userId'], false],
+  ['ix_fav_target', 'favorites', ['targetTypeId', 'targetId'], false],
+  ['uq_reports_user_target', 'reports', ['userId', 'targetTypeId', 'targetId'], true],
+  ['ix_reports_user', 'reports', ['userId'], false],
+  ['ix_reports_target', 'reports', ['targetId'], false],
+  ['ix_reports_target_type', 'reports', ['targetTypeId'], false],
+  ['ix_img_o', 'images', ['ownerId'], false],
+  ['ix_img_t', 'images', ['tripId'], false],
+  ['ix_img_p', 'images', ['pointId'], false],
+  ['ix_verify_user', 'verify', ['userId'], false],
+  ['ix_verify_token', 'verify', ['verifyToken'], false],
+  ['ix_failed_email', 'failedlogs', ['email'], false],
+  ['ix_rnf_user', 'routenotfoundlogs', ['reqUserId'], false],
+  // One-time auth tokens: the hash is the only lookup key of the flow, and
+  // UNIQUE makes a replay impossible. The user index serves the FK and the
+  // "invalidate all tokens of this user" sweep, the expiry index the cleanup.
+  ['uq_evt_token', 'email_verification_tokens', ['tokenHash'], true],
+  ['ix_evt_user', 'email_verification_tokens', ['userId'], false],
+  ['ix_evt_expires', 'email_verification_tokens', ['expiresAt'], false],
+  ['uq_prt_token', 'password_reset_tokens', ['tokenHash'], true],
+  ['ix_prt_user', 'password_reset_tokens', ['userId'], false],
+  ['ix_prt_expires', 'password_reset_tokens', ['expiresAt'], false],
+  ['uq_rt_token', 'refresh_tokens', ['tokenHash'], true],
+  ['ix_rt_user', 'refresh_tokens', ['userId'], false],
+  ['ix_rt_expires', 'refresh_tokens', ['expiresAt'], false],
+];
+
+/** Legacy-only columns the final schema does not have. `failedlogs.date` /
+ *  `routenotfoundlogs.date` are deliberately absent: the final schema keeps them. */
+export const LEGACY_DROPS: Array<[string, string]> = [
+  ['trips', 'coments'],
+  ['trips', 'likes'],
+  ['trips', 'favorites'],
+  ['trips', 'reportTrip'],
+  ['trips', 'imageFile'],
+  ['trips', 'timeCreated'],
+  ['trips', 'timeEdited'],
+  ['trips', 'legacyId'],
+  ['trips', 'tripGroupNewId'],
+  ['users', 'timeCreated'],
+  ['users', 'timeEdited'],
+  ['users', 'imageFile'],
+  ['points', 'timeCreated'],
+  ['points', 'timeEdited'],
+  ['points', 'imageFile'],
+  ['points', 'legacyId'],
+  ['points', '_ownerTripId'],
+  ['comments', 'timeCreated'],
+  ['comments', 'timeEdited'],
+  ['comments', 'reportComment'],
+  ['comments', 'legacyId'],
+  ['comments', '_tripId'],
+  ['failedlogs', 'legacyId'],
+  ['routenotfoundlogs', 'legacyId'],
+];
+
+const CONTROL_TABLES = ['migration_runs', 'migration_state', 'migration_quarantine'];
+
+export async function phaseActivate(prisma: PrismaClient, db: string, runId: number, dryRun: boolean): Promise<Counters> {
+  const c: Counters = { migrated: 0, skipped: 0, quarantined: 0 };
+  const report = await phaseConstraints(prisma, db);
+  const blocked = report.checks.filter((k) => !k.ok);
+  if (dryRun) {
+    // Read-only: report what WOULD be done; a missing INT column/table is
+    // pending DDL, not a quarantine.
+    const realBlocked = blocked.filter((k) => !k.detail.startsWith('pending'));
+    c.migrated = FKS.length + INDEXES.length + LEGACY_DROPS.length + CONTROL_TABLES.length;
+    c.skipped = blocked.length - realBlocked.length;
+    c.quarantined = realBlocked.length;
+    return c;
+  }
+  // Dirty-data rule: readiness blockers refuse activation but the run must
+  // still COMPLETE — each blocked check is recorded as quarantine evidence
+  // and a later run on clean data activates for real.
+  if (blocked.length > 0) {
+    for (const b of blocked) {
+      await quarantineDryAware(prisma, db, false, runId, 'Constraint', b.statement, 'BLOCKED', `Constraint not activated: ${b.detail}.`, {});
+      c.quarantined++;
+    }
+    return c;
+  }
+
+  // 2. target_types seed (defensive: the ddl phase normally seeded it already).
+  if (await tableExists(prisma, db, 'target_types')) {
+    for (const [id, name] of TARGET_TYPES) {
+      await prisma.$executeRawUnsafe(
+        `INSERT IGNORE INTO ${qtable(db, 'target_types')} (${qi('id')}, ${qi('name')}) VALUES (${id}, '${esc(name)}')`,
+      );
+    }
+  }
+
+
+  // 3. Rename legacy keys to their final names; no final column starts with `_`.
+  const usersKey = await userKeyColumn(prisma, db);
+  if (usersKey === '_id') {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'users')} CHANGE COLUMN ${qi('_id')} ${qi('id')} VARCHAR(36) NOT NULL`,
+    );
+    c.migrated++;
+  } else if (usersKey === 'id') {
+    c.skipped++;
+  } else {
+    throw new Error('users key column missing; refusing to finalize.');
+  }
+  if (await columnExists(prisma, db, 'verify', '_id')) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'verify')} CHANGE COLUMN ${qi('_id')} ${qi('id')} INT NOT NULL AUTO_INCREMENT`,
+    );
+    c.migrated++;
+  } else {
+    c.skipped++;
+  }
+  // `_ownerId VARCHAR(45)` -> `ownerId VARCHAR(36)` before the FKs: an FK to
+  // users.id VARCHAR(36) needs identical type/collation. All final ownerId
+  // columns are NOT NULL per prisma/schema.prisma (trips.ownerId is
+  // `String @db.VarChar(36)` with no `?`).
+  for (const table of ['trips', 'points', 'comments']) {
+    if (!(await columnExists(prisma, db, table, '_ownerId'))) {
+      c.skipped++;
+      continue;
+    }
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, table)} CHANGE COLUMN ${qi('_ownerId')} ${qi('ownerId')} VARCHAR(36) NOT NULL`,
+    );
+    c.migrated++;
+  }
+
+  // All string FKs to users.id must use the referenced column's exact
+  // charset/collation. This also covers new tables created with the database
+  // default and is idempotent on reruns.
+  c.migrated += await alignUserForeignKeyCollations(prisma, db);
+
+  // 4. Polymorphic comments: targetTypeId/targetId narrowed to NOT NULL once
+  //    the data is complete.
+  for (const column of ['targetTypeId', 'targetId']) {
+    if ((await columnNullable(prisma, db, 'comments', column)) === true) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, 'comments')} MODIFY ${qi(column)} INT NOT NULL`,
+      );
+      c.migrated++;
+    } else {
+      c.skipped++;
+    }
+  }
+
+  // 4b. Required V6 invariants narrowed to NOT NULL once the readiness report
+  //     above confirms no NULL rows remain: trips.dayNumber (the user-selected
+  //     ordinal of a day), trips.tripGroupId (the group every day belongs to)
+  //     and points.tripId (the day every point belongs to). These columns are
+  //     created NULL-able by the ddl/groupfinalize phases so the backfill can
+  //     park unresolved rows; activation is the single place they become NOT
+  //     NULL, matching prisma/schema.prisma. Idempotent: an already NOT NULL
+  //     column is skipped and a missing column stays pending (the readiness
+  //     report surfaces it), so the FK/index activation below runs on the final
+  //     shape.
+  for (const [table, column] of [
+    ['trips', 'dayNumber'],
+    ['trips', 'tripGroupId'],
+    ['points', 'tripId'],
+  ] as Array<[string, string]>) {
+    if ((await columnNullable(prisma, db, table, column)) === true) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, table)} MODIFY ${qi(column)} INT NOT NULL`,
+      );
+      c.migrated++;
+    } else {
+      c.skipped++;
+    }
+  }
+
+  // 4c. Point coordinates are converted to required DOUBLE values only after
+  //     the readiness report confirms there are no NULL or out-of-range rows.
+  for (const column of ['lat', 'lng']) {
+    if (await columnExists(prisma, db, 'points', column)) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, 'points')} MODIFY ${qi(column)} DOUBLE NOT NULL`,
+      );
+      c.migrated++;
+    }
+  }
+
+  // 4d. Trip column constraints to match prisma/schema.prisma. The legacy trips
+  //     table carries wrong NULL/default constraints on these columns; the
+  //     activate phase is the single place they are corrected to the final
+  //     shape. Idempotent: MODIFY is a no-op when the column already matches.
+  if (await columnExists(prisma, db, 'trips', 'price')) {
+    // Backfill NULL prices to 0 before narrowing to NOT NULL.
+    await prisma.$executeRawUnsafe(
+      `UPDATE ${qtable(db, 'trips')} SET ${qi('price')} = 0 WHERE ${qi('price')} IS NULL`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('price')} DOUBLE NOT NULL DEFAULT 0`,
+    );
+    c.migrated++;
+  }
+  if (await columnExists(prisma, db, 'trips', 'transport')) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('transport')} VARCHAR(45) NOT NULL`,
+    );
+    c.migrated++;
+  }
+  if (await columnExists(prisma, db, 'trips', 'typeOfPeople')) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('typeOfPeople')} VARCHAR(45) NOT NULL`,
+    );
+    c.migrated++;
+  }
+  if (await columnExists(prisma, db, 'trips', 'ownerId')) {
+    if ((await columnNullable(prisma, db, 'trips', 'ownerId')) === true) {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('ownerId')} VARCHAR(36) NOT NULL`,
+      );
+      c.migrated++;
+    } else {
+      c.skipped++;
+    }
+  }
+  if (await columnExists(prisma, db, 'trips', 'countEdited')) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE ${qtable(db, 'trips')} SET ${qi('countEdited')} = 0 WHERE ${qi('countEdited')} IS NULL`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('countEdited')} INT NOT NULL DEFAULT 0`,
+    );
+    c.migrated++;
+  }
+  if (await columnExists(prisma, db, 'trips', 'currency')) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE ${qtable(db, 'trips')} SET ${qi('currency')} = 'EUR' WHERE ${qi('currency')} IS NULL`,
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, 'trips')} MODIFY ${qi('currency')} VARCHAR(3) NOT NULL DEFAULT 'EUR'`,
+    );
+    c.migrated++;
+  }
+
+
+  // 5a. Final indexes FIRST: MySQL reuses a suitable index for a FK, so no
+  //     auto-created `fk_*` indexes appear (index set matches the live target).
+  for (const [name, table, columns, unique] of INDEXES) {
+    if (await indexExists(prisma, db, table, name)) {
+      c.skipped++;
+      continue;
+    }
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, table)} ADD ${unique ? 'UNIQUE ' : ''}INDEX ${qi(name)} (${columns.map((col) => qi(col)).join(', ')})`,
+    );
+    c.migrated++;
+  }
+
+  // 5b. Exact final FK set; referenced users column resolved at runtime.
+  //     ON UPDATE stays at the MySQL default (NO ACTION), like the live target.
+  const usersKeyNow = (await userKeyColumn(prisma, db)) || '_id';
+  for (const [name, table, column, refTable, refColumn, action] of FKS) {
+    if (await fkExists(prisma, db, name)) {
+      c.skipped++;
+      continue;
+    }
+    const ref = refColumn === '' ? usersKeyNow : refColumn;
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${qtable(db, table)} ADD CONSTRAINT ${qi(name)} FOREIGN KEY (${qi(column)}) REFERENCES ${qtable(db, refTable)} (${qi(ref)}) ON DELETE ${action}`,
+    );
+    c.migrated++;
+  }
+
+  // 6. Retire every legacy-only column; all consumer phases already ran, so
+  //    nothing is lost (UUID bridge, VARCHAR pointers, blob-of-tokens).
+  for (const [table, column] of LEGACY_DROPS) {
+    if (!(await columnExists(prisma, db, table, column))) {
+      c.skipped++;
+      continue;
+    }
+    await prisma.$executeRawUnsafe(`ALTER TABLE ${qtable(db, table)} DROP COLUMN ${qi(column)}`);
+    c.migrated++;
+  }
+
+  // 7. Drop the migration machinery itself; this run reports the evidence
+  //    before the tables disappear.
+  const dropped: string[] = [];
+  for (const table of CONTROL_TABLES) {
+    if (!(await tableExists(prisma, db, table))) {
+      c.skipped++;
+      continue;
+    }
+    await prisma.$executeRawUnsafe(`DROP TABLE ${qtable(db, table)}`);
+    dropped.push(table);
+    c.migrated++;
+  }
+  if (dropped.length > 0) {
+    console.log(`[activate] control tables removed from the final database: ${dropped.join(', ')}`);
+  }
+  return c;
+}

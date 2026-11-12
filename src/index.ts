@@ -1,83 +1,150 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import authController from './controllers/authController';
-import tripController from './controllers/tripController';
-import pointController from './controllers/pointController';
-import commentController from './controllers/commentController';
-import mysql from 'mysql';
-import { UserRepository } from './services/userService';
-import { TripRepository } from './services/tripService';
-import { PointTripRepository } from './services/pointService';
-import { CommentTripRepository } from './services/commentService';
-import { VerifyTokenRepository } from './services/verifyTokenService';
-import dotenv from 'dotenv';
-import cloudController from './controllers/cloudController';
-import { CloudRepository } from './services/cloudService';
-import { RouteNotFoudLogsRepository } from './services/routeNotFoundLogsService';
+import pinoHttp from 'pino-http';
+import { SERVER_PORT, SHUTDOWN_SIGNALS, TRUST_PROXY_HOPS } from './constants/application';
+import {
+  CORS_ALLOWED_HEADERS,
+  CORS_METHODS,
+  HSTS_HEADER_NAME,
+  HSTS_HEADER_VALUE,
+  JSON_BODY_LIMIT,
+  URLENCODED_BODY_LIMIT,
+  URLENCODED_PARAMETER_LIMIT,
+} from './constants/http';
+import { type EnvironmentConfig, loadEnvironmentConfig } from './config/environment';
+import { clientHeaderMiddleware } from './middlewares/clientHeaderMiddleware';
+import { publicApiRateLimit } from './middlewares/publicApiRateLimit';
+import { apiErrorMiddleware } from './middlewares/apiErrorMiddleware';
+import { requestIdMiddleware } from './middlewares/requestIdMiddleware';
+import { trimRequestBody } from './middlewares/trimRequestBody';
+import apiRouter from './routes/apiRouter';
+import { initializeApplication, releaseApplicationResources } from './startup/application';
+import { getErrorMessage } from './utils/error';
+import { logger } from './utils/logger';
 
-dotenv.config()
+/** The environment is read once and handed to every part of the startup. */
+const environment = loadEnvironmentConfig();
 
-const app = express()
-const port = 8080;
+const app = express();
 
+configureApplication(app, environment);
 
-// const allowedOrigins = ['http://localhost:3000'];
+void bootstrap(environment);
 
-const allowedOrigins = ['https://hack-trip.com', 'https://www.hack-trip.com'];
+/**
+ * Wires the HTTP stack in the order one request travels through it: the client
+ * marker first, then the transport concerns, then the routes.
+ */
+function configureApplication(application: express.Express, config: EnvironmentConfig): void {
+  application.disable('x-powered-by');
+  application.set('trust proxy', TRUST_PROXY_HOPS);
+  application.use(setHstsHeader);
 
+  application.use(requestIdMiddleware);
 
-const options: cors.CorsOptions = {
-    origin: allowedOrigins,
-    methods: 'GET,POST,PUT,DELETE'
-};
-app.use(cors(options));
+  application.use(
+    pinoHttp({
+      logger,
+      customLogLevel: (_req, res, _err) => {
+        if (res.statusCode >= 400 && res.statusCode < 500) return 'warn';
+        if (res.statusCode >= 500) return 'error';
+        return 'info';
+      },
+      customSuccessMessage: (req, res) => {
+        return `${req.method} ${res.statusCode} - ${req.url}`;
+      },
+      customErrorMessage: (_req, _res, err) => {
+        return `Request failed: ${err.message}`;
+      },
+      autoLogging: {
+        ignore: (req) => {
+          return req.method === 'OPTIONS' || req.url === '/';
+        },
+      },
+      genReqId: (req) => {
+        return (req as unknown as { id: string }).id;
+      },
+    }),
+  );
 
+  application.use(clientHeaderMiddleware);
 
+  application.use(
+    cors({
+      origin: config.corsOrigins,
+      methods: CORS_METHODS,
+      allowedHeaders: CORS_ALLOWED_HEADERS,
+      credentials: true,
+    }),
+  );
 
-app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 100000 }));
-app.use(bodyParser.json({ limit: '50mb' }));
-app.use(bodyParser.raw({ limit: '50mb', inflate: true }))
+  application.use('/api', publicApiRateLimit);
 
-app.use('/users', authController);
-app.use('/data/trips', tripController);
-app.use('/data/points', pointController);
-app.use('/data/comments', commentController);
-app.use('/data/cloud', cloudController);
+  // Binary uploads never pass through a body parser: the image storage engine
+  // reads them with its own per-file cap, so neither parser needs a large limit.
+  application.use(bodyParser.json({ limit: JSON_BODY_LIMIT }));
+  application.use(
+    bodyParser.urlencoded({
+      extended: true,
+      limit: URLENCODED_BODY_LIMIT,
+      parameterLimit: URLENCODED_PARAMETER_LIMIT,
+    }),
+  );
+  application.use(trimRequestBody);
 
+  // Registered before the routes, so the policy also reaches their responses.
+  application.use('/api', apiRouter);
 
-app.get('/', (req: express.Request, res: express.Response) => {
-    res.send('Hello  HACK TRIP ')
-});
+  // Last resort: an error raised before a router (a body parser, for example)
+  // must answer with the API contract instead of the Express default page.
+  application.use(apiErrorMiddleware);
 
+  application.get('/', (_req: express.Request, res: express.Response) => {
+    res.send('Hello  HACK TRIP ');
+  });
+}
 
+/** The proxy terminates TLS, so the application itself answers with the HSTS policy. */
+function setHstsHeader(
+  _req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  res.setHeader(HSTS_HEADER_NAME, HSTS_HEADER_VALUE);
+  next();
+}
 
-(() => {
-    const pool = mysql.createPool({
-        connectionLimit: 10,
-        host: process.env.MYSQL_HOST,
-        port: Number(process.env.MYSQOL_PORT),
-        user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASSWORD,
+async function bootstrap(config: EnvironmentConfig): Promise<void> {
+  try {
+    await initializeApplication(config);
+  } catch (error: unknown) {
+    logger.error(`[startup] configuration failed: ${getErrorMessage(error)}`);
+    await releaseApplicationResources();
+    process.exit(1);
+  }
+
+  startServer();
+}
+
+function startServer(): void {
+  const server = app.listen(SERVER_PORT, () => {
+    logger.info(`Connected succesfully on port ${SERVER_PORT}`);
+  });
+
+  server.on('error', (error: Error) => {
+    logger.error({ err: error }, 'Server error');
+  });
+
+  server.on('close', () => {
+    void releaseApplicationResources();
+  });
+
+  for (const signal of SHUTDOWN_SIGNALS) {
+    process.on(signal, () => {
+      logger.info(`[shutdown] ${signal} received, closing the server`);
+      server.close();
     });
-    app.use((req, res, next) => {
-        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-        next();
-    });
-    app.set("trust proxy", true);
-    app.set("usersRepo", new UserRepository(pool));
-    app.set("tripsRepo", new TripRepository(pool));
-    app.set("pointsRepo", new PointTripRepository(pool));
-    app.set("commentsRepo", new CommentTripRepository(pool));
-    app.set("verifyTokenRepo", new VerifyTokenRepository(pool));
-    app.set("imagesRepo", new CloudRepository(pool));
-    app.set("routeNotFoundLogsRepo", new RouteNotFoudLogsRepository(pool));
-
-    const server = app.listen(port, () => {
-        console.log(`Connected succesfully on port ${port}`)
-    });
-
-    server.on('error', err => {
-        console.log('Server error:', err);
-    });
-})();
+  }
+}

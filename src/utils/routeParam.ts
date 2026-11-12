@@ -1,3 +1,5 @@
-export function routeParam(value: string | string[]): string {
-    return Array.isArray(value) ? value[0] : value;
+import { firstValue } from './utils';
+
+export function routeParam(value: string | string[] | undefined): string {
+  return firstValue(value ?? '');
 }

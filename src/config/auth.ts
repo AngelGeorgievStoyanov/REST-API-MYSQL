@@ -1,0 +1,130 @@
+﻿import { CONNECTIONURL } from '../utils/baseUrl';
+import {
+  DEFAULT_ACCESS_TOKEN_TTL_SECONDS,
+  DEFAULT_RATE_LIMIT_EMAIL_MAX,
+  DEFAULT_RATE_LIMIT_MAX,
+  DEFAULT_RATE_LIMIT_WINDOW_SECONDS,
+  DEFAULT_REFRESH_TOKEN_TTL_SECONDS,
+} from '../constants/auth';
+
+type CookieSameSite = 'lax' | 'strict' | 'none';
+type AuthMailTransport = 'smtp' | 'file';
+
+export interface AuthRateLimitConfig {
+  windowSeconds: number;
+  /** Attempts per window for login/register/refresh/reset-password. */
+  max: number;
+  /** Attempts per window for the email sending endpoints (resend/forgot). */
+  emailMax: number;
+}
+
+export interface AuthConfig {
+  /** HMAC secret of the access JWT; always required, never defaulted in code. */
+  accessTokenSecret: string;
+  accessTokenTtlSeconds: number;
+  refreshTokenTtlSeconds: number;
+  /** Google reCAPTCHA v2 secret key; server-side only. */
+  recaptchaV2SecretKey: string;
+  /** Frontend base URL used to build the verification/reset links. */
+  appUrl: string;
+  /** Frontend routes the emailed links point at. */
+  verifyEmailPath: string;
+  passwordResetPath: string;
+  /** `Secure` cookie flag; always true in production. */
+  cookieSecure: boolean;
+  cookieSameSite: CookieSameSite;
+  /** `smtp` sends through the existing mail helper, `file` writes the dev mail. */
+  mailTransport: AuthMailTransport;
+  rateLimit: AuthRateLimitConfig;
+}
+
+type AuthEnvironmentSource = Record<string, string | undefined>;
+
+function isProduction(env: AuthEnvironmentSource): boolean {
+  return env['NODE_ENV'] === 'production';
+}
+
+function positiveSeconds(env: AuthEnvironmentSource, name: string, fallback: number): number {
+  const raw = env[name]?.trim();
+  if (raw === undefined || raw === '') return fallback;
+
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer number of seconds.`);
+  }
+  return value;
+}
+
+/**
+ * Reads the Auth environment. The access-token secret has no code fallback:
+ * without it the application refuses to start instead of signing tokens with a
+ * value that ships with the source.
+ */
+function loadAuthConfig(env: AuthEnvironmentSource = process.env): AuthConfig {
+  const production = isProduction(env);
+  const secret = env['JWT_ACCESS_SECRET']?.trim() ?? '';
+  // eslint-disable-next-line security/detect-possible-timing-attacks -- Checks whether the configured secret is empty; it does not compare secret values.
+  if (secret === '') {
+    throw new Error('JWT_ACCESS_SECRET is required to start the API (v1 authentication).');
+  }
+
+  const emailUser = env['EMAIL_USER']?.trim() ?? '';
+  const emailPassword = env['PASS_EMAIL']?.trim() ?? '';
+  const configuredTransport = env['AUTH_MAIL_TRANSPORT']?.trim().toLowerCase();
+  const mailTransport: AuthMailTransport =
+    configuredTransport === 'file'
+      ? 'file'
+      : configuredTransport === 'smtp'
+        ? 'smtp'
+        : // Without SMTP credentials a development run writes the mail to disk
+          // instead of failing the whole registration.
+          emailUser !== '' && emailPassword !== ''
+          ? 'smtp'
+          : production
+            ? 'smtp'
+            : 'file';
+
+  const sameSite = env['COOKIE_SAME_SITE']?.trim().toLowerCase();
+  const verifyEmailPath = env['AUTH_VERIFY_EMAIL_PATH']?.trim() ?? '/verify-email';
+  const passwordResetPath = env['AUTH_PASSWORD_RESET_PATH']?.trim() ?? '/reset-password';
+
+  return {
+    accessTokenSecret: secret,
+    accessTokenTtlSeconds: positiveSeconds(
+      env,
+      'ACCESS_TOKEN_EXPIRES_IN',
+      DEFAULT_ACCESS_TOKEN_TTL_SECONDS,
+    ),
+    refreshTokenTtlSeconds: positiveSeconds(
+      env,
+      'REFRESH_TOKEN_EXPIRES_IN',
+      DEFAULT_REFRESH_TOKEN_TTL_SECONDS,
+    ),
+    recaptchaV2SecretKey: env['RECAPTCHA_V2_SECRET_KEY']?.trim() ?? '',
+    appUrl: (env['AUTH_APP_URL']?.trim() ?? CONNECTIONURL).replace(/\/+$/, ''),
+    verifyEmailPath: verifyEmailPath.startsWith('/') ? verifyEmailPath : `/${verifyEmailPath}`,
+    passwordResetPath: passwordResetPath.startsWith('/')
+      ? passwordResetPath
+      : `/${passwordResetPath}`,
+    cookieSecure: production || env['COOKIE_SECURE']?.trim().toLowerCase() === 'true',
+    cookieSameSite:
+      sameSite === 'strict' || sameSite === 'none' || sameSite === 'lax'
+        ? sameSite
+        : production
+          ? 'none'
+          : 'lax',
+    mailTransport,
+    rateLimit: {
+      windowSeconds: positiveSeconds(
+        env,
+        'AUTH_RATE_LIMIT_WINDOW_SECONDS',
+        DEFAULT_RATE_LIMIT_WINDOW_SECONDS,
+      ),
+      max: positiveSeconds(env, 'AUTH_RATE_LIMIT_MAX', DEFAULT_RATE_LIMIT_MAX),
+      emailMax: positiveSeconds(env, 'AUTH_RATE_LIMIT_EMAIL_MAX', DEFAULT_RATE_LIMIT_EMAIL_MAX),
+    },
+  };
+}
+
+/** Process-wide Auth configuration; a missing secret or bad value fails here. */
+export const authConfig: AuthConfig = loadAuthConfig();
