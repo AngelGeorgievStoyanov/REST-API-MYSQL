@@ -45,9 +45,7 @@ export type AdminReportTargetRecord =
   | null;
 
 /** Safe API representation of a reported target (never a raw database row). */
-export type AdminReportTargetDto =
-  | Exclude<AdminReportTargetRecord, null>
-  | null;
+export type AdminReportTargetDto = Exclude<AdminReportTargetRecord, null> | null;
 
 /** DTO of the administrative report queue (one `reports` row). */
 export interface AdminReportDto {

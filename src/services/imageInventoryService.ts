@@ -46,15 +46,17 @@ export class ImageInventoryService {
       for (let index = 0; index < rows.length; index += 10) {
         const batch = rows.slice(index, index + 10);
         // eslint-disable-next-line no-await-in-loop -- process small GCS batches sequentially to cap request concurrency.
-        const checks = await Promise.all(batch.map(async (row) => {
-          const objectPath = toStorageObjectPath(row.filePath, baseUrl);
-          if (!objectPath) return null;
-          const [originalExists, thumbnailExists] = await Promise.all([
-            this.storage.exists(objectPath),
-            this.storage.exists(thumbnailFileName(objectPath)),
-          ]);
-          return originalExists && !thumbnailExists ? row : null;
-        }));
+        const checks = await Promise.all(
+          batch.map(async (row) => {
+            const objectPath = toStorageObjectPath(row.filePath, baseUrl);
+            if (!objectPath) return null;
+            const [originalExists, thumbnailExists] = await Promise.all([
+              this.storage.exists(objectPath),
+              this.storage.exists(thumbnailFileName(objectPath)),
+            ]);
+            return originalExists && !thumbnailExists ? row : null;
+          }),
+        );
         for (const row of checks) if (row) missing.push(row);
         if (missing.length >= targetCount) break;
       }
@@ -75,9 +77,7 @@ export class ImageInventoryService {
   /** Generates thumbnails only for explicitly selected database image IDs. */
   async generateThumbnails(ids: number[]): Promise<GenerateThumbnailsResponse> {
     const rows = await this.images.findByIds(ids);
-    const byId = new Map<number, (typeof rows)[number]>(
-      rows.map((row) => [row.id, row] as const),
-    );
+    const byId = new Map<number, (typeof rows)[number]>(rows.map((row) => [row.id, row] as const));
     const results: GenerateThumbnailsResponse['results'] = [];
 
     for (const imageId of ids) {
@@ -172,7 +172,6 @@ export class ImageInventoryService {
 function sortUnique(values: string[]): string[] {
   return [...new Set(values)].sort();
 }
-
 
 /**
  * Older rows may contain the public GCS URL instead of the object name.

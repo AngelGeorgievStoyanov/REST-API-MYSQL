@@ -62,7 +62,6 @@ export const adminPaginationQuerySchema = z
     pageSize: pageSize ?? 50,
   }));
 
-
 /** Explicitly selected image IDs for the admin thumbnail maintenance action. */
 export const generateThumbnailsSchema = z
   .object({

@@ -90,12 +90,7 @@ function requestQuery(originalUrl: string): Record<string, string | string[]> {
 
 /** Extract an explicitly submitted email field for diagnostics (never infer it from tokens). */
 function extractRequestEmail(req: Request): string | null {
-  const sources: unknown[] = [
-    req.body,
-    requestQuery(req.originalUrl),
-    req.params,
-    req.headers,
-  ];
+  const sources: unknown[] = [req.body, requestQuery(req.originalUrl), req.params, req.headers];
 
   for (const source of sources) {
     const email = findEmailValue(source);

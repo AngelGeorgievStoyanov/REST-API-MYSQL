@@ -35,7 +35,6 @@ export interface SocialImageDto extends ImageDto {
   social: SocialState;
 }
 
-
 /** Admin queue item: a database image whose original exists in GCS but thumbnail does not. */
 export type MissingThumbnailImageDto = ImageDto;
 

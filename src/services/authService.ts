@@ -531,13 +531,13 @@ function registrationAccepted(): MessageResponse {
   );
 }
 
-
 /** Expired process-local lockout buckets are swept on each login request. */
 function pruneExpiredLoginFailures(now: number): void {
   for (const [email, bucket] of loginFailures) {
-    const expired = bucket.blockedUntil !== null
-      ? bucket.blockedUntil <= now
-      : now - bucket.windowStartedAt >= LOGIN_LOCKOUT_WINDOW_MS;
+    const expired =
+      bucket.blockedUntil !== null
+        ? bucket.blockedUntil <= now
+        : now - bucket.windowStartedAt >= LOGIN_LOCKOUT_WINDOW_MS;
     if (expired) loginFailures.delete(email);
   }
 }

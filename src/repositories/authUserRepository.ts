@@ -115,11 +115,7 @@ export class AuthUserRepository {
   }
 
   /** Administrative account page, ordered by email for a stable answer. */
-  async listPage(
-    skip: number,
-    take: number,
-    role?: UserRole,
-  ): Promise<AdminAuthUserRecord[]> {
+  async listPage(skip: number, take: number, role?: UserRole): Promise<AdminAuthUserRecord[]> {
     const rows = await this.prisma.user.findMany({
       ...(role ? { where: { role } } : {}),
       orderBy: [{ email: 'asc' }, { id: 'asc' }],
@@ -135,9 +131,7 @@ export class AuthUserRepository {
   }
 
   async countUsers(role?: UserRole): Promise<number> {
-    return role
-      ? this.prisma.user.count({ where: { role } })
-      : this.prisma.user.count();
+    return role ? this.prisma.user.count({ where: { role } }) : this.prisma.user.count();
   }
 
   async updateAdmin(userId: string, data: AdminUserUpdate): Promise<AdminAuthUserRecord> {
