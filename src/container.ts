@@ -103,7 +103,7 @@ const authService = new AuthService(
   authConfig,
 );
 
-const adminUserService = new AdminUserService(authUserRepository);
+const adminUserService = new AdminUserService(authUserRepository, authService);
 const failedLogService = new FailedLogService(failedLogRepository);
 const imageInventoryService = new ImageInventoryService(imageRepository, gcsImageFileStorage);
 
