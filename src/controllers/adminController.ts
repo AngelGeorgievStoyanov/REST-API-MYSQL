@@ -12,6 +12,7 @@ import { apiErrorMiddleware } from '../middlewares/apiErrorMiddleware';
 import { actorFrom, requireRole } from '../middlewares/authBoundary';
 import { authRateLimit } from '../middlewares/authRateLimit';
 import { routeNotFoundLogsMiddleware } from '../middlewares/routeNotFoundLogsMiddleware';
+import { imageUpload, uploadedFileName } from '../storage/imageUpload';
 import { asyncHandler } from '../utils/asyncHandler';
 import { routeParam } from '../utils/routeParam';
 import { validateRequest } from '../validation/validateRequest';
@@ -58,6 +59,56 @@ adminController.put(
           req.body,
         ),
       );
+  }),
+);
+
+adminController.get(
+  '/users/:userId/image',
+  adminLimiter,
+  validateRequest({ params: userIdParams }),
+  adminOrModerator,
+  asyncHandler(async (req, res) => {
+    res
+      .status(200)
+      .json(
+        await adminUserService.getUserProfileImage(
+          actorFrom(req),
+          routeParam(req.params['userId']),
+        ),
+      );
+  }),
+);
+
+adminController.post(
+  '/users/:userId/image',
+  adminLimiter,
+  validateRequest({ params: userIdParams }),
+  adminOrModerator,
+  imageUpload,
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(
+        await adminUserService.setUserProfileImage(
+          actorFrom(req),
+          routeParam(req.params['userId']),
+          uploadedFileName(req),
+        ),
+      );
+  }),
+);
+
+adminController.delete(
+  '/users/:userId/image',
+  adminLimiter,
+  validateRequest({ params: userIdParams }),
+  adminOrModerator,
+  asyncHandler(async (req, res) => {
+    await adminUserService.removeUserProfileImage(
+      actorFrom(req),
+      routeParam(req.params['userId']),
+    );
+    res.status(204).send();
   }),
 );
 
