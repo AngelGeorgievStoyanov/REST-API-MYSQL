@@ -36,6 +36,12 @@ export class AdminUserService {
     return toAdminPageDto(toAuthUserDtoList(rows), total, pagination.page, pagination.pageSize);
   }
 
+  async assertCanManageUser(actor: TripActor, rawUserId: string): Promise<void> {
+    const userId = requireTrimmedString(rawUserId, 'userId', MAX_USER_ID_LENGTH);
+    const user = await this.requireUser(userId);
+    this.assertManagerTargetIsUser(actor, user);
+  }
+
   async getUserProfileImage(actor: TripActor, rawUserId: string): Promise<ImageDto | null> {
     const userId = requireTrimmedString(rawUserId, 'userId', MAX_USER_ID_LENGTH);
     const user = await this.requireUser(userId);
