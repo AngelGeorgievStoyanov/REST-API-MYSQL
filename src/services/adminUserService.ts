@@ -2,6 +2,7 @@ import { Prisma, UserRole, UserStatus } from '@prisma/client';
 import { CLIENT_CONTROLLED_USER_FIELDS } from '../constants/admin';
 import { MAX_USER_ID_LENGTH } from '../constants/auth';
 import { type AuthUserDto, type AuthUserRecord } from '../model/auth';
+import { type ImageDto } from '../model/image';
 import { type AdminPage } from '../model/admin';
 import { type TripActor } from '../model/trip';
 import { normalizeEmail, normalizeName, hashPassword } from '../utils/auth';
@@ -16,9 +17,13 @@ import { toAuthUserDto, toAuthUserDtoList } from '../mappers/userMapper';
 import { toAdminPageDto } from '../mappers/adminMapper';
 import { parseAdminPagination } from '../utils/adminPagination';
 import { type AdminUserUpdate, type AuthUserRepository } from '../repositories/authUserRepository';
+import { type AuthService } from './authService';
 
 export class AdminUserService {
-  constructor(private readonly users: AuthUserRepository) {}
+  constructor(
+    private readonly users: AuthUserRepository,
+    private readonly auth: AuthService,
+  ) {}
 
   async listUsers(actor: TripActor, query: unknown): Promise<AdminPage<AuthUserDto>> {
     const pagination = parseAdminPagination(query);
@@ -29,6 +34,34 @@ export class AdminUserService {
     ]);
 
     return toAdminPageDto(toAuthUserDtoList(rows), total, pagination.page, pagination.pageSize);
+  }
+
+  async getUserProfileImage(actor: TripActor, rawUserId: string): Promise<ImageDto | null> {
+    const userId = requireTrimmedString(rawUserId, 'userId', MAX_USER_ID_LENGTH);
+    const user = await this.requireUser(userId);
+    this.assertManagerTargetIsUser(actor, user);
+
+    return this.auth.getProfileImage(userId);
+  }
+
+  async setUserProfileImage(
+    actor: TripActor,
+    rawUserId: string,
+    filePath: string,
+  ): Promise<ImageDto> {
+    const userId = requireTrimmedString(rawUserId, 'userId', MAX_USER_ID_LENGTH);
+    const user = await this.requireUser(userId);
+    this.assertManagerTargetIsUser(actor, user);
+
+    return this.auth.setProfileImage(userId, filePath);
+  }
+
+  async removeUserProfileImage(actor: TripActor, rawUserId: string): Promise<void> {
+    const userId = requireTrimmedString(rawUserId, 'userId', MAX_USER_ID_LENGTH);
+    const user = await this.requireUser(userId);
+    this.assertManagerTargetIsUser(actor, user);
+
+    return this.auth.removeProfileImage(userId);
   }
 
   async updateUser(actor: TripActor, rawUserId: string, body: unknown): Promise<AuthUserDto> {
