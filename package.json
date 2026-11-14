@@ -8,7 +8,7 @@
   "main": "index.js",
   "scripts": {
     "server": "node --inspect=5858 -r ts-node/register/transpile-only ./src/index.ts",
-    "start": "npx tsc && pm2 start ./build/index.js",
+    "start": "npm run build && (pm2 describe hacktrip-api >/dev/null 2>&1 && pm2 restart hacktrip-api --update-env || pm2 start ./build/index.js --name hacktrip-api)",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "dev": "nodemon",
